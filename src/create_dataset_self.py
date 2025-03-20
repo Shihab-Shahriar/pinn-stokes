@@ -7,8 +7,10 @@ from scipy.spatial.transform import Rotation as R
 from mfs_utils import (build_B, createNewEllipsoid, random_unit_vector,
                        random_orientation_spheroid, get_QM_QN)
 
-# np.random.seed(42)
-# random.seed(43)
+
+# NOTE THE SEEDS. Set since we don't expect to run same script multiple times here.
+np.random.seed(42)
+random.seed(43)
 
 
 def generate_dataset_spheroid(shape, N_samples, a, b, c):
@@ -73,7 +75,7 @@ def generate_dataset_spheroid(shape, N_samples, a, b, c):
 
 
 if __name__ == "__main__":
-    shape = "oblateSpheroid"
+    shape = "sphere"
     acc = "fine"
     axes_length = {
         "prolateSpheroid": (1.0, 1.0, 3.0),
@@ -81,11 +83,11 @@ if __name__ == "__main__":
         "sphere":          (1.0, 1.0, 1.0),
     }
     a, b, c = axes_length[shape]
-    N_samples = 10000
+    N_samples = 10_000
     X,y = generate_dataset_spheroid(shape, N_samples, a, b, c)
 
     t = time.localtime()
-    current_time = time.strftime("%H:%M", t)
+    current_time = time.strftime("%H:%M", t)+"_"+str(random.randint(0, 100))
     np.save(f"data/X_self_{shape}_{current_time}.npy", X)
     np.save(f"data/Y_self_{shape}_{current_time}.npy", y)
     print(f"Saved {N_samples} samples.")

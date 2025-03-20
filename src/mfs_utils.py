@@ -52,7 +52,7 @@ def build_B(b, s, x0):
     f_torque_blocks = [S(s[j, :] - x0) for j in range(M)]
     f_torque_block = np.hstack(f_torque_blocks)  # (3, 3M)
 
-    B_top = np.hstack([A, -V_block, -Omega_block])
+    B_top = np.hstack([A, -V_block, Omega_block]) # Place of a nasty bug
     B_mid_force = np.hstack([f_force_block, np.zeros((3,3)), np.zeros((3,3))])
     B_mid_torque = np.hstack([f_torque_block, np.zeros((3,3)), np.zeros((3,3))])
     B = np.vstack([B_top, B_mid_force, B_mid_torque])
