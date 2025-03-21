@@ -2,6 +2,7 @@ import time
 import numpy as np
 from scipy.optimize import minimize
 from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Rotation
 
 def S(w):
     """Skew-symmetric matrix for cross products: S(w)*v = w x v."""
