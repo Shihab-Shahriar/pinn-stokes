@@ -6,9 +6,13 @@ any of the existing spheres.
 """
 
 import numpy as np
+import pandas as pd
 from scipy.spatial.distance import cdist
-from simulation_singleP import build_B
-from create_dataset import G_vec
+from src.mfs_utils import (build_B, createNewEllipsoid, get_QM_QN,
+                            min_distance_two_ellipsoids)
+from src.mfs import G_vec
+from scipy.spatial.transform import Rotation
+from scipy.optimize import minimize
 
 import time
 
@@ -165,11 +169,138 @@ def grow_cluster(P=10, R=1.0, delta=0.1):
             # check if new_center is at least min_dist from all existing centers
             if all(np.linalg.norm(new_center - c) >= min_dist for c in centers):
                 centers.append(new_center)
-                
                 break
-
-
     return np.array(centers)
+
+
+
+
+def create_another_ellipsoid(a, b, c, center1, orientation1, d, n_random_starts=5):
+    """
+    Randomly choose an orientation for the second ellipsoid (same semi-axes a,b,c),
+    then numerically solve for center2 so that the global minimal distance to the first
+    ellipsoid is as close as possible to d.
+
+    Returns (center2, orientation2).
+    """
+    # Convert orientation1 to a 3x3 rotation matrix
+    R1 = orientation1.as_matrix()
+
+    # Step 1: Random orientation for second ellipsoid
+    rot2 = Rotation.random()
+    R2 = rot2.as_matrix()
+    orientation2 = rot2
+
+    # Step 2: We'll define an objective that tries to match min_distance_two_ellipsoids(...) = d
+    def distance_gap(center2):
+        dist = min_distance_two_ellipsoids(a, b, c, center1, R1,
+                                           a, b, c, center2, R2)
+        return (dist - d)**2  # We want this gap to be zero => dist == d
+
+    best_center2 = None
+    best_obj_val = np.inf
+
+    # Try multiple random starts for center2
+    for _ in range(n_random_starts):
+        # We'll pick an initial guess "somewhere" near center1, e.g. random direction * some random distance
+        rand_dir = np.random.normal(size=3)
+        rand_dir /= np.linalg.norm(rand_dir)
+        # Start about (a + b + c + d) away, or something big enough
+        center2_init = center1 + (a + b + c + d) * rand_dir
+
+        # Solve an unconstrained optimization in 3D for center2
+        res = minimize(
+            distance_gap,
+            center2_init,
+            method='L-BFGS-B',    # 3D unconstrained
+            options={'maxiter': 500, 'ftol': 1e-10}
+        )
+
+        if res.success and res.fun < best_obj_val:
+            best_obj_val = res.fun
+            best_center2 = res.x
+
+    # If we never found a solution or best_obj_val is large, the solver might not have converged well.
+    # But we'll return the best we found.
+    if best_center2 is None:
+        # fallback: just do naive "line-based" placement
+        # see note: won't guarantee the global min distance = d
+        # but won't fail
+        rand_dir = np.random.normal(size=3)
+        rand_dir /= np.linalg.norm(rand_dir)
+        best_center2 = center1 + (2*a + d) * rand_dir
+
+    return best_center2, orientation2
+
+
+def grow_ellipsoid_cluster(P, a, b, c, delta, max_attempts=10000):
+    """
+    Grow a cluster of P axis-aligned ellipsoids, each with half-axes (a, b, c).
+    We maintain at least 'delta' surface distance between any pair of ellipsoids.
+    
+    Parameters
+    ----------
+    P : int
+        Number of ellipsoids to place.
+    a, b, c : floats
+        Half-axes of all ellipsoids (assuming axis-aligned).
+    delta : float
+        Minimum separation between surfaces of any two ellipsoids.
+    max_attempts : int
+        Safeguard limit for attempts at placing each new ellipsoid.
+    
+    Returns
+    -------
+    centers : np.ndarray, shape (P, 3)
+        The 3D coordinates of the centers of the placed ellipsoids.
+    """
+    centers = [np.zeros(3)]  # First ellipsoid at the origin
+    orientation = [Rotation.identity()]  # First ellipsoid is axis-aligned
+    
+    for i in range(1, P):
+        # Attempt to place the i-th ellipsoid
+        placed = False
+        for aatmpt in range(max_attempts):
+            # Pick a random existing ellipsoid to grow from
+            if aatmpt % 10 == 0:
+                print(f"Attempt {aatmpt} for ellipsoid {i+1}")
+
+            ref_idx = np.random.randint(0, i)
+            ref_center = centers[ref_idx]
+            ref_orient = orientation[ref_idx]
+            
+            new_center, new_orient = create_another_ellipsoid(
+                a, b, c, ref_center, ref_orient, delta
+            )
+            
+            # -------------------------------------------------------
+            # 2) Check if this new ellipsoid is >= delta away from
+            #    all other ellipsoids in the cluster.
+            # -------------------------------------------------------
+            for j in range(i):
+                surface_dist = min_distance_two_ellipsoids(
+                    a, b, c, centers[j], orientation[j],
+                    a, b, c, new_center, new_orient, n_starts=6
+                )
+                if surface_dist< delta-1e-4:
+                    print(surface_dist, delta)
+                    break
+            else:
+                # If we didn't break out of the loop, the new ellipsoid is placed
+                centers.append(new_center)
+                orientation.append(new_orient)
+                placed = True
+                print(f"Placed ellipsoid {i+1} after {aatmpt+1} attempts.")
+                break
+        
+        if not placed:
+            # If we exhaust max_attempts, we either return what we have
+            # or raise an exception. Here we'll just return partial cluster.
+            print(f"Warning: Could only place {len(centers)} ellipsoids out of {P}.")
+            break
+    
+    return np.array(centers), orientation
+
 
 def write_vtk(centers, filename="cluster.vtk"):
     """
@@ -197,40 +328,62 @@ def write_vtk(centers, filename="cluster.vtk"):
             f.write(f"{i}\n")
 
 if __name__=="__main__":
-    numParticles=500
-    R=1.0
-    delta=.8
-    TOLERANCE = 1e-7
+    import random
+    random.seed(42)
+    np.random.seed(42)
+
+    numParticles=10
+    delta=1.0
+    TOLERANCE = 1e-8
     acc = "fine"
-    shape = "sphere"
+    shape = "prolateSpheroid"
+    a,b,c = 1.0, 1.0, 3.0
 
     print(f"{TOLERANCE=}")
     print(f"{acc=}")
-    print(f"Cluster of {numParticles} spheres, radius {R}, min separation {delta}")
+    print(f"{a=}, {b=}, {c=}")
+    print(f"{numParticles=}")
+    print(f"{delta=}")
 
-    centers = grow_cluster(numParticles,R,delta)
-    non_diag = ~np.eye(numParticles, dtype=bool)
-    dd = cdist(centers, centers)[non_diag].reshape(numParticles,numParticles-1)
-    dd = dd.min(axis=1)
-    assert np.allclose(dd, 2*R+delta)
+    start = time.time()
+    centers, orients = grow_ellipsoid_cluster(numParticles,a,b,c,delta)
+    end = time.time()
+    print(f"Elapsed time: {end-start:.3f} seconds")
+
+    # Check that the minimum separation is maintained
+    for i in range(numParticles):
+        my_min = np.inf
+        for j in range(i):
+            dd = min_distance_two_ellipsoids(a,b,c,centers[i],orients[i],
+                                        a,b,c,centers[j],orients[j])
+
+            assert dd >= delta-1e-4, f"Separation violation: {dd} < {delta}"
+
+            my_min = min(my_min, dd)
+        print(f"Min distance for ellipsoid {i}: {my_min}")
 
     print("cluster created")
 
-    write_vtk(centers, "cluster.vtk")
-    print("Wrote cluster.vtk with sphere centers.")
+    # write_vtk(centers, "cluster.vtk")
+    # print("Wrote cluster.vtk with sphere centers.")
 
-    b_single = np.loadtxt(f'points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
-    s_single = np.loadtxt(f'points/s_{shape}_{acc}.txt', dtype=np.float64)
+    root = "/home/shihab/src/mfs/"
+    b_single = np.loadtxt(f'{root}points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
+    s_single = np.loadtxt(f'{root}points/s_{shape}_{acc}.txt', dtype=np.float64)
     
     N = b_single.shape[0]  # number of boundary nodes
     M = s_single.shape[0]  # number of source points
 
-    b_list = [
-        b_single + c for c in centers
-    ]
-    s_list = [
-        s_single + c for c in centers
-    ]
+    
+    b_list = [b_single]
+    s_list = [s_single]
+    for i in range(1, numParticles):
+        boundary_i, source_i = createNewEllipsoid(centers[i], orients[i],
+                                                s_single, b_single)
+        b_list.append(boundary_i)
+        s_list.append(source_i)
+
+
     F = 1.0 * 6* np.pi  # choose some magnitude
     F_ext_list = [
         np.array([0.0, 0.0, F], dtype=np.float64) for _ in centers
@@ -241,8 +394,11 @@ if __name__=="__main__":
 
     B = build_B(b_single, s_single, np.zeros(3))
     Bpp_inv = np.linalg.pinv(B)
-
-    Bpp_inv_list = [Bpp_inv.copy() for _ in range(numParticles)]
+    Bpp_inv_list = [Bpp_inv.copy()]
+    for i in range(1, numParticles):
+        QM2, QN2 = get_QM_QN(orients[i], b_single.shape[0], s_single.shape[0])
+        B2_inv = QM2 @ Bpp_inv @ QN2.T
+        Bpp_inv_list.append(B2_inv)
 
     # Run the IMP-MFS mobility solver
     start_time = time.time()
@@ -250,9 +406,30 @@ if __name__=="__main__":
         b_list, s_list, centers, F_ext_list, T_ext_list, Bpp_inv_list,
         L_cut=25.0, max_iter=1000, tol=TOLERANCE, print_interval=50
     )
-
     end_time = time.time()
     print(f"Elapsed time: {end_time-start_time:.3f} seconds")
 
 
+    columns = ["x", "y", "z",  
+               "q_x", "q_y", "q_z", "q_w", 
+               "f_x", "f_y", "f_z",
+               "t_x", "t_y", "t_z",
+               "v_x", "v_y", "v_z",
+               "w_x", "w_y", "w_z"]
+    df = pd.DataFrame(columns=columns)
 
+    M = s_list[i].shape[0]
+    for i in range(numParticles):
+        solution_i = V_tilde_list[i]
+        velocity_i = solution_i[3*M : 3*M + 3]
+        omega_i    = solution_i[3*M + 3 : 3*M + 6]
+        df.loc[i] = np.concatenate([centers[i], orients[i].as_quat(scalar_first=False),
+                                    F_ext_list[i], T_ext_list[i], velocity_i, omega_i])
+
+    #save to csv
+    df.to_csv("reference_ellipsoid.csv", index=False, header=True, float_format="%.16g")
+
+    # test saving didn't lose precision
+    df2 = pd.read_csv("reference_ellipsoid.csv", float_precision="high",
+                      header=0, index_col=False)
+    assert np.allclose(df.values, df2.values)
