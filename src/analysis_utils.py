@@ -8,14 +8,27 @@ import torch
 
 # torch.manual_seed(1234)
 # np.random.seed(12345)
-
+def mean_abs_err(val_output, val_velocity_tensor, ignore_thres = 1e-6, npp=False):
+    # 6D vector: median % error for each vel component
+    valid_mask = torch.abs(val_velocity_tensor) > ignore_thres
+    
+    filtered_y_tensor = torch.where(valid_mask, val_velocity_tensor, torch.tensor(float('nan')))
+    relative_error = torch.abs((val_output - filtered_y_tensor) / filtered_y_tensor)
+    
+    a = torch.nanmean(relative_error, dim=0)
+    return a*100
+    
 def quaternion_to_6d_batch(quats):
     """
     CVPR: On the continuity of rotation representations in neural networks'19
     """
+    if isinstance(quats[0], Rotation):
+        # If the first element is already a Rotation object, convert to numpy array
+        quats = [quat.as_quat(scalar_first=False) for quat in quats]
+
     quats = np.asarray(quats)
     # Create a batch Rotation object from an (N,4) array
-    rot_batch = Rotation.from_quat(quats)  # shape (N,)
+    rot_batch = Rotation.from_quat(quats,  scalar_first=False)  # shape (N,)
     
     # Extract the 3x3 matrices, shape (N, 3, 3)
     R = rot_batch.as_matrix()

@@ -13,9 +13,9 @@ import torch
 from scipy.spatial.transform import Rotation as R
 from scipy.spatial.transform import Rotation
 
-from analysis_utils import shuffle_and_split, convert_to_tensors
-from model_archs import SelfInteraction, TwoBodyInteraction
-from mfs_utils import min_distance_ellipsoids
+from analysis_utils import quaternion_to_6d_batch
+from model_archs import SelfInteraction, TwoBodySphere, TwoBodyProlate
+from mfs_utils import min_distance_two_ellipsoids
 
 import sys 
 sys.path.append("/home/shihab/repo/utils")
@@ -37,8 +37,7 @@ def compute_rot_batch(rot_partial_flat):
 
 def rotate_forces_torques(forces_lab, torques_lab, rot, lab_to_body=True):
     """
-    Rotate forces & torques from lab frame to the body frame (which we'll
-    assume is aligned with the spheroid's major axis = z-axis in the body frame).
+    Rotate forces & torques.
     
     forces_lab, torques_lab, rotvec all have shape (N,3).
     """
@@ -57,21 +56,33 @@ class NNMob:
     Forces and torque has to be converted to particle's body (i.e. local) frame
     for self interaction. For two body interaction, we need to rotate the forces
     """
-    def __init__(self, self_nn_path, two_nn_path):
-        self.self_nn = SelfInteraction(9)
-        self.two_nn = TwoBodyInteraction(5)
-        self.abc = np.array([1.0, 1.0, 1.0]) # Hardcoded for spheres
+    def __init__(self, shape, self_nn_path, two_nn_path, rpy=False):
+        self.shape = shape
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.self_nn.load_state_dict(torch.load(self_nn_path,weights_only=True))
-        self.two_nn.load_state_dict(torch.load(two_nn_path,weights_only=True))
-        self.self_nn.eval()
-        self.two_nn.eval()
+        axes = {
+            'sphere': [1.0, 1.0, 1.0],
+            'prolateSpheroid': [1.0, 1.0, 3.0],
+            'oblateSpheroid': [2.0, 2.0, 1.0],
+        }
+        self.abc = np.array(axes[shape], dtype=np.float64) 
 
-    def get_self_vel(self, pos, orientations, force):
+        self.self_nn= torch.jit.load(self_nn_path, map_location=self.device).eval()
+        self.two_nn = torch.jit.load(two_nn_path, map_location=self.device).eval()
+
+
+        self.use_rpy = rpy
+        print("Two body rpy?", rpy)
+        print("NNMob shape: ", shape)
+        print("NNMob axes: ", axes)
+
+
+    def get_self_vel(self, orientations, force, viscosity):
         N = len(orientations)
         assert force.shape == (len(orientations), 6)
         
-        orient6d = orientations.as_matrix()[:, :, :2].reshape(N, 6)
+        # source of a previous bug
+        orient6d = quaternion_to_6d_batch(orientations)
         
         abc = np.repeat(self.abc[None, :], N, axis=0)
         input_self = np.concatenate((abc, orient6d), axis=1) # shape (N, 9)
@@ -82,11 +93,14 @@ class NNMob:
         force_body = np.concatenate((f, t), axis=1) # shape (N, 6)
 
         # Convert to tensors
-        X_self = torch.tensor(input_self, dtype=torch.float32)
-        force_tensor = torch.tensor(force_body, dtype=torch.float32)
+        X_self = torch.tensor(input_self, dtype=torch.float32, device=self.device)
+        force_tensor = torch.tensor(force_body, dtype=torch.float32, device=self.device)
 
+        print("Sums of tensors going to NN:", X_self.sum(), force_tensor.sum())
+
+        viscosity_tensor = torch.tensor(viscosity, dtype=torch.float32, device=self.device)
         with torch.no_grad():
-            v_self = self.self_nn.predict_velocity(X_self, force_tensor).numpy()
+            v_self = self.self_nn.predict_velocity(X_self, force_tensor, viscosity_tensor).cpu().numpy()
         
         # Rotate the velocities back to the lab frame
         v_self[:, :3], v_self[:, 3:] = rotate_forces_torques(
@@ -155,7 +169,7 @@ class NNMob:
 
 
 
-    def get_two_vel(self, pos, orientations, force):
+    def get_two_vel(self, pos, orientations, force, viscosity):
         """
         Assumptions: Particles don't already overlap.
 
@@ -174,6 +188,7 @@ class NNMob:
         for t in range(N):
             features = []
             forces = []
+            min_dist_all = np.inf
             for s in range(N):
                 if s == t:
                     continue
@@ -182,8 +197,15 @@ class NNMob:
                 # predict_velocity() reverses the direction 
                 center2 = pos[s] - pos[t] 
                 dist = np.linalg.norm(center2)
-                min_dist = min_distance_ellipsoids(1.0, 1.0, 1.0, center2, orientations[j], n_starts=10)
-                assert np.allclose(min_dist, dist-2.0, 1e-3), f"{min_dist=} {dist=}" # for spheres of radius 1.0
+
+                min_dist = min_distance_two_ellipsoids(
+                    self.abc[0], self.abc[1], self.abc[2], pos[t], orientations[t],
+                    self.abc[0], self.abc[1], self.abc[2], pos[s], orientations[s],
+                    n_starts=20) 
+                
+                #assert np.allclose(min_dist, dist-2.0, 1e-3), f"{min_dist=} {dist=}" # for spheres of radius 1.0
+                min_dist_all = min(min_dist_all, min_dist)
+
 
                 # TODO: I am not very confident about these rotations. Even if there 
                 # is a bug, we might not catch it with sphere.
@@ -193,30 +215,47 @@ class NNMob:
                 
                 # Apply this rotation to force2, torque2
                 F2_new, T2_new = R_sys.apply(force[s, :3]), R_sys.apply(force[s, 3:])
+                center2 = R_sys.apply(center2)
 
                 # But not to R_j. In training, we defined R_j as the rotation needed
                 # to align p1's major axis to p2's major axis. 
                 R_rel = orientations[s] * orientations[t].inv()
 
                 # TODO Update: I think center2 needs to be rotated as well
-                center2 = R_sys.apply(center2)
 
-                rot6d = R_rel.as_matrix()[:, :2].flatten()
-                inp_feat = np.concatenate((center2, [dist, min_dist]))
+                rot6d = quaternion_to_6d_batch([R_rel])[0]
+
+                if self.shape=='sphere':
+                    inp_feat = np.concatenate((center2, [dist, min_dist]))
+                    assert inp_feat.shape == (5,)
+                else:
+                    inp_feat = np.concatenate((center2, [dist, min_dist], rot6d))
+                    assert inp_feat.shape == (11,)
+
                 force_torque = np.concatenate((F2_new, T2_new))
 
                 features.append(inp_feat)
                 forces.append(force_torque)
 
-                assert inp_feat.shape == (5,)
                 assert force_torque.shape == (6,)
 
-            features = torch.tensor(np.array(features), dtype=torch.float32)
-            forces = torch.tensor(np.array(forces), dtype=torch.float32)
+                if t==1 and s==2:
+                    print("features", inp_feat)
+                    print("forces", force_torque)
+                    print("min_dist", min_dist)
+                    print("dist", dist)
+                    print("min_dist_all", min_dist_all)
+
+            
+            assert np.allclose(min_dist_all, 1.0, 1e-4), f"{min_dist_all=}" # anna broms, prolate config
+            
+            features = torch.tensor(np.array(features), dtype=torch.float32, device=self.device)
+            forces = torch.tensor(np.array(forces), dtype=torch.float32, device=self.device)
             #print(features.shape, forces.shape)
 
+            viscosity_tensor = torch.tensor(viscosity, dtype=torch.float32, device=self.device)
             with torch.no_grad():
-                v_two = self.two_nn.predict_velocity(features, forces).numpy()
+                v_two = self.two_nn.predict_velocity(features, forces, viscosity_tensor).cpu().numpy()
                 assert v_two.shape == (N-1, 6)
             
             # project the velocities back to the lab frame
@@ -232,7 +271,7 @@ class NNMob:
         return velocities
 
         
-    def apply(self, config, force, rpy=False):
+    def apply(self, config, force, viscosity):
         """
         For a given particle configuration, apply forces on the particles
         and return the velocity.
@@ -257,20 +296,43 @@ class NNMob:
         orientations = Rotation.from_quat(config[:, 3:], scalar_first=False) # (x, y, z, w) 
         pos = config[:, :3]
 
-        v_self = self.get_self_vel(pos, orientations, force)
+        v_self = self.get_self_vel(orientations, force, viscosity)
         
-        print("Two body rpy?", rpy)
-        if rpy:
+        if self.use_rpy:
             v_two = self.get_two_vel_rpy(pos, orientations, force)
         else:
-            v_two = self.get_two_vel(pos, orientations, force)
+            v_two = self.get_two_vel(pos, orientations, force, viscosity)
 
         return v_self + v_two
 
+# --------------------------------------------------------
+# BASIC TESTING CODE BELOW
+
+def check_against_ref(mob, path):
+    # Load the reference data
+    viscosity = 1.0
+    df = pd.read_csv(path, float_precision="high",
+                        header=0, index_col=False)
+    print(df.head())
+
+    numParticles = df.shape[0]    
+    config = df[["x","y","z","q_x","q_y","q_z","q_w"]].values
+    forces = df[["f_x","f_y","f_z","t_x","t_y","t_z"]].values
+    velocity = df[["v_x","v_y","v_z","w_x","w_y","w_z"]].values
+    
+    v = mob.apply(config, forces, viscosity)
+    
+    np.set_printoptions(precision=5, suppress=True)
+    for i in range(numParticles):
+        print(i)
+        lin_rmse = np.sqrt(np.mean((v[i, :3] - velocity[i, :3])**2))
+        ang_rmse = np.sqrt(np.mean((v[i, 3:] - velocity[i, 3:])**2))
+        print(f"linear: {v[i, :3]} {velocity[i, :3]} {lin_rmse:.4f}")
+        print(f"angular: {v[i, 3:]} {velocity[i, 3:]} {ang_rmse:.4f}")
 
 
 
-if __name__ == "__main__":
+def helens_3body_sphere():
     R = 1.0  
     S = 1.0   # separation between sphere centers equals R
     
@@ -314,21 +376,17 @@ if __name__ == "__main__":
     print()
     print(v)
 
-    # SPD check
-    # M = np.zeros((18, 18))
-    # for i in range(18):
-    #     delta = np.zeros(18)
-    #     delta[i] = 1.0
-    #     delta = delta.reshape(3, 6)
-    #     v = mob.apply(C, delta)
-    #     M[:, i] = v.flatten()
 
-    # eigens = np.linalg.eigvals(M)
-    # print("Eigenvalues of M:", eigens)
-    # print("Is M SPD?", np.all(eigens > 1e-4))
+if __name__ == "__main__":
+    shape = "sphere"
+    self_path = "data/models/self_interaction_model.pt"
+    two_body = "data/models/two_body_sphere_model.pt"
 
-    # # Symmetry check. tol can't be too low cause NN
-    # print("Is M symmetric?", np.allclose(M, M.T, atol=1e-4))
+    path = "/home/shihab/repo/data/reference_sphere.csv"
+
+    mob = NNMob(shape, self_path, two_body)
+    check_against_ref(mob, path)
+
 
 
 # if __name__ == "__main__":

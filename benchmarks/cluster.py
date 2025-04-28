@@ -76,18 +76,25 @@ def imp_mfs_multiparticle(
             for q in range(P):
                 if q == p:
                     continue
-                x_q = x[q]
+                #x_q = x[q]
+                x_q = old_solutions[q]
                 # f_q: shape (M, 3)
                 f_q = x_q[:3*M].reshape(M, 3)
+                # if iteration==1:
+                #     f_q = f_q[:2]  
 
                 dist_pq = np.linalg.norm(center_list[p] - center_list[q])
 
                 if dist_pq < L_cut:
                     sq = s_list[q]  # shape (M,3)
+                    # if iteration==1:
+                    #     sq = sq[:2]  
 
                     # Vector of displacements: shape (N, M, 3)
                     # r[n, m, :] = bp[n] - sq[m]
                     r = bp[:, None, :] - sq[None, :, :]
+                    # if iteration==1:
+                    #     r = r[:, :2, :]
 
                     # Gmatrix: shape (N, M, 3, 3)
                     Gmatrix = G_vec(r)
@@ -110,13 +117,28 @@ def imp_mfs_multiparticle(
                 # Flatten and add to w[0:3N]
                 w[:3*N] += v.reshape(3*N)
 
+                # if p==0:
+                #     np.set_printoptions(suppress=True, precision=8)
+                #     print(f"p0, v0 after {q}: ", w[3:6])
+                #     print(f"posx_accum for {q}: {sq[:, 0].sum():.9f}")
+                #     print(f"fx_accum for {q}: {f_q[:, 0].sum():.9f}")
+                #     if iteration==1:
+                #         assert len(sq) == len(f_q) ==2
+
             # Now solve for x[p] using the pre-inverted matrix B_inv_list[p]
             # The right-hand side is F_tilde[p] - w
             rhs = F_tilde_list[p] - w
             x[p] = B_inv_list[p] @ rhs
+            # print("sum of rhs[p]:", p, rhs.sum(), F_tilde_list[p].sum(), w.sum())
+            # print("v0:" , p, w[:3])
             
             F_p = x[p][:3*M]
             stokeslet_sum[p] = np.sum(F_p.reshape(M, 3), axis=0)
+
+
+
+        print("sum of old solutions:", iteration, np.array(old_solutions).sum())
+        print("sum of new solutions:", iteration, np.array(x).sum())
 
         # Check convergence
         max_diff = 0.0
@@ -129,7 +151,7 @@ def imp_mfs_multiparticle(
             print(f"Converged after {iteration+1} iterations with max diff = {max_diff:e}")
             break
         else:
-            print(f"Iteration {iteration+1}: max diff = {max_diff:e}")
+            print(f"Iteration {iteration}: max diff = {max_diff:e}")
     else:
         print(f"Warning: Did not converge within {max_iter} iterations. Final max diff = {max_diff:e}")
         raise RuntimeError("Solver did not converge")
@@ -327,17 +349,28 @@ def write_vtk(centers, filename="cluster.vtk"):
         for i in range(P):
             f.write(f"{i}\n")
 
-if __name__=="__main__":
+
+
+def reference_data_generation():
+    """
+    Was used to both generate reference dataset, and compare cuda impl
+    accuracy against this.
+    """
     import random
     random.seed(42)
     np.random.seed(42)
 
     numParticles=10
     delta=1.0
-    TOLERANCE = 1e-8
+    TOLERANCE = 1e-7
     acc = "fine"
-    shape = "prolateSpheroid"
-    a,b,c = 1.0, 1.0, 3.0
+    shape = "sphere"
+    axes_length = {
+        "prolateSpheroid": (1.0, 1.0, 3.0),
+        "oblateSpheroid":  (2.0, 2.0, 1.0),
+        "sphere":          (1.0, 1.0, 1.0),
+    }
+    a, b, c = axes_length[shape]
 
     print(f"{TOLERANCE=}")
     print(f"{acc=}")
@@ -346,7 +379,21 @@ if __name__=="__main__":
     print(f"{delta=}")
 
     start = time.time()
-    centers, orients = grow_ellipsoid_cluster(numParticles,a,b,c,delta)
+    if shape != "sphere":
+        centers, orients = grow_ellipsoid_cluster(numParticles,a,b,c,delta)
+    else:
+        centers = grow_cluster(numParticles, a, delta)
+        orients = [Rotation.identity() for _ in range(numParticles)]
+
+    # df = pd.read_csv("/home/shihab/repo/data/reference_ellipsoid.csv", float_precision="high",
+    #                     header=0, index_col=False)
+
+    # centers = df[["x","y","z"]].values
+    # orients = []
+    # for i in range(numParticles):
+    #     q = df.iloc[i, 3:7].values
+    #     orients.append(Rotation.from_quat(q, scalar_first=False))
+    
     end = time.time()
     print(f"Elapsed time: {end-start:.3f} seconds")
 
@@ -383,6 +430,9 @@ if __name__=="__main__":
         b_list.append(boundary_i)
         s_list.append(source_i)
 
+    # print xyz coordinates of first pos of p1
+    print("b_list[i][0]:", b_list[1][0], b_list[0].shape)
+
 
     F = 1.0 * 6* np.pi  # choose some magnitude
     F_ext_list = [
@@ -399,12 +449,31 @@ if __name__=="__main__":
         QM2, QN2 = get_QM_QN(orients[i], b_single.shape[0], s_single.shape[0])
         B2_inv = QM2 @ Bpp_inv @ QN2.T
         Bpp_inv_list.append(B2_inv)
+        print("QM QN sum:", i, QM2.sum(), QN2.sum())
+        assert QM2.shape == (3*M+6, 3*M+6)
+        assert QN2.shape == (3*N+6, 3*N+6)
+
+    print("Sum of template binv:", Bpp_inv.sum())
+    print(Bpp_inv.shape)
+
+    print("Sum of b_list:", np.array(b_list).sum())
+    print("Sum of s_list:", np.array(s_list).sum())
+    ft = np.concatenate((F_ext_list, T_ext_list), axis=1)
+    print("Sum of F_ext_list:", ft.sum())
+
+    b_inv = np.array(Bpp_inv_list)
+    print("Sum of Bpp_inv_list:", b_inv.sum())
+    print("Sum of Bpp_inv_list[0]:", b_inv[0].sum())
+    print("Sum of Bpp_inv_list[1]:", b_inv[1].sum())
+    print("Sum of Bpp_inv_list[2]:", b_inv[2].sum())
+
+    print("B_inv total terms:", np.prod(b_inv.shape))
 
     # Run the IMP-MFS mobility solver
     start_time = time.time()
     V_tilde_list = imp_mfs_multiparticle(
         b_list, s_list, centers, F_ext_list, T_ext_list, Bpp_inv_list,
-        L_cut=25.0, max_iter=1000, tol=TOLERANCE, print_interval=50
+        L_cut=2500.0, max_iter=1000, tol=TOLERANCE, print_interval=50
     )
     end_time = time.time()
     print(f"Elapsed time: {end_time-start_time:.3f} seconds")
@@ -425,11 +494,51 @@ if __name__=="__main__":
         omega_i    = solution_i[3*M + 3 : 3*M + 6]
         df.loc[i] = np.concatenate([centers[i], orients[i].as_quat(scalar_first=False),
                                     F_ext_list[i], T_ext_list[i], velocity_i, omega_i])
+        print(f"p {i}")
+        print("Lin velocity:", velocity_i)
+        print("Ang velocity:", omega_i)
 
     #save to csv
-    df.to_csv("reference_ellipsoid.csv", index=False, header=True, float_format="%.16g")
+    df.to_csv(f"reference_{shape}.csv", index=False, header=True, float_format="%.16g")
 
-    # test saving didn't lose precision
-    df2 = pd.read_csv("reference_ellipsoid.csv", float_precision="high",
-                      header=0, index_col=False)
-    assert np.allclose(df.values, df2.values)
+    # # test saving didn't lose precision
+    # df2 = pd.read_csv("reference_ellipsoid.csv", float_precision="high",
+    #                   header=0, index_col=False)
+    # assert np.allclose(df.values, df2.values)
+
+def create_and_save_ellipsoid_cluster(numParticles):
+    import random
+    random.seed(42)
+    np.random.seed(42)
+
+    delta=1.0
+    TOLERANCE = 1e-7
+    acc = "fine"
+    shape = "prolateSpheroid"
+    a,b,c = 1.0, 1.0, 3.0
+
+    print(f"{TOLERANCE=}")
+    print(f"{acc=}")
+    print(f"{a=}, {b=}, {c=}")
+    print(f"{numParticles=}")
+    print(f"{delta=}")
+
+    start = time.time()
+    centers, orients = grow_ellipsoid_cluster(numParticles,a,b,c,delta)
+    end = time.time()
+    print(f"Elapsed time: {end-start:.3f} seconds")
+
+    df = pd.DataFrame(columns=["x", "y", "z",  
+                            "q_x", "q_y", "q_z", "q_w"])
+    for i in range(numParticles):
+        df.loc[i] = np.concatenate([centers[i], orients[i].as_quat(scalar_first=False)])
+        print(f"p {i}")
+        print("Lin velocity:", centers[i])
+        print("Ang velocity:", orients[i].as_quat(scalar_first=False))
+
+    #save to csv
+    df.to_csv("n100.csv", index=False, header=True, float_format="%.16g")
+
+
+if __name__ == '__main__':
+    reference_data_generation()

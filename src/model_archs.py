@@ -29,7 +29,8 @@ class SelfInteraction(nn.Module):
     def forward(self, x):
         return self.layers(x)
 
-    def predict_velocity(self, x, force):
+    @torch.jit.export
+    def predict_velocity(self, x, force, viscosity):
         """
         force:  tensor of shape (batch_size, 6) -> [Fx, Fy, Fz, Tx, Ty, Tz]
         
@@ -83,39 +84,39 @@ class SelfInteraction(nn.Module):
         velocity = torch.cat([U, Omega], dim=1)  # (batch_size, 6)
         return velocity
     
+@torch.jit.script
 def L1(d):
     """ Computes the outer product of each 3D vector in the batch with itself. """
     # d: [batch_size, 3]
     return torch.einsum('bi,bj->bij', d, d)  # [batch_size, 3, 3]
 
+@torch.jit.script
 def L2(d):
     """ Returns the matrix (I - outer(d, d)) for each vector in the batch. """
     # Identity tensor expanded to batch size
     batch_size = d.shape[0]
-    I = torch.eye(3).unsqueeze(0).repeat(batch_size, 1, 1).to(device)  # [batch_size, 3, 3]
+    I = torch.eye(3, device=d.device).unsqueeze(0).repeat(batch_size, 1, 1) # [batch_size, 3, 3]
     ddT = torch.einsum('bi,bj->bij', d, d)  # [batch_size, 3, 3]
     return I - ddT
 
-# Predefine the Levi-Civita tensor
-levi_civita = torch.zeros(3, 3, 3, dtype=torch.float)
-levi_civita[0, 1, 2] = 1
-levi_civita[1, 2, 0] = 1
-levi_civita[2, 0, 1] = 1
-levi_civita[0, 2, 1] = -1
-levi_civita[2, 1, 0] = -1
-levi_civita[1, 0, 2] = -1
 
-levi_civita = levi_civita.to(device)
-
+@torch.jit.script
 def L3(d):
     """ Computes the cross product matrix for each 3D vector in the batch. """
     # Using einsum for batched matrix-vector multiplication:
-    return torch.einsum('ijk,bk->bij', levi_civita, d)  # [batch_size, 3, 3]
+    levi_civita_data = torch.zeros(3, 3, 3, device=d.device)
+    levi_civita_data[0, 1, 2] = 1
+    levi_civita_data[1, 2, 0] = 1
+    levi_civita_data[2, 0, 1] = 1
+    levi_civita_data[0, 2, 1] = -1
+    levi_civita_data[2, 1, 0] = -1
+    levi_civita_data[1, 0, 2] = -1
+    return torch.einsum('ijk,bk->bij', levi_civita_data, d)  # [batch_size, 3, 3]
 
 
-class TwoBodyInteraction(nn.Module):
+class TwoBodySphere(nn.Module):
     def __init__(self, input_dim):
-        super(TwoBodyInteraction, self).__init__()
+        super(TwoBodySphere, self).__init__()
         self.layers = nn.Sequential(
             nn.Linear(input_dim, 64),
             nn.Tanh(),
@@ -127,13 +128,14 @@ class TwoBodyInteraction(nn.Module):
             #nn.Tanh()
         )
         
-    def forward(self, r, print_scalars=False):
+    def forward(self, r):
         x = self.layers(r)
         return x
 
-    def predict_mobility(self, X, print_scalars=False):
+    @torch.jit.export
+    def predict_mobility(self, X):
         d_vec, r = X[:,:3], X[:,3]
-        sc = self.forward(X, print_scalars)
+        sc = self.forward(X)
 
         d_vec = -d_vec/ r.unsqueeze(-1) # negative,cz dvec=target-src
         TT = sc[:, 0].unsqueeze(1).unsqueeze(2) * L1(d_vec) + \
@@ -150,27 +152,63 @@ class TwoBodyInteraction(nn.Module):
         K[:, 3:, :3] = RT  # Bottom-left block
         K[:, :3, 3:] = RT  # Top-right block (transpose of B)
         K[:, 3:, 3:] = RR  # Bottom-right block
-
-        nonSPD = 0
-        nonSym = 0
-        # global eigens
-        # if not self.training:
-        #     print("Activating SPSD check..")
-        #     for i in range(len(K)):
-        #         k66 = K[i].detach().cpu()
-        #         eigs = np.linalg.eigvals(k66)
-        #         if not np.all(eigs>=- 1e-8):
-        #             eigens.append((eigs.min(), eigs.max()))
-        #             nonSPD += 1
-        #         if not np.allclose(k66, k66.T, atol=1e-4):
-        #             nonSym += 1
-                    
-        #     print(f"{nonSPD=}, {nonSym=}, {len(K)}")
         return K
-
-    def predict_velocity(self, X, force, return_M=False):
+    
+    @torch.jit.export
+    def predict_velocity(self, X, force, viscosity):
         M = self.predict_mobility(X)/viscosity
+        print("M", M.shape)
+        print("force", force.unsqueeze(-1).shape)
         velocity = torch.bmm(M, force.unsqueeze(-1)).squeeze(-1)
-        if return_M:
-            return velocity, M
         return velocity
+    
+
+class TwoBodyProlate(TwoBodySphere):
+    def __init__(self, input_dim):
+        super(TwoBodyProlate, self).__init__(input_dim)
+        H1, H2 = 64, 128
+        self.layers = nn.Sequential(
+            nn.Linear(input_dim, H1),
+            nn.ReLU(),
+            nn.Linear(H1, H2),
+            nn.ReLU(),
+            nn.Linear(H2, H1),
+            nn.ReLU(),
+            nn.Linear(H1, H2),
+            nn.ReLU(),
+            nn.Linear(H2, H1),
+            nn.Tanh(),
+            nn.Linear(H1, 5),
+            #nn.Tanh()
+        )
+
+
+if __name__ == "__main__":
+    self_model = SelfInteraction(9).to(device)
+
+    r = "/home/shihab/repo/experiments/"
+    self_model.load_state_dict(torch.load(r+"self_interaction.wt", weights_only=True))
+    self_model.eval()
+
+    # TorchScript-compile (script) the entire model
+    scripted_self_model = torch.jit.script(self_model)
+    scripted_self_model.save("data/models/self_interaction_model.pt")
+    print("Saved TorchScript model to self_interaction_model.pt")
+
+
+    model = TwoBodyProlate(11).to(device)
+    model.load_state_dict(torch.load(r+"prolate_2body.wt", weights_only=True))
+    model.eval()
+
+    # TorchScript-compile (script) the entire model
+    scripted_model = torch.jit.script(model)
+    scripted_model.save("data/models/two_body_prolate_model.pt")
+    print("Saved TorchScript model to two_body_sphere_model.pt")
+
+    # Sphere
+    model = TwoBodySphere(5).to(device)
+    model.load_state_dict(torch.load(r+"sphere_2body.wt", weights_only=True))
+    model.eval()
+
+    scripted_model = torch.jit.script(model)
+    scripted_model.save("data/models/two_body_sphere_model.pt")

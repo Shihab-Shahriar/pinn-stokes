@@ -88,9 +88,9 @@ def get_QM_QN(R, N, M):
     
     Returns
     -------
-    QM : (3N+6, 3N+6) ndarray
+    QM : (3M+6, 3M+6) ndarray
         Block-diagonal rotation transform for the 'row side'.
-    QN : (3M+6, 3M+6) ndarray
+    QN : (3N+6, 3N+6) ndarray
         Block-diagonal rotation transform for the 'column side'.
     """
     # if scipy rotation, convert to 3x3 matrix
@@ -100,6 +100,9 @@ def get_QM_QN(R, N, M):
 
     QM = build_Q_transform(R, M)
     QN = build_Q_transform(R, N)
+
+    assert QM.shape == (3*M + 6, 3*M + 6)
+    assert QN.shape == (3*N + 6, 3*N + 6)
     
     return QM, QN
 
@@ -118,24 +121,25 @@ def random_orientation_spheroid():
     Returns a Rotation (from scipy) that sends the z-axis to a random direction.
     Works for *only* prolate and oblate spheroids.
     """
-    z_axis = np.array([0, 0, 1], dtype=float)
-    v = random_unit_vector()  # random direction
+    # z_axis = np.array([0, 0, 1], dtype=float)
+    # v = random_unit_vector()  # random direction
     
-    # If v is almost exactly z or -z, handle degenerate cases
-    dot_zv = np.dot(z_axis, v)
+    # # If v is almost exactly z or -z, handle degenerate cases
+    # dot_zv = np.dot(z_axis, v)
     
-    if np.allclose(v, z_axis):
-        # no rotation needed
-        return R.from_rotvec([0, 0, 0])
-    elif np.allclose(v, -z_axis):
-        # 180-degree rotation about x-axis (or y-axis, etc.)
-        return R.from_rotvec(np.pi * np.array([1.0, 0.0, 0.0]))
-    else:
-        # axis = z x v, angle = arccos(z·v)
-        axis = np.cross(z_axis, v)
-        axis /= np.linalg.norm(axis)
-        angle = np.arccos(dot_zv)
-        return R.from_rotvec(axis * angle)
+    # if np.allclose(v, z_axis):
+    #     # no rotation needed
+    #     return R.from_rotvec([0, 0, 0])
+    # elif np.allclose(v, -z_axis):
+    #     # 180-degree rotation about x-axis (or y-axis, etc.)
+    #     return R.from_rotvec(np.pi * np.array([1.0, 0.0, 0.0]))
+    # else:
+    #     # axis = z x v, angle = arccos(z·v)
+    #     axis = np.cross(z_axis, v)
+    #     axis /= np.linalg.norm(axis)
+    #     angle = np.arccos(dot_zv)
+    #     return R.from_rotvec(axis * angle)
+    return Rotation.random()
 
 
 def createNewEllipsoid(center, rot, source_ref, boundary_ref):
@@ -236,3 +240,156 @@ def min_distance_ellipsoids(a, b, c, center2, R2, n_starts=5):
             
     return min_dist
 
+
+def min_distance_two_ellipsoids(
+        a1, b1, c1, center1, R1,
+        a2, b2, c2, center2, R2,
+        n_starts=5):
+    """
+    Unlike above, doesn't assume first ellipsoid is at origin and
+    orientation is identity (i.e. z-axis aligned).
+
+    Returns the minimum distance between two ellipsoids of the forms:
+        Ellipsoid1: (x^2 / a1^2 + y^2 / b1^2 + z^2 / c1^2) = 1
+                    point in global coords = R1*[x, y, z] + center1
+        Ellipsoid2: (u^2 / a2^2 + v^2 / b2^2 + w^2 / c2^2) = 1
+                    point in global coords = R2*[u, v, w] + center2
+
+    Arguments:
+        a1, b1, c1 : float
+            Semi-axis lengths for ellipsoid 1.
+        center1    : (3,) array-like
+            Center of ellipsoid 1 in global coordinates.
+        R1         : Rotation or (3x3) array
+            Orientation of ellipsoid 1 (rotation matrix).
+        a2, b2, c2 : float
+            Semi-axis lengths for ellipsoid 2.
+        center2    : (3,) array-like
+            Center of ellipsoid 2 in global coordinates.
+        R2         : Rotation or (3x3) array
+            Orientation of ellipsoid 2 (rotation matrix).
+        n_starts   : int
+            Number of random initial guesses for the solver.
+
+    Returns:
+        float
+            The best (minimum) distance found between the two ellipsoids.
+    """
+    # --- Convert rotations to matrices if needed ---
+    if isinstance(R1, Rotation):
+        R1_matrix = R1.as_matrix()
+    else:
+        R1_matrix = np.array(R1)
+
+    if isinstance(R2, Rotation):
+        R2_matrix = R2.as_matrix()
+    else:
+        R2_matrix = np.array(R2)
+
+    # --- Objective function: distance between the two points on the surfaces ---
+    def objective(vars):
+        x, y, z, u, v, w = vars
+        # Map local coords of each ellipsoid to global
+        point1 = R1_matrix @ np.array([x, y, z]) + center1
+        point2 = R2_matrix @ np.array([u, v, w]) + center2
+        return np.linalg.norm(point1 - point2)
+
+    # --- Constraints: each point must lie on its respective ellipsoid ---
+    def con1(vars):
+        # x^2/a1^2 + y^2/b1^2 + z^2/c1^2 == 1 for ellipsoid 1
+        x, y, z, _, _, _ = vars
+        return (x**2)/(a1**2) + (y**2)/(b1**2) + (z**2)/(c1**2) - 1
+
+    def con2(vars):
+        # u^2/a2^2 + v^2/b2^2 + w^2/c2^2 == 1 for ellipsoid 2
+        _, _, _, u, v, w = vars
+        return (u**2)/(a2**2) + (v**2)/(b2**2) + (w**2)/(c2**2) - 1
+
+    # --- Jacobians for constraints: partial derivatives w.r.t (x, y, z, u, v, w) ---
+    def con1_jac(vars):
+        x, y, z, _, _, _ = vars
+        # derivative of (x^2 / a1^2 + y^2 / b1^2 + z^2 / c1^2 - 1)
+        return [2*x/a1**2, 2*y/b1**2, 2*z/c1**2, 0, 0, 0]
+
+    def con2_jac(vars):
+        _, _, _, u, v, w = vars
+        # derivative of (u^2 / a2^2 + v^2 / b2^2 + w^2 / c2^2 - 1)
+        return [0, 0, 0, 2*u/a2**2, 2*v/b2**2, 2*w/c2**2]
+
+    constraints = [
+        {'type': 'eq', 'fun': con1, 'jac': con1_jac},
+        {'type': 'eq', 'fun': con2, 'jac': con2_jac}
+    ]
+
+    # --- Multiple random starts to mitigate local minima issues ---
+    min_dist = np.inf
+
+    for _ in range(n_starts):
+        # random directions for local coords on each ellipsoid
+        rand_dir1 = np.random.normal(size=3)
+        rand_dir1 /= np.linalg.norm(rand_dir1)
+        X0 = np.array([a1*rand_dir1[0], b1*rand_dir1[1], c1*rand_dir1[2]])
+
+        rand_dir2 = np.random.normal(size=3)
+        rand_dir2 /= np.linalg.norm(rand_dir2)
+        Y0 = np.array([a2*rand_dir2[0], b2*rand_dir2[1], c2*rand_dir2[2]])
+
+        initial_guess = np.concatenate([X0, Y0])
+
+        result = minimize(
+            objective,
+            initial_guess,
+            method='SLSQP',
+            constraints=constraints,
+            options={'maxiter': 1000, 'ftol': 1e-8}
+        )
+
+        if result.success and result.fun < min_dist:
+            min_dist = result.fun
+
+    return min_dist
+
+
+if __name__ == '__main__':
+    acc = "fine"
+    shape = "prolateSpheroid"
+    a,b,c = 1.0, 1.0, 3.0
+
+    root = "/home/shihab/src/mfs/"
+    b_single = np.loadtxt(f'{root}points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
+    s_single = np.loadtxt(f'{root}points/s_{shape}_{acc}.txt', dtype=np.float64)
+    
+    N = b_single.shape[0]  # number of boundary nodes
+    M = s_single.shape[0]  # number of source points
+
+    # Create a new ellipsoid 90 degrees rotated from the original
+    center2 = np.array([5, 0, 0], dtype=float)
+    R2 = Rotation.from_rotvec(np.pi/2 * np.array([1, 0, 0]))
+    b2, s2 = createNewEllipsoid(center2, R2, s_single, b_single)
+
+    # Get the minimum distance between the two ellipsoids
+    min_dist = min_distance_two_ellipsoids(a,b,c, np.array([0, 0, 0]), R.identity(), 
+                                           a,b,c, center2, R2)
+    assert np.allclose(min_dist, 3.00, atol=1e-4)
+    print(f"Minimum distance between two ellipsoids: {min_dist}")
+
+    R2 = Rotation.from_rotvec(np.pi/2 * np.array([0, 1, 0]))
+    b2, s2 = createNewEllipsoid(center2, R2, s_single, b_single)
+
+    # Get the minimum distance between the two ellipsoids
+    min_dist = min_distance_two_ellipsoids(a,b,c, np.array([0, 0, 0]), R.identity(), 
+                                           a,b,c, center2, R2)
+    print(f"Minimum distance between two ellipsoids: {min_dist}")
+
+    assert np.allclose(min_dist, 1.0, atol=1e-4)
+
+
+
+    R2 = Rotation.from_rotvec(np.pi/2 * np.array([0, 0, 1]))
+    b2, s2 = createNewEllipsoid(center2, R2, s_single, b_single)
+
+    # Get the minimum distance between the two ellipsoids
+    min_dist = min_distance_two_ellipsoids(a,b,c, np.array([0, 0, 0]), R.identity(), 
+                                           a,b,c, center2, R2)
+    print(f"Minimum distance between two ellipsoids: {min_dist}")
+    assert np.allclose(min_dist, 3.0, atol=1e-4)

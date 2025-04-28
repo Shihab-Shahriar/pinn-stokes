@@ -24,7 +24,7 @@ from scipy.spatial.transform import Rotation as R
 
 from mfs import imp_mfs_mobility_vec
 from mfs_utils import build_B, get_QM_QN, createNewEllipsoid, min_distance_ellipsoids
-from ..utils import save_multiple_ellipsoids_legacy_vtk
+#from ..utils import save_multiple_ellipsoids_legacy_vtk
 
 
 def random_unit_vector():
@@ -106,8 +106,8 @@ def generate_dataset_spheroid_3body(shape, N_data, a, b, c,
     """
     acc = "fine"
     # Load target (particle #1) geometry from files.
-    boundary1 = np.loadtxt(f'points/b_{shape}_{acc}.txt', dtype=np.float64)
-    source1   = np.loadtxt(f'points/s_{shape}_{acc}.txt', dtype=np.float64)
+    boundary1 = np.loadtxt(f'/home/shihab/src/mfs/points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
+    source1 = np.loadtxt(f'/home/shihab/src/mfs/points/s_{shape}_{acc}.txt', dtype=np.float64)
     print(f"Target: {boundary1.shape[0]} boundary nodes, {source1.shape[0]} source points")
     
     B_orig = build_B(boundary1, source1, np.zeros(3))
@@ -185,11 +185,11 @@ def generate_dataset_spheroid_3body(shape, N_data, a, b, c,
         except Exception as e:
             print(f"Error in sample {index}: {e}")
             # Optionally, save error case for visualization:
-            save_multiple_ellipsoids_legacy_vtk(
-                f"out/ERROR_ellipsoids{index}.vtk", 
-                [boundary1, boundary2, boundary3], 
-                [source1, source2, source3]
-            )
+            # save_multiple_ellipsoids_legacy_vtk(
+            #     f"out/ERROR_ellipsoids{index}.vtk", 
+            #     [boundary1, boundary2, boundary3], 
+            #     [source1, source2, source3]
+            # )
             continue
 
         # 16D
@@ -225,7 +225,7 @@ def generate_dataset_spheroid_3body(shape, N_data, a, b, c,
 
 def main():
     N_samples = 8000
-    shape = "sphere"  
+    shape = "prolateSpheroid"  
     axes_length = {
         "prolateSpheroid": (1.0, 1.0, 3.0),
         "oblateSpheroid":  (2.0, 2.0, 1.0),

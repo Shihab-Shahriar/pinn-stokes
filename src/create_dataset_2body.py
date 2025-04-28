@@ -18,10 +18,10 @@ from scipy.spatial.transform import Rotation as R
 from mfs_utils import (build_B, createNewEllipsoid, get_QM_QN, 
                       min_distance_ellipsoids, random_unit_vector,
                       random_orientation_spheroid)
-from ..utils import save_multiple_ellipsoids_legacy_vtk
+#from utils import save_multiple_ellipsoids_legacy_vtk
 
-np.random.seed(42)
-random.seed(43)
+# np.random.seed(42)
+# random.seed(43)
 # --------------------------------------------------------------------
 
 def G_vec(r):
@@ -242,9 +242,9 @@ def generate_dataset_spheroid(shape, N_data, a, b, c,
     Prolate spheroids: #1 at origin, #2 at random orientation & position 
       but no overlap, with a random unit force on #2.
     """
-    acc = "medium"
-    boundary1 = np.loadtxt(f'points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
-    source1 = np.loadtxt(f'points/s_{shape}_{acc}.txt', dtype=np.float64)  # source points
+    acc = "fine"
+    boundary1 = np.loadtxt(f'/home/shihab/src/mfs/points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
+    source1 = np.loadtxt(f'/home/shihab/src/mfs/points/s_{shape}_{acc}.txt', dtype=np.float64)  # source points
     print(f"N={boundary1.shape[0]} boundary nodes, M={source1.shape[0]} source points")
 
     B_orig = build_B(boundary1, source1, np.zeros(3))
@@ -289,7 +289,7 @@ def generate_dataset_spheroid(shape, N_data, a, b, c,
         force_on_2 = random_unit_vector() * scalar
 
         # TODO: Add random torque. All LLMs agree torque dir should be random
-        torque_scalar = scalar * 0.3 
+        torque_scalar = scalar * 1.0 
         torque_on_2 = random_unit_vector() * torque_scalar
 
 
@@ -309,11 +309,11 @@ def generate_dataset_spheroid(shape, N_data, a, b, c,
         except Exception as e:
             print(f"Error in sample {index}: {e}")
             print(f"{center2}, {orientation2.as_matrix()}, {force_on_2}")
-            save_multiple_ellipsoids_legacy_vtk(
-                f"out/ERROR_ellipsoids{index}.vtk", 
-                [boundary1, boundary2], 
-                [source1, source2]
-            )
+            # save_multiple_ellipsoids_legacy_vtk(
+            #     f"out/ERROR_ellipsoids{index}.vtk", 
+            #     [boundary1, boundary2], 
+            #     [source1, source2]
+            # )
             continue
         
         # Features: 12 Dimension
@@ -345,8 +345,8 @@ def generate_dataset_spheroid(shape, N_data, a, b, c,
 
 
 def main():
-    N_samples = 50
-    shape = "sphere"
+    N_samples = 4000
+    shape = "prolateSpheroid"
     axes_length = {
         "prolateSpheroid": (1.0, 1.0, 3.0),
         "oblateSpheroid":  (2.0, 2.0, 1.0),
@@ -355,8 +355,13 @@ def main():
     a, b, c = axes_length[shape]
     
     # translation distance between ellipsoids
-    dist_min = 2.1
-    dist_max = 3.5  
+    dist_min = 2.02
+    dist_max = 12.0 
+
+    print("Generating dataset for", shape)
+    print("Axes lengths:", a, b, c)
+    print("Number of samples:", N_samples)
+    print("Distance range:", dist_min, dist_max)
     
     # Generate dataset
     X, Y = generate_dataset_spheroid(shape, N_samples, a, b, c, dist_min, dist_max)
@@ -365,10 +370,13 @@ def main():
     print(" Targets:", Y.shape)
     
     # Save to disk
+    import random 
+    tmp = random.randint(0, 1000)
+
     t = time.localtime()
     current_time = time.strftime("%H:%M", t)
-    # np.save(f"data/X_features_{current_time}.npy", X)
-    # np.save(f"data/Y_targets_{current_time}.npy",  Y)
+    np.save(f"data/X_{shape}_{current_time}_{tmp}.npy", X)
+    np.save(f"data/Y_{shape}_{current_time}_{tmp}.npy",  Y)
     print(f"Saved {N_samples} samples.")
 
 if __name__ == "__main__":

@@ -1,6 +1,8 @@
 tmp/
 data/*.npy
+data/.ipynb_checkpoints
 experiments/.ipynb_checkpoints
 src/__pycache__/
 src/.ipynb_checkpoints/
 utils/__pycache__
+benchmarks/__pycache__
