@@ -56,7 +56,7 @@ class NNMob:
     Forces and torque has to be converted to particle's body (i.e. local) frame
     for self interaction. For two body interaction, we need to rotate the forces
     """
-    def __init__(self, shape, self_nn_path, two_nn_path, rpy=False):
+    def __init__(self, shape, self_nn_path, two_nn_path, two_nn_path_F1, rpy=False):
         self.shape = shape
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -69,7 +69,7 @@ class NNMob:
 
         self.self_nn= torch.jit.load(self_nn_path, map_location=self.device).eval()
         self.two_nn = torch.jit.load(two_nn_path, map_location=self.device).eval()
-
+        self.two_nn_F1 = torch.jit.load(two_nn_path_F1, map_location=self.device).eval()
 
         self.use_rpy = rpy
         print("Two body rpy?", rpy)
@@ -187,7 +187,8 @@ class NNMob:
 
         for t in range(N):
             features = []
-            forces = []
+            forces_t = []
+            forces_s = []
             min_dist_all = np.inf
             for s in range(N):
                 if s == t:
@@ -210,10 +211,11 @@ class NNMob:
                 # TODO: I am not very confident about these rotations. Even if there 
                 # is a bug, we might not catch it with sphere.
 
-                # rotation needed to align p_i to z-axis
+                # rotation needed to align p_t to z-axis
                 R_sys = orientations[t].inv()
                 
                 # Apply this rotation to force2, torque2
+                F1_new, T1_new = R_sys.apply(force[t, :3]), R_sys.apply(force[t, 3:])
                 F2_new, T2_new = R_sys.apply(force[s, :3]), R_sys.apply(force[s, 3:])
                 center2 = R_sys.apply(center2)
 
@@ -232,16 +234,20 @@ class NNMob:
                     inp_feat = np.concatenate((center2, [dist, min_dist], rot6d))
                     assert inp_feat.shape == (11,)
 
-                force_torque = np.concatenate((F2_new, T2_new))
+                force_torque_s = np.concatenate((F1_new, T1_new))
+                force_torque_t = np.concatenate((F2_new, T2_new))
 
                 features.append(inp_feat)
-                forces.append(force_torque)
+                
+                forces_s.append(force_torque_s)
+                forces_t.append(force_torque_t)
 
-                assert force_torque.shape == (6,)
+                assert force_torque_s.shape == (6,) == force_torque_t.shape
 
                 if t==1 and s==2:
                     print("features", inp_feat)
-                    print("forces", force_torque)
+                    print("forces_s", force_torque_s)
+                    print("forces_t", force_torque_t)
                     print("min_dist", min_dist)
                     print("dist", dist)
                     print("min_dist_all", min_dist_all)
@@ -250,13 +256,17 @@ class NNMob:
             assert np.allclose(min_dist_all, 1.0, 1e-4), f"{min_dist_all=}" # anna broms, prolate config
             
             features = torch.tensor(np.array(features), dtype=torch.float32, device=self.device)
-            forces = torch.tensor(np.array(forces), dtype=torch.float32, device=self.device)
+            forces_s = torch.tensor(np.array(forces_s), dtype=torch.float32, device=self.device)
+            forces_t = torch.tensor(np.array(forces_t), dtype=torch.float32, device=self.device)
             #print(features.shape, forces.shape)
 
             viscosity_tensor = torch.tensor(viscosity, dtype=torch.float32, device=self.device)
             with torch.no_grad():
-                v_two = self.two_nn.predict_velocity(features, forces, viscosity_tensor).cpu().numpy()
-                assert v_two.shape == (N-1, 6)
+                v_t = self.two_nn.predict_velocity(features, forces_t, viscosity_tensor).cpu().numpy()
+                v_s = self.two_nn_F1.predict_velocity(features, forces_s, viscosity_tensor).cpu().numpy()
+                v_two = v_t + v_s
+
+                assert v_two.shape == (len(features), 6)
             
             # project the velocities back to the lab frame
             # TODO: what if i rotate after summing up the velocities? - yes
@@ -323,12 +333,23 @@ def check_against_ref(mob, path):
     v = mob.apply(config, forces, viscosity)
     
     np.set_printoptions(precision=5, suppress=True)
+
+    lin_avg_rmse = 0
+    ang_avg_rmse = 0
     for i in range(numParticles):
         print(i)
         lin_rmse = np.sqrt(np.mean((v[i, :3] - velocity[i, :3])**2))
         ang_rmse = np.sqrt(np.mean((v[i, 3:] - velocity[i, 3:])**2))
         print(f"linear: {v[i, :3]} {velocity[i, :3]} {lin_rmse:.4f}")
         print(f"angular: {v[i, 3:]} {velocity[i, 3:]} {ang_rmse:.4f}")
+
+        lin_avg_rmse += lin_rmse
+        ang_avg_rmse += ang_rmse
+
+    lin_avg_rmse /= numParticles
+    ang_avg_rmse /= numParticles
+    print(f"Avg linear RMSE: {lin_avg_rmse:.4f}")
+    print(f"Avg angular RMSE: {ang_avg_rmse:.4f}")
 
 
 
@@ -381,10 +402,11 @@ if __name__ == "__main__":
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"
     two_body = "data/models/two_body_sphere_model.pt"
+    two_body_F1 = "data/models/two_body_sphere_model_F1.pt"
 
-    path = "/home/shihab/repo/data/reference_sphere.csv"
+    path = "data/reference_sphere.csv"
 
-    mob = NNMob(shape, self_path, two_body)
+    mob = NNMob(shape, self_path, two_body, two_body_F1, rpy=False)
     check_against_ref(mob, path)
 
 

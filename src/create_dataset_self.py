@@ -8,9 +8,25 @@ from mfs_utils import (build_B, createNewEllipsoid, random_unit_vector,
                        random_orientation_spheroid, get_QM_QN)
 
 
-# NOTE THE SEEDS. Set since we don't expect to run same script multiple times here.
-np.random.seed(42)
-random.seed(43)
+
+
+def get_self_vel(shape, N, M, F_ext, T_ext, B_inv, orientation):
+    if shape == "prolateSpheroid" or shape == "oblateSpheroid":
+        QM, QN = get_QM_QN(orientation, N, M)
+        Bpp = QM @ B_inv @ QN.T
+    else:
+        Bpp = B_inv
+
+    F_tilde = np.concatenate([np.zeros(3*N), F_ext, T_ext])
+    solution = Bpp @ F_tilde
+
+    assert solution.shape == (3*M+6,)  
+
+    V = solution[3*M:3*M+3]
+    omega = solution[3*M+3:]
+
+    return V, omega
+
 
 
 def generate_dataset_spheroid(shape, N_samples, a, b, c):
@@ -35,27 +51,11 @@ def generate_dataset_spheroid(shape, N_samples, a, b, c):
         # Orientation is probably not necessary, since we have
         # random directional force. 
         orientation = random_orientation_spheroid()
-        if shape == "prolateSpheroid" or shape == "oblateSpheroid":
-            bnd, src = createNewEllipsoid(center, orientation, source, boundary)
-            QM, QN = get_QM_QN(orientation, bnd.shape[0], src.shape[0])
-            Bpp = QM @ B_inv @ QN.T
-        else:
-            bnd, src = boundary, source
-            Bpp = B_inv
 
         F_ext = random_unit_vector() * scalar
         T_ext = random_unit_vector() * scalar * 0.4
 
-        # F_ext = np.array([0.0, 0.0, -scalar], dtype=np.float64)
-        # T_ext = np.array([0.0, 0.0, 0.0], dtype=np.float64)
-        
-        F_tilde = np.concatenate([np.zeros(3*N), F_ext, T_ext])
-        solution = Bpp @ F_tilde
-
-        assert solution.shape == (3*M+6,)  
-    
-        V = solution[3*M:3*M+3]
-        omega = solution[3*M+3:]
+        V, omega = get_self_vel(shape, N, M, F_ext, T_ext, B_inv, orientation)
 
         # feature vector should be particle shape (a, b, c), orientation
         # force and torque (position ignored)
@@ -71,10 +71,17 @@ def generate_dataset_spheroid(shape, N_samples, a, b, c):
         X_features[i] = feature
         y_targets[i] = target
 
+        print(feature, target)
+        break
+
     return X_features, y_targets
 
 
 if __name__ == "__main__":
+    # NOTE THE SEEDS. Set since we don't expect to run same script multiple times here.
+    np.random.seed(44)
+    random.seed(43)
+
     shape = "sphere"
     acc = "fine"
     axes_length = {
@@ -86,8 +93,8 @@ if __name__ == "__main__":
     N_samples = 10_000
     X,y = generate_dataset_spheroid(shape, N_samples, a, b, c)
 
-    t = time.localtime()
-    current_time = time.strftime("%H:%M", t)+"_"+str(random.randint(0, 100))
-    np.save(f"data/X_self_{shape}_{current_time}.npy", X)
-    np.save(f"data/Y_self_{shape}_{current_time}.npy", y)
-    print(f"Saved {N_samples} samples.")
+    # t = time.localtime()
+    # current_time = time.strftime("%H:%M", t)+"_"+str(random.randint(0, 100))
+    # np.save(f"data/X_self_{shape}_{current_time}.npy", X)
+    # np.save(f"data/Y_self_{shape}_{current_time}.npy", y)
+    # print(f"Saved {N_samples} samples.")

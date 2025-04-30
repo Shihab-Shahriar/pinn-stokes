@@ -184,31 +184,50 @@ class TwoBodyProlate(TwoBodySphere):
 
 
 if __name__ == "__main__":
-    self_model = SelfInteraction(9).to(device)
-
+    do_models = {
+        "self_interaction": False,
+        "two_body_sphere": False,
+        "two_body_prolate": False,
+        "two_body_sphere_F1": True,
+    }
     r = "/home/shihab/repo/experiments/"
-    self_model.load_state_dict(torch.load(r+"self_interaction.wt", weights_only=True))
-    self_model.eval()
 
-    # TorchScript-compile (script) the entire model
-    scripted_self_model = torch.jit.script(self_model)
-    scripted_self_model.save("data/models/self_interaction_model.pt")
-    print("Saved TorchScript model to self_interaction_model.pt")
+    if do_models["self_interaction"]:
+        self_model = SelfInteraction(9).to(device)
 
+        self_model.load_state_dict(torch.load(r+"self_interaction.wt", weights_only=True))
+        self_model.eval()
 
-    model = TwoBodyProlate(11).to(device)
-    model.load_state_dict(torch.load(r+"prolate_2body.wt", weights_only=True))
-    model.eval()
+        # TorchScript-compile (script) the entire model
+        scripted_self_model = torch.jit.script(self_model)
+        scripted_self_model.save("data/models/self_interaction_model.pt")
+        print("Saved TorchScript model to self_interaction_model.pt")
 
-    # TorchScript-compile (script) the entire model
-    scripted_model = torch.jit.script(model)
-    scripted_model.save("data/models/two_body_prolate_model.pt")
-    print("Saved TorchScript model to two_body_sphere_model.pt")
+    if do_models["two_body_prolate"]:
+        model = TwoBodyProlate(11).to(device)
+        model.load_state_dict(torch.load(r+"prolate_2body.wt", weights_only=True))
+        model.eval()
 
-    # Sphere
-    model = TwoBodySphere(5).to(device)
-    model.load_state_dict(torch.load(r+"sphere_2body.wt", weights_only=True))
-    model.eval()
+        # TorchScript-compile (script) the entire model
+        scripted_model = torch.jit.script(model)
+        scripted_model.save("data/models/two_body_prolate_model.pt")
+        print("Saved TorchScript model to two_body_sphere_model.pt")
 
-    scripted_model = torch.jit.script(model)
-    scripted_model.save("data/models/two_body_sphere_model.pt")
+    if do_models["two_body_sphere"]:
+        # Sphere
+        model = TwoBodySphere(5).to(device)
+        model.load_state_dict(torch.load(r+"sphere_2body.wt", weights_only=True))
+        model.eval()
+
+        scripted_model = torch.jit.script(model)
+        scripted_model.save("data/models/two_body_sphere_model.pt")
+        print("Saved TorchScript model to two_body_sphere_model.pt")
+
+    if do_models["two_body_sphere_F1"]:
+        model = TwoBodySphere(5).to(device)
+        model.load_state_dict(torch.load(r+"sphere_2body_F1.wt", weights_only=True))
+        model.eval()
+
+        scripted_model = torch.jit.script(model)
+        scripted_model.save("data/models/two_body_sphere_model_F1.pt")
+        print("Saved TorchScript model to two_body_sphere_model_F1.pt")
