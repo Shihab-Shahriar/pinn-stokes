@@ -26,6 +26,24 @@ from viz3d import save_multiple_ellipsoids_legacy_vtk
 #   - from body->lab: orientation[i]
 #   - from lab->body: orientation[i].inv()
 
+# chatgpt
+def compute_stokeslet_mobility(r_vec, viscosity):
+    """
+    Far-field Stokeslet (Oseen) tensor for a point-force approximation.
+    Returns a 6×6 block with only the 3×3 force→velocity sub-block filled.
+    """
+    r = np.linalg.norm(r_vec)
+    if r == 0:
+        raise ValueError("Distance between particles must be non-zero.")
+    r_hat = r_vec / r
+    I3 = np.eye(3)
+    M_tt = (I3 + np.outer(r_hat, r_hat)) / (8 * np.pi * viscosity * r)
+
+    K = np.zeros((6, 6))
+    K[:3, :3] = M_tt                # force → translational velocity
+    # all other couplings are O(r⁻³) or higher → neglected here
+    return K
+
 def compute_rot_batch(rot_partial_flat):
     # from 6d to Rotation object
     N = rot_partial_flat.shape[0]
@@ -56,7 +74,12 @@ class NNMob:
     Forces and torque has to be converted to particle's body (i.e. local) frame
     for self interaction. For two body interaction, we need to rotate the forces
     """
-    def __init__(self, shape, self_nn_path, two_nn_path, rpy=False):
+    def __init__(self, shape, self_nn_path, two_nn_path,
+                 nn_only: bool = False,          
+                 rpy_only: bool = False,         
+                 switch_dist: float = 6.0):      # distance threshold
+        assert not (nn_only and rpy_only), "`nn_only` and `rpy_only` are mutually exclusive."
+
         self.shape = shape
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -69,10 +92,11 @@ class NNMob:
 
         self.self_nn= torch.jit.load(self_nn_path, map_location=self.device).eval()
         self.two_nn = torch.jit.load(two_nn_path, map_location=self.device).eval()
+        
+        self.nn_only   = nn_only
+        self.rpy_only  = rpy_only
+        self.switch_dist = switch_dist  # distance at which we fall back to RPY
 
-
-        self.use_rpy = rpy
-        print("Two body rpy?", rpy)
         print("NNMob shape: ", shape)
         print("NNMob axes: ", axes)
 
@@ -167,8 +191,6 @@ class NNMob:
         return velocities
                     
 
-
-
     def get_two_vel(self, pos, orientations, force, viscosity):
         """
         Assumptions: Particles don't already overlap.
@@ -197,11 +219,37 @@ class NNMob:
                 # predict_velocity() reverses the direction 
                 center2 = pos[s] - pos[t] 
                 dist = np.linalg.norm(center2)
+                
+                use_rpy       = (
+                    self.shape == 'sphere'
+                    and (self.rpy_only or (not self.nn_only and dist > self.switch_dist))
+                )
+                use_stokeslet = (
+                    self.shape != 'sphere'
+                    and (not self.nn_only)            # honour nn_only
+                    and dist > 10.0                   # hard-coded cut-off
+                )
 
-                min_dist = min_distance_two_ellipsoids(
-                    self.abc[0], self.abc[1], self.abc[2], pos[t], orientations[t],
-                    self.abc[0], self.abc[1], self.abc[2], pos[s], orientations[s],
-                    n_starts=20) 
+                # RPY path ------------------------------------------------------
+                if use_rpy:          
+                    assert self.shape == 'sphere'
+                    K_ij = self.compute_rpy_mobility(center2)
+                    velocities[t] += K_ij @ force[s]
+                    continue  # next neighbour
+
+                if use_stokeslet:
+                    assert self.shape != 'sphere'
+                    K_ij = compute_stokeslet_mobility(center2, viscosity)
+                    velocities[t] += K_ij @ force[s]
+                    continue  # next neighbour
+
+                if self.shape=='sphere':
+                    min_dist = dist - 2.0
+                else: 
+                    min_dist = min_distance_two_ellipsoids(
+                        self.abc[0], self.abc[1], self.abc[2], pos[t], orientations[t],
+                        self.abc[0], self.abc[1], self.abc[2], pos[s], orientations[s],
+                        n_starts=20) 
                 
                 #assert np.allclose(min_dist, dist-2.0, 1e-3), f"{min_dist=} {dist=}" # for spheres of radius 1.0
                 min_dist_all = min(min_dist_all, min_dist)
@@ -226,11 +274,17 @@ class NNMob:
                 rot6d = quaternion_to_6d_batch([R_rel])[0]
 
                 if self.shape=='sphere':
-                    inp_feat = np.concatenate((center2, [dist, min_dist]))
-                    assert inp_feat.shape == (5,)
+                    median = 5.01 # Constant based on dataset
+                    r2 = (dist - median)**2
+                    r4 = r2 * r2
+                    inp_feat = np.concatenate((center2, [dist, r2, r4, min_dist]))
+                    assert inp_feat.shape == (7,)
                 else:
-                    inp_feat = np.concatenate((center2, [dist, min_dist], rot6d))
-                    assert inp_feat.shape == (11,)
+                    median = 7.034 # Constant based on dataset
+                    r2 = (dist - median)**2
+                    r4 = r2 * r2
+                    inp_feat = np.concatenate((center2, [dist, min_dist], rot6d, [r2, r4]))
+                    assert inp_feat.shape == (13,)
 
                 force_torque = np.concatenate((F2_new, T2_new))
 
@@ -239,34 +293,26 @@ class NNMob:
 
                 assert force_torque.shape == (6,)
 
-                if t==1 and s==2:
-                    print("features", inp_feat)
-                    print("forces", force_torque)
-                    print("min_dist", min_dist)
-                    print("dist", dist)
-                    print("min_dist_all", min_dist_all)
+                # if t==1 and s==2:
+                #     print("features", inp_feat)
+                #     print("forces", force_torque)
+                #     print("min_dist", min_dist)
+                #     print("dist", dist)
+                #     print("min_dist_all", min_dist_all)
 
             
-            assert np.allclose(min_dist_all, 1.0, 1e-4), f"{min_dist_all=}" # anna broms, prolate config
-            
-            features = torch.tensor(np.array(features), dtype=torch.float32, device=self.device)
-            forces = torch.tensor(np.array(forces), dtype=torch.float32, device=self.device)
-            #print(features.shape, forces.shape)
+            if features:  # could be empty for N=1
+                X   = torch.tensor(np.array(features), dtype=torch.float32, device=self.device)
+                F   = torch.tensor(np.array(forces),   dtype=torch.float32, device=self.device)
+                mu  = torch.tensor(viscosity, dtype=torch.float32, device=self.device)
+                with torch.no_grad():
+                    v_two = self.two_nn.predict_velocity(X, F, mu).cpu().numpy()
 
-            viscosity_tensor = torch.tensor(viscosity, dtype=torch.float32, device=self.device)
-            with torch.no_grad():
-                v_two = self.two_nn.predict_velocity(features, forces, viscosity_tensor).cpu().numpy()
-                assert v_two.shape == (N-1, 6)
-            
-            # project the velocities back to the lab frame
-            # TODO: what if i rotate after summing up the velocities? - yes
-            v_two = v_two.astype(np.float64)
-            transv, rotv = v_two[:, :3], v_two[:, 3:]
-            transv, rotv = orientations[t].apply(transv), orientations[t].apply(rotv)
-            v_two = np.concatenate((transv, rotv), axis=1)
-
-            velocities[t] = v_two.sum(axis=0)
-            assert velocities[t].shape == (6,)
+                # rotate back to lab frame & accumulate
+                v_two = v_two.astype(np.float64)
+                v_two[:, :3] = orientations[t].apply(v_two[:, :3])
+                v_two[:, 3:] = orientations[t].apply(v_two[:, 3:])
+                velocities[t] += v_two.sum(axis=0)
         
         return velocities
 
@@ -298,10 +344,7 @@ class NNMob:
 
         v_self = self.get_self_vel(orientations, force, viscosity)
         
-        if self.use_rpy:
-            v_two = self.get_two_vel_rpy(pos, orientations, force)
-        else:
-            v_two = self.get_two_vel(pos, orientations, force, viscosity)
+        v_two = self.get_two_vel(pos, orientations, force, viscosity)
 
         return v_self + v_two
 
@@ -323,6 +366,9 @@ def check_against_ref(mob, path):
     v = mob.apply(config, forces, viscosity)
     
     np.set_printoptions(precision=5, suppress=True)
+
+    lin_avg_rmse = 0
+    ang_avg_rmse = 0
     for i in range(numParticles):
         print(i)
         lin_rmse = np.sqrt(np.mean((v[i, :3] - velocity[i, :3])**2))
@@ -330,7 +376,14 @@ def check_against_ref(mob, path):
         print(f"linear: {v[i, :3]} {velocity[i, :3]} {lin_rmse:.4f}")
         print(f"angular: {v[i, 3:]} {velocity[i, 3:]} {ang_rmse:.4f}")
 
+        lin_avg_rmse += lin_rmse
+        ang_avg_rmse += ang_rmse
 
+    lin_avg_rmse /= numParticles
+    ang_avg_rmse /= numParticles
+    print(f"Avg linear RMSE: {lin_avg_rmse:.4f}")
+    print(f"Avg angular RMSE: {ang_avg_rmse:.4f}")
+    return config
 
 def helens_3body_sphere():
     R = 1.0  
@@ -381,11 +434,13 @@ if __name__ == "__main__":
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"
     two_body = "data/models/two_body_sphere_model.pt"
+    mob = NNMob(shape, self_path, two_body, 
+                nn_only=False, rpy_only=True)
 
+    # max dist between spheres in the following is 12.78, something 
+    # the model not trained to handle on nn_only mode
     path = "/home/shihab/repo/data/reference_sphere.csv"
-
-    mob = NNMob(shape, self_path, two_body)
-    check_against_ref(mob, path)
+    config = check_against_ref(mob, path)
 
 
 

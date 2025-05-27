@@ -10,7 +10,6 @@ from src.mfs_utils import min_distance_two_ellipsoids
 
 """
 Sphere: tested for P=20 at S=.1 (min eigen=0.00194) 
-
 """
 
 def sphere():
@@ -18,9 +17,11 @@ def sphere():
     S = .1   # separation between sphere centers equals R
     P = 20
     print(P, S)
-    mob = NNMob(
-                "/home/shihab/repo/experiments/self_interaction.wt", 
-                "/home/shihab/repo/experiments/sphere_2body.wt")
+    shape = "sphere"
+    self_path = "data/models/self_interaction_model.pt"
+    two_body = "data/models/two_body_sphere_model.pt"
+    mob = NNMob(shape, self_path, two_body, 
+                nn_only=False, rpy_only=False)
     
     centers = grow_cluster(P, R, S)
     r = Rotation.identity().as_quat(scalar_first=False)
@@ -48,6 +49,7 @@ def sphere():
 
     # Symmetry check. tol can't be too low cause NN
     print("Is M symmetric?", np.allclose(M, M.T, atol=1e-4))
+    return M
 
 
 def prolate():
@@ -56,11 +58,14 @@ def prolate():
     delta = 1.0
 
     mob = NNMob(shape,
-                "/home/shihab/repo/experiments/self_interaction.wt", 
-                "/home/shihab/repo/experiments/prolate_2body.wt")
+                "/home/shihab/repo/data/models/self_interaction_model.pt", 
+                "/home/shihab/repo/data/models/two_body_prolate_model.pt")
     
-    df = pd.read_csv("/home/shihab/repo/data/reference_ellipsoid.csv", float_precision="high",
+    df = pd.read_csv("/home/shihab/repo/data/reference_prolate.csv", float_precision="high",
                         header=0, index_col=False)
+
+    # df = pd.read_csv("/home/shihab/repo/data/n100.csv", float_precision="high",
+    #                     header=0, index_col=False)
     numParticles = df.shape[0]    
 
     config = df[["x","y","z","q_x","q_y","q_z","q_w"]].values
@@ -89,7 +94,7 @@ def prolate():
         delta = np.zeros(N)
         delta[i] = 1.0
         delta = delta.reshape(P, 6)
-        v = mob.apply(config, delta)
+        v = mob.apply(config, delta, viscosity=1.0)
         M[:, i] = v.flatten()
 
     eigens = np.linalg.eigvals(M)
@@ -102,7 +107,57 @@ def prolate():
     return M
 
 
+def bryce():
+    R = 1.0  
+    shape = "sphere"
+    self_path = "data/models/self_interaction_model.pt"
+    two_body = "data/models/two_body_sphere_model.pt"
+    mob = NNMob(shape, self_path, two_body, 
+                nn_only=False, rpy_only=False)
+    
+    with open("/home/shihab/repo/src/pos 1.csv", "r") as f:
+        data = f.read()
+        data = list(map(float, data.split(",")))
 
+        assert len(data) %3 == 0
+        P = len(data) // 3
+        centers = np.zeros((P, 3))
+        for i in range(P):
+            centers[i, 0] = data[i*3]
+            centers[i, 1] = data[i*3+1]
+            centers[i, 2] = data[i*3+2]
+
+    P = 90
+    centers = centers[:P, :]
+    
+    print(centers[0])
+    r = Rotation.identity().as_quat(scalar_first=False)
+    orientations = np.tile(r, (P, 1))
+
+    config = np.concatenate((centers, orientations), axis=1)
+    assert config.shape == (P, 7)
+
+
+
+    N = P*6
+    M = np.zeros((N, N))
+    for i in range(N):
+        print("column ", i)
+        delta = np.zeros(N)
+        delta[i] = 1.0
+        delta = delta.reshape(P, 6)
+        v = mob.apply(config, delta, viscosity=1.0)
+        M[:, i] = v.flatten()
+
+    eigens = np.linalg.eigvals(M)
+    print("Eigenvalues of M:", eigens)
+    print("Is M SPD?", np.all(eigens > -1e-4))
+    print("min eigen: ", eigens.min())
+    print("Shape:", M.shape)
+
+    # Symmetry check. tol can't be too low cause NN
+    print("Is M symmetric?", np.allclose(M, M.T, atol=1e-4))
+    return M
 
 
 if __name__ == "__main__":

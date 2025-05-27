@@ -135,7 +135,7 @@ class TwoBodySphere(nn.Module):
     @torch.jit.export
     def predict_mobility(self, X):
         d_vec, r = X[:,:3], X[:,3]
-        sc = self.forward(X)
+        sc = self.forward(X[:, 3:])
 
         d_vec = -d_vec/ r.unsqueeze(-1) # negative,cz dvec=target-src
         TT = sc[:, 0].unsqueeze(1).unsqueeze(2) * L1(d_vec) + \
@@ -152,13 +152,18 @@ class TwoBodySphere(nn.Module):
         K[:, 3:, :3] = RT  # Bottom-left block
         K[:, :3, 3:] = RT  # Top-right block (transpose of B)
         K[:, 3:, 3:] = RR  # Bottom-right block
+
+        for i in range(len(X)):
+            if not torch.linalg.eigvals(K[i]).real.min() > -1e-4:
+                print(i, X[i])
+                assert False, "Mobility Kernel is not SPD"
         return K
     
     @torch.jit.export
     def predict_velocity(self, X, force, viscosity):
         M = self.predict_mobility(X)/viscosity
-        print("M", M.shape)
-        print("force", force.unsqueeze(-1).shape)
+        # print("M", M.shape)
+        # print("force", force.unsqueeze(-1).shape)
         velocity = torch.bmm(M, force.unsqueeze(-1)).squeeze(-1)
         return velocity
     
@@ -184,31 +189,40 @@ class TwoBodyProlate(TwoBodySphere):
 
 
 if __name__ == "__main__":
-    self_model = SelfInteraction(9).to(device)
-
+    do_models = {
+        "self_interaction": False,
+        "two_body_sphere": False,
+        "two_body_prolate": True
+    }
     r = "/home/shihab/repo/experiments/"
-    self_model.load_state_dict(torch.load(r+"self_interaction.wt", weights_only=True))
-    self_model.eval()
 
-    # TorchScript-compile (script) the entire model
-    scripted_self_model = torch.jit.script(self_model)
-    scripted_self_model.save("data/models/self_interaction_model.pt")
-    print("Saved TorchScript model to self_interaction_model.pt")
+    if do_models["self_interaction"]:
+        self_model = SelfInteraction(9).to(device)
 
+        self_model.load_state_dict(torch.load(r+"self_interaction.wt", weights_only=True))
+        self_model.eval()
 
-    model = TwoBodyProlate(11).to(device)
-    model.load_state_dict(torch.load(r+"prolate_2body.wt", weights_only=True))
-    model.eval()
+        # TorchScript-compile (script) the entire model
+        scripted_self_model = torch.jit.script(self_model)
+        scripted_self_model.save("data/models/self_interaction_model.pt")
+        print("Saved TorchScript model to self_interaction_model.pt")
 
-    # TorchScript-compile (script) the entire model
-    scripted_model = torch.jit.script(model)
-    scripted_model.save("data/models/two_body_prolate_model.pt")
-    print("Saved TorchScript model to two_body_sphere_model.pt")
+    if do_models["two_body_prolate"]:
+        model = TwoBodyProlate(10).to(device)
+        model.load_state_dict(torch.load(r+"prolate_2body.wt", weights_only=True))
+        model.eval()
 
-    # Sphere
-    model = TwoBodySphere(5).to(device)
-    model.load_state_dict(torch.load(r+"sphere_2body.wt", weights_only=True))
-    model.eval()
+        # TorchScript-compile (script) the entire model
+        scripted_model = torch.jit.script(model)
+        scripted_model.save("data/models/two_body_prolate_model.pt")
+        print("Saved TorchScript model to two_body_sphere_model.pt")
 
-    scripted_model = torch.jit.script(model)
-    scripted_model.save("data/models/two_body_sphere_model.pt")
+    if do_models["two_body_sphere"]:
+        # Sphere
+        model = TwoBodySphere(4).to(device)
+        model.load_state_dict(torch.load(r+"sphere_2body.wt", weights_only=True))
+        model.eval()
+
+        scripted_model = torch.jit.script(model)
+        scripted_model.save("data/models/two_body_sphere_model.pt")
+        print("Saved TorchScript model to two_body_sphere_model.pt")
