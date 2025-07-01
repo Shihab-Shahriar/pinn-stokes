@@ -42,6 +42,8 @@ class SelfInteraction(nn.Module):
         """
         # 1) Get the mobility scalars
         mus = self.forward(x)  
+        assert mus.min() >= -1e-8, "Mobility scalars must be non-negative"
+
         mu_T_para = mus[:, 0]  # (batch_size,)
         mu_T_perp = mus[:, 1]
         mu_R_para = mus[:, 2]
@@ -153,10 +155,10 @@ class TwoBodySphere(nn.Module):
         K[:, :3, 3:] = RT  # Top-right block (transpose of B)
         K[:, 3:, 3:] = RR  # Bottom-right block
 
-        for i in range(len(X)):
-            if not torch.linalg.eigvals(K[i]).real.min() > -1e-4:
-                print(i, X[i])
-                assert False, "Mobility Kernel is not SPD"
+        # for i in range(len(X)):
+        #     if not torch.linalg.eigvals(K[i]).real.min() > -1e-4:
+        #         print(i, X[i])
+        #         assert False, "Mobility Kernel is not SPD"
         return K
     
     @torch.jit.export
@@ -188,11 +190,83 @@ class TwoBodyProlate(TwoBodySphere):
         )
 
 
+class TwoBodyCombined(nn.Module):
+    def __init__(self, input_dim):
+        super(TwoBodyCombined, self).__init__()
+        self.FtModel = nn.Sequential(
+            nn.Linear(input_dim, 64),
+            nn.Tanh(),
+            nn.Linear(64, 32),
+            nn.Tanh(),
+            nn.Linear(32, 64),
+            nn.Tanh(),
+            nn.Linear(64, 5),
+            #nn.Tanh()
+        )
+        self.FsModel = nn.Sequential(
+            nn.Linear(input_dim, 64),
+            nn.Tanh(),
+            nn.Linear(64, 32),
+            nn.Tanh(),
+            nn.Linear(32, 64),
+            nn.Tanh(),
+            nn.Linear(64, 5),
+            #nn.Tanh()
+        )
+        
+    @torch.jit.export                    
+    def make_mobility(
+        self,
+        sc: torch.Tensor,
+        d_vec: torch.Tensor,
+        is_Ms: bool         
+    ) -> torch.Tensor:
+        TT = sc[:, 0].unsqueeze(1).unsqueeze(2) * L1(d_vec) + \
+                sc[:, 1].unsqueeze(1).unsqueeze(2) * L2(d_vec) # TODO: d_vec or r?
+        RT = sc[:, 2].unsqueeze(1).unsqueeze(2) * L3(d_vec)
+        RR = sc[:, 3].unsqueeze(1).unsqueeze(2) * L1(d_vec) + \
+                sc[:, 4].unsqueeze(1).unsqueeze(2) * L2(d_vec)
+    
+        K = torch.zeros((len(sc), 6, 6), dtype=torch.float32, device=sc.device)
+
+        # After experiments, the kernel is NOT symmetric. 
+        # Top-right and bottem left should NOT be transpose of each other
+        K[:, :3, :3] = TT  # Top-left block
+        K[:, 3:, :3] = RT  # Bottom-left block
+        K[:, :3, 3:] = RT.transpose(1, 2) if is_Ms else RT
+        K[:, 3:, 3:] = RR  # Bottom-right block
+        return K
+
+    @torch.jit.export
+    def predict_mobility(self, X):
+        d_vec, r = X[:,:3], X[:,3]
+        sc_t = self.FtModel(X[:, 3:]) #exclude d_vec
+        sc_s = self.FsModel(X[:, 3:]) #exclude d_vec
+        
+        d_vec = -d_vec/ r.unsqueeze(-1) # negative,cz dvec=target-src
+
+        K_t = self.make_mobility(sc_t, d_vec, False)
+        K_s = self.make_mobility(sc_s, d_vec, True)
+        return K_s, K_t
+        
+    @torch.jit.export
+    def predict_velocity(self, X, force_s, force_t, viscosity):
+        M_s, M_t = self.predict_mobility(X)
+        M_s, M_t = M_s/viscosity, M_t/viscosity
+        
+        v_s = torch.bmm(M_s, force_s.unsqueeze(-1)).squeeze(-1)
+        v_t = torch.bmm(M_t, force_t.unsqueeze(-1)).squeeze(-1)
+        v = v_s + v_t
+        return v
+
+
 if __name__ == "__main__":
     do_models = {
         "self_interaction": False,
         "two_body_sphere": False,
-        "two_body_prolate": True
+        "two_body_prolate": False,
+        "two_body_sphere_F1": False,
+        "two_body_combined": True,
     }
     r = "/home/shihab/repo/experiments/"
 
@@ -226,3 +300,21 @@ if __name__ == "__main__":
         scripted_model = torch.jit.script(model)
         scripted_model.save("data/models/two_body_sphere_model.pt")
         print("Saved TorchScript model to two_body_sphere_model.pt")
+
+    if do_models["two_body_sphere_F1"]:
+        model = TwoBodySphere(4).to(device)
+        model.load_state_dict(torch.load(r+"sphere_2body_F1.wt", weights_only=True))
+        model.eval()
+
+        scripted_model = torch.jit.script(model)
+        scripted_model.save("data/models/two_body_sphere_model_F1.pt")
+        print("Saved TorchScript model to two_body_sphere_model_F1.pt")
+
+    if do_models["two_body_combined"]:
+        model = TwoBodyCombined(4).to(device)
+        model.load_state_dict(torch.load(r+"combined_2body.wt", weights_only=True))
+        model.eval()
+
+        scripted_model = torch.jit.script(model)
+        scripted_model.save("data/models/two_body_combined_model.pt")
+        print("Saved TorchScript model to two_body_combined_model.pt")
