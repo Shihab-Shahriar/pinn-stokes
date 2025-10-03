@@ -137,8 +137,8 @@ def imp_mfs_multiparticle(
 
 
 
-        print("sum of old solutions:", iteration, np.array(old_solutions).sum())
-        print("sum of new solutions:", iteration, np.array(x).sum())
+        # print("sum of old solutions:", iteration, np.array(old_solutions).sum())
+        # print("sum of new solutions:", iteration, np.array(x).sum())
 
         # Check convergence
         max_diff = 0.0
@@ -351,7 +351,7 @@ def write_vtk(centers, filename="cluster.vtk"):
 
 
 
-def reference_data_generation():
+def reference_data_generation(shape, delta, numParticles):
     """
     Was used to both generate reference dataset, and compare cuda impl
     accuracy against this.
@@ -360,11 +360,8 @@ def reference_data_generation():
     random.seed(42)
     np.random.seed(42)
 
-    numParticles=10
-    delta=1.0
     TOLERANCE = 1e-7
-    acc = "fine"
-    shape = "sphere"
+    acc = "Xfine"
     axes_length = {
         "prolateSpheroid": (1.0, 1.0, 3.0),
         "oblateSpheroid":  (2.0, 2.0, 1.0),
@@ -449,7 +446,188 @@ def reference_data_generation():
         QM2, QN2 = get_QM_QN(orients[i], b_single.shape[0], s_single.shape[0])
         B2_inv = QM2 @ Bpp_inv @ QN2.T
         Bpp_inv_list.append(B2_inv)
-        print("QM QN sum:", i, QM2.sum(), QN2.sum())
+        #print("QM QN sum:", i, QM2.sum(), QN2.sum())
+        assert QM2.shape == (3*M+6, 3*M+6)
+        assert QN2.shape == (3*N+6, 3*N+6)
+
+    #print("Sum of template binv:", Bpp_inv.sum())
+    #print(Bpp_inv.shape)
+
+    #print("Sum of b_list:", np.array(b_list).sum())
+    #print("Sum of s_list:", np.array(s_list).sum())
+    ft = np.concatenate((F_ext_list, T_ext_list), axis=1)
+    print("Sum of F_ext_list:", ft.sum())
+
+    b_inv = np.array(Bpp_inv_list)
+    #print("Sum of Bpp_inv_list:", b_inv.sum())
+    # print("Sum of Bpp_inv_list[0]:", b_inv[0].sum())
+    # print("Sum of Bpp_inv_list[1]:", b_inv[1].sum())
+    # print("Sum of Bpp_inv_list[2]:", b_inv[2].sum())
+
+    # print("B_inv total terms:", np.prod(b_inv.shape))
+
+    # Run the IMP-MFS mobility solver
+    start_time = time.time()
+    V_tilde_list = imp_mfs_multiparticle(
+        b_list, s_list, centers, F_ext_list, T_ext_list, Bpp_inv_list,
+        L_cut=2500.0, max_iter=1000, tol=TOLERANCE, print_interval=50
+    )
+    end_time = time.time()
+    print(f"Elapsed time: {end_time-start_time:.3f} seconds")
+
+
+    columns = ["x", "y", "z",  
+               "q_x", "q_y", "q_z", "q_w", 
+               "f_x", "f_y", "f_z",
+               "t_x", "t_y", "t_z",
+               "v_x", "v_y", "v_z",
+               "w_x", "w_y", "w_z"]
+    df = pd.DataFrame(columns=columns)
+
+    M = s_list[i].shape[0]
+    for i in range(numParticles):
+        solution_i = V_tilde_list[i]
+        velocity_i = solution_i[3*M : 3*M + 3]
+        omega_i    = solution_i[3*M + 3 : 3*M + 6]
+        df.loc[i] = np.concatenate([centers[i], orients[i].as_quat(scalar_first=False),
+                                    F_ext_list[i], T_ext_list[i], velocity_i, omega_i])
+        # print(f"p {i}")
+        # print("Lin velocity:", velocity_i)
+        # print("Ang velocity:", omega_i)
+
+    #save to csv
+    # df.to_csv(f"tmp/reference_{shape}_{delta}.csv", index=False, header=True, float_format="%.16g")
+
+    # # test saving didn't lose precision
+    # df2 = pd.read_csv("reference_ellipsoid.csv", float_precision="high",
+    #                   header=0, index_col=False)
+    # assert np.allclose(df.values, df2.values)
+
+    return df
+
+
+def uniform_data_generation(shape, volume_fraction, numParticles):
+    """
+    Generate uniform spheres with radius 1 and specified volume fraction.
+    
+    Args:
+        shape: Shape identifier for output filename
+        volume_fraction: Fraction of bounding box volume occupied by spheres
+        numParticles: Number of spheres to generate
+    """
+    assert shape=="sphere", "Currently only 'sphere' shape is supported"
+    import numpy as np
+    import pandas as pd
+    from scipy.spatial.distance import pdist, squareform
+    
+    TOLERANCE = 1e-8
+    acc = "Xfine"
+    axes_length = {
+        "prolateSpheroid": (1.0, 1.0, 3.0),
+        "oblateSpheroid":  (2.0, 2.0, 1.0),
+        "sphere":          (1.0, 1.0, 1.0),
+    }
+    a, b, c = axes_length[shape]
+
+    # Sphere radius
+    radius = 1.0
+    sphere_volume = (4/3) * np.pi * radius**3
+    
+    # Calculate total volume needed for all spheres
+    total_sphere_volume = numParticles * sphere_volume
+    
+    # Calculate bounding box volume based on volume fraction
+    bbox_volume = total_sphere_volume / volume_fraction
+    
+    # Assume cubic bounding box for simplicity
+    bbox_side = bbox_volume**(1/3)
+    
+    # Generate random positions ensuring no overlap
+    positions = []
+    max_attempts = 20000
+    
+    for i in range(numParticles):
+        attempts = 0
+        while attempts < max_attempts:
+            # Random position within bounding box (accounting for sphere radius)
+            pos = np.random.uniform(radius, bbox_side - radius, 3)
+            
+            # Check for overlaps with existing spheres
+            valid = True
+            for existing_pos in positions:
+                distance = np.linalg.norm(pos - existing_pos)
+                if distance < 2 * radius:  # Overlap check
+                    valid = False
+                    break
+            
+            if valid:
+                positions.append(pos)
+                break
+            attempts += 1
+        
+        if attempts == max_attempts:
+            print(f"Warning: Could not place sphere {i+1} without overlap")
+    
+    centers = np.array(positions)
+    orients = [Rotation.identity() for _ in range(numParticles)]
+
+    # Check that the minimum separation is maintained
+    for i in range(numParticles):
+        my_min = np.inf
+        for j in range(i):
+            dd = min_distance_two_ellipsoids(a,b,c,centers[i],orients[i],
+                                        a,b,c,centers[j],orients[j])
+
+            assert dd >= 1e-4, f"Separation violation: {dd} < {1e-4}, between {i} and {j}"
+
+            my_min = min(my_min, dd)
+        print(f"Min distance for ellipsoid {i}: {my_min}")
+
+    print("cluster created")
+
+    # write_vtk(centers, "cluster.vtk")
+    # print("Wrote cluster.vtk with sphere centers.")
+
+    root = "/home/shihab/src/mfs/"
+    b_single = np.loadtxt(f'{root}points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
+    s_single = np.loadtxt(f'{root}points/s_{shape}_{acc}.txt', dtype=np.float64)
+    
+    N = b_single.shape[0]  # number of boundary nodes
+    M = s_single.shape[0]  # number of source points
+
+    
+    b_list = [b_single]
+    s_list = [s_single]
+    for i in range(1, numParticles):
+        boundary_i, source_i = createNewEllipsoid(centers[i], orients[i],
+                                                s_single, b_single)
+        b_list.append(boundary_i)
+        s_list.append(source_i)
+
+    # print xyz coordinates of first pos of p1
+    print("b_list[i][0]:", b_list[1][0], b_list[0].shape)
+
+
+    F = 1.0 * 6* np.pi  # choose some magnitude
+    # F_ext_list = [
+    #     np.array([0.0, 0.0, F], dtype=np.float64) for _ in centers
+    # ]
+    F_ext_list = [
+        np.random.uniform(-1, 1, 3).astype(np.float64) for _ in centers
+    ]
+    F_ext_list = [F / np.linalg.norm(f) * f for f in F_ext_list]  # normalize to magnitude F
+    T_ext_list = [
+        np.array([0.0, 0.0, 0.0], dtype=np.float64) for _ in centers
+    ]
+
+    B = build_B(b_single, s_single, np.zeros(3))
+    Bpp_inv = np.linalg.pinv(B)
+    Bpp_inv_list = [Bpp_inv.copy()]
+    for i in range(1, numParticles):
+        QM2, QN2 = get_QM_QN(orients[i], b_single.shape[0], s_single.shape[0])
+        B2_inv = QM2 @ Bpp_inv @ QN2.T
+        Bpp_inv_list.append(B2_inv)
+        #print("QM QN sum:", i, QM2.sum(), QN2.sum())
         assert QM2.shape == (3*M+6, 3*M+6)
         assert QN2.shape == (3*N+6, 3*N+6)
 
@@ -499,12 +677,9 @@ def reference_data_generation():
         print("Ang velocity:", omega_i)
 
     #save to csv
-    df.to_csv(f"reference_{shape}.csv", index=False, header=True, float_format="%.16g")
+    #df.to_csv(f"tmp/uniform_{shape}_{volume_fraction}.csv", index=False, header=True, float_format="%.16g")
+    return df
 
-    # # test saving didn't lose precision
-    # df2 = pd.read_csv("reference_ellipsoid.csv", float_precision="high",
-    #                   header=0, index_col=False)
-    # assert np.allclose(df.values, df2.values)
 
 def create_and_save_ellipsoid_cluster(numParticles):
     import random
@@ -541,4 +716,5 @@ def create_and_save_ellipsoid_cluster(numParticles):
 
 
 if __name__ == '__main__':
-    reference_data_generation()
+    reference_data_generation(delta=.1)
+    #uniform_data_generation("sphere", volume_fraction=0.05, numParticles=20)
