@@ -351,7 +351,7 @@ def write_vtk(centers, filename="cluster.vtk"):
 
 
 
-def reference_data_generation(shape, delta, numParticles):
+def reference_data_generation(shape, delta, numParticles, tol=1e-7):
     """
     Was used to both generate reference dataset, and compare cuda impl
     accuracy against this.
@@ -360,7 +360,7 @@ def reference_data_generation(shape, delta, numParticles):
     random.seed(42)
     np.random.seed(42)
 
-    TOLERANCE = 1e-7
+    TOLERANCE = tol
     acc = "Xfine"
     axes_length = {
         "prolateSpheroid": (1.0, 1.0, 3.0),
@@ -506,6 +506,51 @@ def reference_data_generation(shape, delta, numParticles):
     return df
 
 
+def uniform__sphere_cluster(volume_fraction, numParticles, radius=1.0, max_attempts=10000):
+    """Generate a random non-overlapping cluster of spheres."""
+    # Calculate bounding box size from desired volume fraction
+    sphere_volume = (4 / 3) * np.pi * radius ** 3
+    total_sphere_volume = numParticles * sphere_volume
+    bbox_volume = total_sphere_volume / volume_fraction
+    bbox_side = bbox_volume ** (1 / 3)
+
+    MIN_SEPARATION = .05
+
+    positions = np.zeros((numParticles, 3), dtype=np.float64)
+    for i in range(numParticles):
+        attempts = 0
+        while attempts < max_attempts:
+            pos = np.random.uniform(radius, bbox_side - radius, 3)
+            if i == 0:
+                positions[i] = pos
+                break
+
+            # Check against all existing positions to ensure no overlap
+            dd = cdist(positions[:i], pos[None, :])
+            if np.all(dd >= 2 * radius + MIN_SEPARATION):
+                positions[i] = pos
+                break
+            attempts += 1
+
+        if attempts == max_attempts:
+            print(f"Warning: Could not place sphere {i+1} without overlap")
+
+    centers = np.array(positions)
+    orients = [Rotation.identity() for _ in range(numParticles)]
+
+    # Verify minimum separation using exact ellipsoid distance
+    for i in range(numParticles):
+        my_min = np.inf
+        for j in range(i):
+            dd = np.linalg.norm(centers[i] - centers[j]) - 2*radius
+            assert dd >= MIN_SEPARATION, f"Separation violation: {dd} < {MIN_SEPARATION}, between {i} and {j}"
+            my_min = min(my_min, dd)
+        print(f"Min distance for ellipsoid {i}: {my_min}")
+
+    print("cluster created")
+    return centers, orients
+
+
 def uniform_data_generation(shape, volume_fraction, numParticles):
     """
     Generate uniform spheres with radius 1 and specified volume fraction.
@@ -516,10 +561,6 @@ def uniform_data_generation(shape, volume_fraction, numParticles):
         numParticles: Number of spheres to generate
     """
     assert shape=="sphere", "Currently only 'sphere' shape is supported"
-    import numpy as np
-    import pandas as pd
-    from scipy.spatial.distance import pdist, squareform
-    
     TOLERANCE = 1e-8
     acc = "Xfine"
     axes_length = {
@@ -529,61 +570,7 @@ def uniform_data_generation(shape, volume_fraction, numParticles):
     }
     a, b, c = axes_length[shape]
 
-    # Sphere radius
-    radius = 1.0
-    sphere_volume = (4/3) * np.pi * radius**3
-    
-    # Calculate total volume needed for all spheres
-    total_sphere_volume = numParticles * sphere_volume
-    
-    # Calculate bounding box volume based on volume fraction
-    bbox_volume = total_sphere_volume / volume_fraction
-    
-    # Assume cubic bounding box for simplicity
-    bbox_side = bbox_volume**(1/3)
-    
-    # Generate random positions ensuring no overlap
-    positions = []
-    max_attempts = 20000
-    
-    for i in range(numParticles):
-        attempts = 0
-        while attempts < max_attempts:
-            # Random position within bounding box (accounting for sphere radius)
-            pos = np.random.uniform(radius, bbox_side - radius, 3)
-            
-            # Check for overlaps with existing spheres
-            valid = True
-            for existing_pos in positions:
-                distance = np.linalg.norm(pos - existing_pos)
-                if distance < 2 * radius:  # Overlap check
-                    valid = False
-                    break
-            
-            if valid:
-                positions.append(pos)
-                break
-            attempts += 1
-        
-        if attempts == max_attempts:
-            print(f"Warning: Could not place sphere {i+1} without overlap")
-    
-    centers = np.array(positions)
-    orients = [Rotation.identity() for _ in range(numParticles)]
-
-    # Check that the minimum separation is maintained
-    for i in range(numParticles):
-        my_min = np.inf
-        for j in range(i):
-            dd = min_distance_two_ellipsoids(a,b,c,centers[i],orients[i],
-                                        a,b,c,centers[j],orients[j])
-
-            assert dd >= 1e-4, f"Separation violation: {dd} < {1e-4}, between {i} and {j}"
-
-            my_min = min(my_min, dd)
-        print(f"Min distance for ellipsoid {i}: {my_min}")
-
-    print("cluster created")
+    centers, orients = uniform_cluster(volume_fraction, numParticles)
 
     # write_vtk(centers, "cluster.vtk")
     # print("Wrote cluster.vtk with sphere centers.")
@@ -716,5 +703,14 @@ def create_and_save_ellipsoid_cluster(numParticles):
 
 
 if __name__ == '__main__':
-    reference_data_generation(delta=.1)
+    shape = "sphere"
+    delta = 0.8
+    numParticles = 10
+    df = reference_data_generation(shape, delta=delta, 
+                                   numParticles=numParticles, tol=1e-8)
+    df.to_csv(f"tmp/reference_{shape}_{delta}.csv", index=False, header=True, float_format="%.16g")
+    
+    
     #uniform_data_generation("sphere", volume_fraction=0.05, numParticles=20)
+
+

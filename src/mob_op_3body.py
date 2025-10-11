@@ -38,6 +38,7 @@ class NNMob3B(TwoBodyNNMob):
         switch_dist: float = 6.0,
         triplet_cutoff: float = 6.0,
     ) -> None:
+        assert shape=="sphere", "Only sphere shape currently supported for 3B"
         super().__init__(
             shape=shape,
             self_nn_path=self_nn_path,
@@ -157,7 +158,7 @@ class NNMob3B(TwoBodyNNMob):
             velocities[t] = pred_v.sum(axis=0)
             velocities[t, 3:] = 0.0 #angular prediction bad for 3b_cross
 
-            print("3b terms for ", t, ":", len(triplet_features), len(neighbours))
+            #print("3b terms for ", t, ":", len(triplet_features), len(neighbours))
 
         return velocities
 
@@ -173,22 +174,23 @@ class NNMob3B(TwoBodyNNMob):
         assert config.shape == (N, 7)
 
         pos = config[:, :3]
-        orientations = Rotation.from_quat(config[:, 3:], scalar_first=False)
+        orientations = [Rotation.identity() for _ in range(N)]  # unused for spheres
 
-        v_self = self.get_self_vel_analytical(orientations, force, viscosity)
-        v_two = self.get_two_vel(pos, orientations, force, viscosity)
+        v_s_and_2b = super().apply(config, force, viscosity)
         v_three = self.get_3b_vel(pos, None, force, viscosity)
-        return v_self + v_two + v_three
+
+        #print(v_s_and_2b.shape, v_three.shape)
+        return v_s_and_2b + v_three
 
 
 if __name__ == "__main__":
     # Small harness to run check_against_ref on reference_sphere.csv and report accuracy
     try:
-        from mob_op_nn import check_against_ref
+        from mob_op_nn import check_against_ref, helens_3body_sphere
     except Exception:
         # If import path issues, add src to sys.path explicitly
         sys.path.append(os.path.dirname(__file__))
-        from mob_op_nn import check_against_ref
+        from mob_op_nn import check_against_ref, helens_3body_sphere
 
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"
@@ -207,5 +209,10 @@ if __name__ == "__main__":
     )
 
     ref_path = "data/reference_sphere.csv"
-    check_against_ref(mob, ref_path)
+    #check_against_ref(mob, ref_path)
+
+    for S in [.1, 0.5, 1.0, 2.0, 4.0]:
+        print(f"Separation {S}:")
+        helens_3body_sphere(mob, S, shape=shape)
+        print("-----")
 

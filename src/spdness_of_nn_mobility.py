@@ -9,7 +9,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from benchmarks.cluster import grow_cluster
 #from mob_op_nn import NNMob
-from mob_op_combined import NNMob
+from src.mob_op_2b_combined import NNMob
+from src.mob_op_3body import NNMob3B
+from src.mob_op_nbody import Mob_Op_Nbody
 from src.mfs_utils import min_distance_two_ellipsoids
 
 """
@@ -18,45 +20,69 @@ Sphere: tested for P=20 at S=.1 (min eigen=0.00194)
 With fs term, P=20 ceases to be SPD at S=2.45 or below.
 """
 
-def sphere():
-    R = 1.0  
-    S = .4   # separation between sphere centers equals R
-    P = 20
-    print(f"sphere: {P=}, {S=}")
-
-    shape = "sphere"
-    self_path = "data/models/self_interaction_model.pt"
-    two_body = "data/models/two_body_combined_model.pt"
-    #two_body_F1 = "data/models/two_body_sphere_model_F1.pt"
-    mob = NNMob(shape, self_path, two_body, #two_body_F1,
-                nn_only=False, rpy_only=False)
-    
-    centers = grow_cluster(P, R, S)
-    r = Rotation.identity().as_quat(scalar_first=False)
-    orientations = np.tile(r, (P, 1))
-
-    config = np.concatenate((centers, orientations), axis=1)
-    assert config.shape == (P, 7)
-
-
+def compute_M(mob, config, P, print_progress=True):
     N = P*6
     M = np.zeros((N, N))
     for i in range(N):
-        print("column ", i)
+        if print_progress:
+            print("column ", i)
         delta = np.zeros(N)
         delta[i] = 1.0
         delta = delta.reshape(P, 6)
         v = mob.apply(config, delta, viscosity=1.0)
         M[:, i] = v.flatten()
+    return M
 
+def test_M(M, sym_tol=1e-4, eig_tol=1e-4):
     eigens = np.linalg.eigvals(M)
     print("Eigenvalues of M:", eigens)
-    print("Is M SPD?", np.all(eigens > -1e-4))
+    print("Is M SPD?", np.all(eigens > -eig_tol))
     print("min eigen: ", eigens.min())
 
     # Symmetry check. tol can't be too low cause NN
-    print("Is M symmetric?", np.allclose(M, M.T, atol=1e-4))
-    return M, sorted(eigens)
+    print("Is M symmetric?", np.allclose(M, M.T, atol=sym_tol))
+    return eigens
+
+
+def sphere(mob_type, config_path, S):
+    shape = "sphere"
+    self_path = "data/models/self_interaction_model.pt"
+    two_body = "data/models/two_body_combined_model.pt"
+
+    mob = None
+    if mob_type == "2b":
+        mob = NNMob(shape, self_path, two_body, 
+                    nn_only=False, rpy_only=False)
+    elif mob_type == "rpy":
+        mob = NNMob(shape, self_path, two_body, 
+                    nn_only=False, rpy_only=True)
+    elif mob_type == "3b":
+        three_body = "data/models/3body_cross.pt"
+        mob = NNMob3B(shape, self_path, two_body, three_body, 
+                    nn_only=False, rpy_only=False)
+    elif mob_type == "nbody":
+        nbody = "data/models/nbody_pinn_recovered.pt"
+        mob = Mob_Op_Nbody(shape, self_path, two_body, nbody, 
+                    nn_only=False, rpy_only=False, switch_dist=6.0)
+
+    if config_path is None:
+        numParticles = 20
+        R = 1.0
+        centers = grow_cluster(numParticles, R, S)
+        r = Rotation.identity().as_quat(scalar_first=False)
+        orientations = np.tile(r, (numParticles, 1))
+        config = np.concatenate((centers, orientations), axis=1)
+    else:
+        df = pd.read_csv(config_path, float_precision="high",
+                        header=0, index_col=False)
+        numParticles = df.shape[0]    
+        config = df[["x","y","z","q_x","q_y","q_z","q_w"]].values
+
+    assert config.shape == (numParticles, 7)
+
+    M = compute_M(mob, config, numParticles, print_progress=True)
+    eigens = test_M(M, sym_tol=1e-4, eig_tol=1e-4)
+    return M, eigens
 
 
 def random_spheres_test():
@@ -251,12 +277,5 @@ def bryce():
 
 
 if __name__ == "__main__":
-    M, eigens = sphere()
+    eigens = sphere("nbody", None, S=0.25)
 
-    for ii in range(len(eigens)):
-        block = M[ii*6:(ii+1)*6, ii*6:(ii+1)*6]
-        if not np.allclose(block, block.T, atol=1e-4):
-            print(f"Block {ii} is not symmetric")
-            break 
-
-    

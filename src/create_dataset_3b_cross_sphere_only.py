@@ -2,6 +2,9 @@
 Generate a three-body interactions dataset for spheroids.
 
 Target (particle #1) is fixed at the origin 
+
+for each particle k: it should consist of d_kt, d_ks, d_kt*d_ks, Perpendicular distance to the t-s axis, cos(∠stk) and cos(∠tsk)
+
 """
 
 import time
