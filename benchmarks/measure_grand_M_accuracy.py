@@ -5,6 +5,7 @@ import seaborn as sns
 
 from src.mob_op_2b_combined import NNMob as TwoBodyNNMob
 from src.mob_op_3body import NNMob3B
+from src.mob_op_nbody import Mob_Op_Nbody
 from benchmarks.cluster import reference_data_generation, uniform_data_generation
 
 # None of them using self interaction NN model
@@ -30,13 +31,35 @@ mob_3b = NNMob3B(
     triplet_cutoff=6.0,
 )
 
+mob_nbody = Mob_Op_Nbody(
+    shape=shape,
+    self_nn_path=self_path,
+    two_nn_path=two_body,
+    nbody_nn_path="data/models/nbody_pinn_recovered.pt",
+    nn_only=False,
+    rpy_only=False,
+    switch_dist=6.0,
+)
+
 numParticles = 10
 results = []
-deltas = [.1, .2, .5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0]
-for delta in deltas:
+deltas = [.1, .2, .5, 1.0,1.5, 2.0, 3.0, 4.0, 5.0]
+vol_fracs = [.01, .02, .05, .1, .15, .2][::-1]
+
+uniform_config = True
+iters = vol_fracs if uniform_config else deltas
+
+print("Uniform config:", uniform_config)
+for delta in iters:
     print("Delta:", delta)
-    df = reference_data_generation(shape, delta, numParticles)
-    # uniform_df = uniform_data_generation(shape, delta, numParticles)
+    
+    #df = reference_data_generation(shape, delta, numParticles)
+    if uniform_config:
+        df = uniform_data_generation(shape, delta, numParticles, TOLERANCE=1e-7)
+    else:
+        df = pd.read_csv(f"tmp/reference_sphere_{delta}.csv", float_precision="high",
+                         header=0, index_col=False)
+
 
     config = df[["x","y","z","q_x","q_y","q_z","q_w"]].values
     forces = df[["f_x","f_y","f_z","t_x","t_y","t_z"]].values
@@ -45,34 +68,38 @@ for delta in deltas:
     v_2b = mob_2b.apply(config, forces, viscosity=1.0)
     v_rpy = mob_rpy.apply(config, forces, viscosity=1.0)
     v_3b = mob_3b.apply(config, forces, viscosity=1.0)
+    v_nbody = mob_nbody.apply(config, forces, viscosity=1.0)
 
-    err_2b = np.linalg.norm(velocity - v_2b, axis=1).mean()
-    err_rpy = np.linalg.norm(velocity - v_rpy, axis=1).mean()
-    err_3b = np.linalg.norm(velocity - v_3b, axis=1).mean()
+    ND = 3
+    err_2b = np.linalg.norm(velocity[:,:ND] - v_2b[:,:ND], axis=1).mean()
+    err_rpy = np.linalg.norm(velocity[:,:ND] - v_rpy[:,:ND], axis=1).mean()
+    err_3b = np.linalg.norm(velocity[:,:ND] - v_3b[:,:ND], axis=1).mean()
+    err_nbody = np.linalg.norm(velocity[:,:ND] - v_nbody[:,:ND], axis=1).mean()
 
     results.append({
         "delta": float(delta),
         "err_rpy": float(err_rpy),
         "err_2b": float(err_2b),
         "err_3b": float(err_3b),
+        "err_nbody": float(err_nbody),
     })
 
-    print(f"  errors -> 2b: {err_2b:.6e}, RPY: {err_rpy:.6e}, 3b: {err_3b:.6e}")
+    print(f" errors -> 2b: {err_2b:.6e}, RPY: {err_rpy:.6e}, 3b: {err_3b:.6e}, nbody: {err_nbody:.6e}")
 
-# Convert to DataFrame with explicit column order: RPY, then 2b, then 3b
-res_df = pd.DataFrame(results, columns=["delta", "err_rpy", "err_2b", "err_3b"])
+# Convert to DataFrame with explicit column order: RPY, then 2b, then 3b, then nbody
+res_df = pd.DataFrame(results, columns=["delta", "err_rpy", "err_2b", "err_3b", "err_nbody"])
+res_df = res_df.round(5)
 res_df.to_csv("grand_M_accuracy.csv", index=False)
 print("Saved results to grand_M_accuracy.csv")
 
-# Plot with seaborn directly from res_df
 plot_df = res_df.melt(id_vars=["delta"],
-                      value_vars=["err_rpy", "err_2b", "err_3b"],
+                      value_vars=["err_rpy", "err_2b", "err_3b", "err_nbody"],
                       var_name="operator", value_name="error")
-name_map = {"err_2b": "2-body NN", "err_rpy": "RPY", "err_3b": "3-body NN"}
+name_map = {"err_2b": "2-body NN", "err_rpy": "RPY", "err_3b": "3-body NN", "err_nbody": "n-body NN"}
 plot_df["operator"] = plot_df["operator"].map(name_map)
 
-# Enforce legend order: RPY, then 2-body NN, then 3-body NN
-op_order = ["RPY", "2-body NN", "3-body NN"]
+# Enforce legend order: RPY, then 2-body NN, then 3-body NN, then n-body NN
+op_order = ["RPY", "2-body NN", "3-body NN", "n-body NN"]
 plot_df["operator"] = pd.Categorical(plot_df["operator"], categories=op_order, ordered=True)
 
 sns.set(style="whitegrid")
@@ -94,5 +121,6 @@ plt.legend(title="Mobility operator", fontsize=12, title_fontsize=12)
 plt.tight_layout()
 
 #save figure
-plt.savefig("grand_M_accuracy.png", dpi=300)
+name = "grand_M_accuracy" if not uniform_config else "grand_M_accuracy_varying_uniform"
+plt.savefig(f"{name}.png", dpi=300)
 plt.show()

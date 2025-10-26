@@ -3,6 +3,8 @@ import random
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+from src.mfs_utils import build_B
+
 def G_vec(r):
     """
     Vectorized Oseen tensor for Stokes flow in 3D.
@@ -32,7 +34,8 @@ def imp_mfs_mobility_vec(
     T_ext_list,  # list of external torques (3,) per particle
     B_inv_list,  # list of pre-inverted B-matrices ((3N+6) x (3N+6)) per particle
     max_iter=1000,
-    tol=1e-7
+    tol=1e-7,
+    print_steps=False
 ):
     """
     Multi-particle IMP-MFS mobility solver including force and torque.
@@ -75,11 +78,70 @@ def imp_mfs_mobility_vec(
 
         max_diff = max(np.linalg.norm(x[p]-old_solutions[p]) for p in range(P))
         if max_diff < tol:
-            print(f"Converged after {iteration+1} iterations (max diff = {max_diff:e})")
+            #print(f"Converged after {iteration+1} iterations (max diff = {max_diff:e})")
             break
         else:
-            print(f"Iteration {iteration+1}: max diff = {max_diff:e}")
+            if print_steps:
+                print(f"Iteration {iteration+1}: max diff = {max_diff:e}")
     else:
         raise RuntimeError("Solver did not converge")
     return x
 
+class MobOpMFS:
+    def __init__(self, shape, acc):
+        assert shape=="sphere", "Only sphere shape is implemented in this example."
+
+        self.boundary = np.loadtxt(f'/home/shihab/src/mfs/points/b_{shape}_{acc}.txt', dtype=np.float64)
+        self.source = np.loadtxt(f'/home/shihab/src/mfs/points/s_{shape}_{acc}.txt', dtype=np.float64)
+        print(f"Loaded geometry: {self.boundary.shape[0]} boundary nodes, {self.source.shape[0]} source points")
+
+        self.B_orig = build_B(self.boundary, self.source, np.zeros(3))
+        self.B_inv = np.linalg.pinv(self.B_orig)
+        
+    def apply(self, config, forces, viscosity=1.0):
+        """
+        Sphere-only
+        """
+        N_particles = config.shape[0]
+        b_list = []
+        s_list = []
+        F_ext_list = []
+        T_ext_list = []
+        for i in range(N_particles):
+            center = config[i, :3]
+            b_i = self.boundary + center[None, :]
+            s_i = self.source + center[None, :]
+            b_list.append(b_i)
+            s_list.append(s_i)
+            F_ext_list.append(forces[i, :3])
+            T_ext_list.append(forces[i, 3:6])
+
+        B_inv_list = [self.B_inv for _ in range(N_particles)]
+
+        V_tilde_list = imp_mfs_mobility_vec(
+            b_list, s_list, F_ext_list, T_ext_list, B_inv_list,
+            max_iter=1000, tol=1e-8, print_steps=False
+        )
+
+        velocities = np.zeros((N_particles, 6), dtype=np.float64)
+        M1 = s_list[0].shape[0]
+        for i in range(N_particles):
+            solution_i = V_tilde_list[i]
+            velocities[i, :3] = solution_i[3*M1 : 3*M1 + 3]
+            velocities[i, 3:6] = solution_i[3*M1 + 3 : 3*M1 + 6]
+        return velocities
+    
+if __name__ == "__main__":
+    from mob_op_nn import check_against_ref
+
+    shape = "sphere"
+    acc = "fine"
+    mob_mfs = MobOpMFS(shape, acc)
+
+    #ref_path = "tmp/reference_sphere_0.5.csv"
+    
+    ref_path = "tmp/uniform_sphere_0.05.csv"
+    import pandas as pd
+    df = pd.read_csv(ref_path, float_precision="high",
+                    header=0, index_col=False)
+    check_against_ref(mob_mfs, ref_path, print_stuff=True)

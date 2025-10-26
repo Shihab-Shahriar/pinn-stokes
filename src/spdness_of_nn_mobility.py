@@ -33,14 +33,29 @@ def compute_M(mob, config, P, print_progress=True):
         M[:, i] = v.flatten()
     return M
 
-def test_M(M, sym_tol=1e-4, eig_tol=1e-4):
-    eigens = np.linalg.eigvals(M)
+def test_M(M, sym_tol=1e-6, eig_tol=1e-4):
+    M = M.astype(np.float64)
+    eigens = np.linalg.eigvalsh(M)
     print("Eigenvalues of M:", eigens)
     print("Is M SPD?", np.all(eigens > -eig_tol))
     print("min eigen: ", eigens.min())
+    print("No of negative eigenvalues:", np.sum(eigens < -eig_tol))
 
-    # Symmetry check. tol can't be too low cause NN
+    N = M.shape[0]//6
+    M_ff = np.zeros((3*N, 3*N), dtype=np.float64)
+    print("Building M_ff", M_ff.shape)
+    for i in range(N):
+        for j in range(N):
+            M_ff[i*3:(i+1)*3, j*3:(j+1)*3] = M[i*6:i*6+3, j*6:j*6+3]
+    eigens_ff = np.linalg.eigvalsh(M_ff)
+    print("Eigenvalues of M_ff:", eigens_ff)
+    print("Is M_ff SPD?", np.all(eigens_ff > -eig_tol))
+    print("min eigen of M_ff: ", eigens_ff.min())
+    print("No of negative eigenvalues of M_ff:", np.sum(eigens_ff < -eig_tol))
+
+    # Symmetry check.
     print("Is M symmetric?", np.allclose(M, M.T, atol=sym_tol))
+    print("Max asymmetry:", np.max(np.abs(M-M.T)))
     return eigens
 
 
@@ -61,7 +76,7 @@ def sphere(mob_type, config_path, S):
         mob = NNMob3B(shape, self_path, two_body, three_body, 
                     nn_only=False, rpy_only=False)
     elif mob_type == "nbody":
-        nbody = "data/models/nbody_pinn_recovered.pt"
+        nbody = "data/models/nbody_pinn_b1.pt"
         mob = Mob_Op_Nbody(shape, self_path, two_body, nbody, 
                     nn_only=False, rpy_only=False, switch_dist=6.0)
 
@@ -277,5 +292,5 @@ def bryce():
 
 
 if __name__ == "__main__":
-    eigens = sphere("nbody", None, S=0.25)
+    M, eigens = sphere("nbody", None, S=0.20)
 

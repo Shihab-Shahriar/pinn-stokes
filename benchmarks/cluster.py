@@ -10,7 +10,7 @@ import pandas as pd
 from scipy.spatial.distance import cdist
 from src.mfs_utils import (build_B, createNewEllipsoid, get_QM_QN,
                             min_distance_two_ellipsoids)
-from src.mfs import G_vec
+from src.mfs import G_vec, imp_mfs_mobility_vec
 from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
 
@@ -76,8 +76,8 @@ def imp_mfs_multiparticle(
             for q in range(P):
                 if q == p:
                     continue
-                #x_q = x[q]
-                x_q = old_solutions[q]
+                x_q = x[q]
+                #x_q = old_solutions[q]
                 # f_q: shape (M, 3)
                 f_q = x_q[:3*M].reshape(M, 3)
                 # if iteration==1:
@@ -382,14 +382,6 @@ def reference_data_generation(shape, delta, numParticles, tol=1e-7):
         centers = grow_cluster(numParticles, a, delta)
         orients = [Rotation.identity() for _ in range(numParticles)]
 
-    # df = pd.read_csv("/home/shihab/repo/data/reference_ellipsoid.csv", float_precision="high",
-    #                     header=0, index_col=False)
-
-    # centers = df[["x","y","z"]].values
-    # orients = []
-    # for i in range(numParticles):
-    #     q = df.iloc[i, 3:7].values
-    #     orients.append(Rotation.from_quat(q, scalar_first=False))
     
     end = time.time()
     print(f"Elapsed time: {end-start:.3f} seconds")
@@ -459,12 +451,7 @@ def reference_data_generation(shape, delta, numParticles, tol=1e-7):
     print("Sum of F_ext_list:", ft.sum())
 
     b_inv = np.array(Bpp_inv_list)
-    #print("Sum of Bpp_inv_list:", b_inv.sum())
-    # print("Sum of Bpp_inv_list[0]:", b_inv[0].sum())
-    # print("Sum of Bpp_inv_list[1]:", b_inv[1].sum())
-    # print("Sum of Bpp_inv_list[2]:", b_inv[2].sum())
 
-    # print("B_inv total terms:", np.prod(b_inv.shape))
 
     # Run the IMP-MFS mobility solver
     start_time = time.time()
@@ -506,7 +493,7 @@ def reference_data_generation(shape, delta, numParticles, tol=1e-7):
     return df
 
 
-def uniform__sphere_cluster(volume_fraction, numParticles, radius=1.0, max_attempts=10000):
+def uniform_sphere_cluster(volume_fraction, numParticles, radius=1.0, max_attempts=10000):
     """Generate a random non-overlapping cluster of spheres."""
     # Calculate bounding box size from desired volume fraction
     sphere_volume = (4 / 3) * np.pi * radius ** 3
@@ -551,7 +538,7 @@ def uniform__sphere_cluster(volume_fraction, numParticles, radius=1.0, max_attem
     return centers, orients
 
 
-def uniform_data_generation(shape, volume_fraction, numParticles):
+def uniform_data_generation(shape, volume_fraction, numParticles, TOLERANCE=1e-8):
     """
     Generate uniform spheres with radius 1 and specified volume fraction.
     
@@ -561,7 +548,6 @@ def uniform_data_generation(shape, volume_fraction, numParticles):
         numParticles: Number of spheres to generate
     """
     assert shape=="sphere", "Currently only 'sphere' shape is supported"
-    TOLERANCE = 1e-8
     acc = "Xfine"
     axes_length = {
         "prolateSpheroid": (1.0, 1.0, 3.0),
@@ -570,7 +556,9 @@ def uniform_data_generation(shape, volume_fraction, numParticles):
     }
     a, b, c = axes_length[shape]
 
-    centers, orients = uniform_cluster(volume_fraction, numParticles)
+    centers, orients = uniform_sphere_cluster(volume_fraction, numParticles)
+    print("centers")
+    print(centers)
 
     # write_vtk(centers, "cluster.vtk")
     # print("Wrote cluster.vtk with sphere centers.")
@@ -583,11 +571,14 @@ def uniform_data_generation(shape, volume_fraction, numParticles):
     M = s_single.shape[0]  # number of source points
 
     
-    b_list = [b_single]
-    s_list = [s_single]
-    for i in range(1, numParticles):
-        boundary_i, source_i = createNewEllipsoid(centers[i], orients[i],
-                                                s_single, b_single)
+    b_list = []
+    s_list = []
+    for i in range(numParticles):
+        # boundary_i, source_i = createNewEllipsoid(centers[i], orients[i],
+        #                                         s_single, b_single)
+        boundary_i = b_single + centers[i][None, :]
+        source_i   = s_single + centers[i][None, :]
+
         b_list.append(boundary_i)
         s_list.append(source_i)
 
@@ -611,12 +602,15 @@ def uniform_data_generation(shape, volume_fraction, numParticles):
     Bpp_inv = np.linalg.pinv(B)
     Bpp_inv_list = [Bpp_inv.copy()]
     for i in range(1, numParticles):
-        QM2, QN2 = get_QM_QN(orients[i], b_single.shape[0], s_single.shape[0])
-        B2_inv = QM2 @ Bpp_inv @ QN2.T
-        Bpp_inv_list.append(B2_inv)
-        #print("QM QN sum:", i, QM2.sum(), QN2.sum())
-        assert QM2.shape == (3*M+6, 3*M+6)
-        assert QN2.shape == (3*N+6, 3*N+6)
+        if shape!="sphere":
+            QM2, QN2 = get_QM_QN(orients[i], b_single.shape[0], s_single.shape[0])
+            B2_inv = QM2 @ Bpp_inv @ QN2.T
+            Bpp_inv_list.append(B2_inv)
+            #print("QM QN sum:", i, QM2.sum(), QN2.sum())
+            assert QM2.shape == (3*M+6, 3*M+6)
+            assert QN2.shape == (3*N+6, 3*N+6)
+        else:
+            Bpp_inv_list.append(Bpp_inv.copy())
 
     print("Sum of template binv:", Bpp_inv.sum())
     print(Bpp_inv.shape)
@@ -664,7 +658,7 @@ def uniform_data_generation(shape, volume_fraction, numParticles):
         print("Ang velocity:", omega_i)
 
     #save to csv
-    #df.to_csv(f"tmp/uniform_{shape}_{volume_fraction}.csv", index=False, header=True, float_format="%.16g")
+    df.to_csv(f"tmp/uniform_{shape}_{volume_fraction}.csv", index=False, header=True, float_format="%.16g")
     return df
 
 
