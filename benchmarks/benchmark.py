@@ -49,20 +49,13 @@ class ScNetwork(nn.Module):
         self.register_buffer("levi_civita", lc)
 
         self.layers = nn.Sequential(
-            nn.Linear(input_dim, 32),
-            nn.ReLU(),
+            nn.Linear(input_dim, 64),
+            nn.Tanh(),
+            nn.Linear(64, 32),
+            nn.Tanh(),
             nn.Linear(32, 64),
-            nn.ReLU(),
-            # nn.Linear(64, 32),
-            # nn.ReLU(),
-            # nn.Linear(32, 64),
-            # nn.ReLU(),
-            # nn.Linear(64, 32),
-            # nn.ReLU(),
-            # nn.Linear(64, 64),
-            # nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(64, 5),
-            nn.Tanh()
         )
 
     def L3(self, d):
@@ -103,9 +96,11 @@ class ScNetwork(nn.Module):
 # --------------------------------------------------
 import nvtx
 
+input_dim = 4
+
+
 def measure_throughput(model, device, batch_size, n_warmup=1, n_iter=3):
     """Measures throughput (samples/sec) on random data for a given model and batch size."""
-    input_dim = 10
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Running on device:", device)
 
@@ -135,9 +130,8 @@ def measure_throughput(model, device, batch_size, n_warmup=1, n_iter=3):
 # --------------------------------------------------
 # Main script
 # --------------------------------------------------
-def main():
+def bench():
     # Create the base model and move to device
-    input_dim = 10  # matching the usage in forward pass
     base_model = ScNetwork(input_dim).to(device)
 
     # --------------------------------------------------
@@ -145,18 +139,18 @@ def main():
     # --------------------------------------------------
     print("\n-- Baseline PyTorch --")
     batch_candidates = [1024, 8192, 16384, 24064, 32768, 65536]
-    batch_candidates = [16384]
+    #batch_candidates = [16384]
     best_throughput_pt = 0
     best_batch_pt = 1
 
-    # for bs in batch_candidates:
-    #     thpt = measure_throughput(base_model, device, bs)
-    #     print(f"Batch size={bs}, throughput={thpt:.2f} samples/sec")
-    #     if thpt > best_throughput_pt:
-    #         best_throughput_pt = thpt
-    #         best_batch_pt = bs
+    for bs in batch_candidates:
+        thpt = measure_throughput(base_model, device, bs)
+        print(f"Batch size={bs}, throughput={thpt:.2f} Msamples/sec")
+        if thpt > best_throughput_pt:
+            best_throughput_pt = thpt
+            best_batch_pt = bs
 
-    # print(f"Best batch size (PyTorch)={best_batch_pt}, best throughput={best_throughput_pt:.2f}\n")
+    print(f"Best batch size (PyTorch)={best_batch_pt}, best throughput={best_throughput_pt:.2f}\n")
 
     # --------------------------------------------------
     # 2) PyTorch 2.0+ compile
@@ -169,7 +163,7 @@ def main():
         
         for bs in batch_candidates:
             thpt = measure_throughput(compiled_model, device, bs)
-            print(f"Batch size={bs}, throughput={thpt:.2f} samples/sec")
+            print(f"Batch size={bs}, throughput={thpt:.2f} Msamples/sec")
             if thpt > best_throughput_compile:
                 best_throughput_compile = thpt
                 best_batch_compile = bs
@@ -214,4 +208,4 @@ def main():
     #     print("TensorRT is not available in this environment.\n")
 
 if __name__ == "__main__":
-    main()
+    bench()
