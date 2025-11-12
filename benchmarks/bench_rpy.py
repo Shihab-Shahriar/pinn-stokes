@@ -206,7 +206,10 @@ def _two_body_mu_batch(
 	centres: torch.Tensor,
 	radii: torch.Tensor,
 ) -> torch.Tensor:
-	"""Compute batched two-body grand mobility matrices without vmap.
+	"""_two_body_mu_batch() is a specialized and optimized function 
+	that only works for a batch of two-bead systems. It expects batched 
+	inputs of shape (batch, 2, 3) for centres and (batch, 2) for radii.
+	Unlike mu(), which takes input of shape (n, 3) and (n,).
 
 	Parameters
 	----------
@@ -232,6 +235,9 @@ def _two_body_mu_batch(
 	device = centres.device
 	dtype = centres.dtype
 	batch = centres.shape[0]
+
+	# assert 32 bit dtype
+	assert dtype == torch.float32, "Expected float32 dtype"
 
 	if batch == 0:
 		return torch.zeros((0, 12, 12), dtype=dtype, device=device)
@@ -576,4 +582,8 @@ def bench(
 
 if __name__ == "__main__":
 	bench()
+
+	if torch.cuda.is_available():
+		max_vram_gb = torch.cuda.max_memory_allocated() / (1024**3)
+		print(f"\nTotal Peak VRAM Usage: {max_vram_gb:.2f} GB")
 

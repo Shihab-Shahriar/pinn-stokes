@@ -699,12 +699,22 @@ def create_and_save_ellipsoid_cluster(numParticles):
 if __name__ == '__main__':
     shape = "sphere"
     delta = 0.8
-    numParticles = 10
-    df = reference_data_generation(shape, delta=delta, 
-                                   numParticles=numParticles, tol=1e-8)
-    df.to_csv(f"tmp/reference_{shape}_{delta}.csv", index=False, header=True, float_format="%.16g")
+    numParticles = 800
+    # df = reference_data_generation(shape, delta=delta, 
+    #                                numParticles=numParticles, tol=1e-8)
+    # df.to_csv(f"tmp/reference_{shape}_{delta}.csv", index=False, header=True, float_format="%.16g")
     
     
     #uniform_data_generation("sphere", volume_fraction=0.05, numParticles=20)
+
+    centers, orients = uniform_sphere_cluster(0.1, numParticles)
+    quats = np.array([r.as_quat(scalar_first=False) for r in orients])
+    config = np.concatenate([centers, quats], axis=1)
+
+    columns=["x", "y", "z",  "q_x", "q_y", "q_z", "q_w"]
+
+    df = pd.DataFrame(config, columns=columns)
+
+    df.to_csv(f"tmp/uniform_sphere_0.1_{numParticles}.csv", index=False, header=True, float_format="%.16g")
 
 

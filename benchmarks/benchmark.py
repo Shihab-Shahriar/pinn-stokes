@@ -8,10 +8,12 @@ import torch
 import torch.nn as nn
 import time
 
+torch.set_float32_matmul_precision('high')
+
 # import torch_tensorrt
 # TENSORRT_AVAILABLE = True
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda")
 
 def L1(d):
     """ Computes the outer product of each 3D vector in the batch with itself. """
@@ -47,6 +49,7 @@ class ScNetwork(nn.Module):
         lc[2, 1, 0] = -1
         lc[1, 0, 2] = -1
         self.register_buffer("levi_civita", lc)
+        self.inv_visc = 1.0/viscosity
 
         self.layers = nn.Sequential(
             nn.Linear(input_dim, 64),
@@ -75,7 +78,7 @@ class ScNetwork(nn.Module):
         d_vec = d_vec / r.unsqueeze(-1)
         RT = sc[:, 2].unsqueeze(1).unsqueeze(2) * self.L3(d_vec)
 
-        K = torch.zeros((len(X), 6, 6), dtype=torch.float32, device=X.device)
+        K = torch.empty((len(X), 6, 6), dtype=torch.float32, device=X.device)
         K[:, :3, :3] = sc[:, 0].unsqueeze(1).unsqueeze(2) * L1(d_vec) \
              + sc[:, 1].unsqueeze(1).unsqueeze(2) * L2(d_vec)
         K[:, 3:, :3] = RT
@@ -85,7 +88,7 @@ class ScNetwork(nn.Module):
     
 
         # Finally compute velocity
-        M = K / viscosity
+        M = K * self.inv_visc
         velocity = torch.bmm(M, force.unsqueeze(-1)).squeeze(-1)
         return velocity
     
@@ -109,8 +112,9 @@ def measure_throughput(model, device, batch_size, n_warmup=1, n_iter=3):
 
     # Warm-up
     with nvtx.annotate("warmup"):
-        for _ in range(n_warmup):
-            _ = model.forward(X, force)
+        with torch.inference_mode():
+            for _ in range(n_warmup):
+                _ = model(X, force)
     torch.cuda.synchronize(device)
 
     # Timed runs
@@ -118,7 +122,8 @@ def measure_throughput(model, device, batch_size, n_warmup=1, n_iter=3):
     end = torch.cuda.Event(enable_timing=True)
     start.record()
     for _ in range(n_iter):
-        _ = model.forward(X, force)
+        with torch.inference_mode():
+            _ = model(X, force)
     end.record()
     torch.cuda.synchronize(device)
     elapsed_sec = start.elapsed_time(end) / 1000.0
@@ -138,7 +143,9 @@ def bench():
     # 1) Baseline PyTorch model (without compile)
     # --------------------------------------------------
     print("\n-- Baseline PyTorch --")
-    batch_candidates = [1024, 8192, 16384, 24064, 32768, 65536]
+    batch_candidates = [1024, 8192, 16384, 24064, 32768, 65536, ]
+                        #2**17, 2**18, 2**19, 2**20, 2**21, 2**22, 
+                        #2**23, 2**24, 2**25]
     #batch_candidates = [16384]
     best_throughput_pt = 0
     best_batch_pt = 1
@@ -209,3 +216,7 @@ def bench():
 
 if __name__ == "__main__":
     bench()
+
+    if torch.cuda.is_available():
+        max_vram_gb = torch.cuda.max_memory_allocated() / (1024**3)
+        print(f"\nTotal Peak VRAM Usage: {max_vram_gb:.2f} GB")
