@@ -10,8 +10,16 @@ import pandas as pd
 import torch
 import torch.profiler as profiler
 from torch_geometric.nn import radius_graph
+from torch_cluster import radius as kdtree
 
 torch.set_float32_matmul_precision('high')
+
+"""
+Lots of optimizations still possible, like making sure we use
+fixed sized buffers for max neighbors, avoiding cuda graph breaks.
+
+For now, profiling shows out of 40ms, 32ms is in two-body model.
+"""
 
 # Ensure relative imports work if run as a script
 sys.path.append(os.path.dirname(__file__))
@@ -23,9 +31,10 @@ class Mob_Nbody_Torch(NNMobTorch):
     """NNMob augmented with an n-body correction network, running on GPU."""
 
     DEFAULT_MEAN_DIST_S: float = 4.690027344329476
-    DEFAULT_MAX_NEIGHBORS: int = 10 # K, consider at most 10 neighbors for nbody effect
+    DEFAULT_MAX_K_NEIGHBORS: int = 10 # K, consider at most 10 neighbors for nbody effect
     DEFAULT_NEIGHBOR_CUTOFF: float = 6.0
     MAX_PAIR_NEIGHBORS: int = 32 # max particle pairs <6.0 cutoff
+    MAX_K_CANDIDATES: int = 20 # max neighbors per pair
     _EPS: float = 1e-9
 
     def __init__(
@@ -38,7 +47,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         rpy_only: bool = False,
         switch_dist: float = 6.0,
         neighbor_cutoff: float = DEFAULT_NEIGHBOR_CUTOFF,
-        max_neighbors: int = DEFAULT_MAX_NEIGHBORS,
+        max_k_neighbors: int = DEFAULT_MAX_K_NEIGHBORS,
         mean_dist_s: float = DEFAULT_MEAN_DIST_S,
     ) -> None:
         super().__init__(
@@ -61,7 +70,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         # self.nbody_nn = model.eval()
         self.nbody_nn = torch.jit.load(nbody_nn_path, map_location=self.device).eval()
 
-        self.max_neighbors = int(max_neighbors)
+        self.max_k_neighbors = int(max_k_neighbors)
         self.neighbor_cutoff = float(neighbor_cutoff)
         self.mean_dist_s = float(mean_dist_s)
 
@@ -74,11 +83,16 @@ class Mob_Nbody_Torch(NNMobTorch):
 
             def forward(self, pos: torch.Tensor,
                         force: torch.Tensor, t_idx: torch.Tensor, 
-                        s_idx: torch.Tensor, viscosity: TensorLike) -> torch.Tensor:
+                        s_idx: torch.Tensor, 
+                        pair_idx: torch.Tensor,
+                        k_idx: torch.Tensor,
+                        viscosity: TensorLike) -> torch.Tensor:
                 # Delegate to the Python implementation; torch.compile may insert
                 # graph breaks around calls to TorchScript model, but still speeds up
                 # surrounding tensor ops.
-                return self.parent.get_nbody_velocity(pos, force, t_idx, s_idx, viscosity, print_dim=False)
+                return self.parent.get_nbody_velocity(
+                    pos, force, t_idx, s_idx, pair_idx, k_idx,
+                    viscosity, print_dim=False)
 
         self._nbody_kernel = _NBodyKernelModule(self).to(self.device)
         self._nbody_kernel_compiled = torch.compile(self._nbody_kernel, mode="max-autotune", backend="inductor")
@@ -97,49 +111,92 @@ class Mob_Nbody_Torch(NNMobTorch):
 
         # edge_index: (2, num_pairs); directed edges i -> j
         t_idx, s_idx = edge_index[0], edge_index[1]  # both (num_pairs,)
-        return t_idx, s_idx
+        NP = t_idx.shape[0]
+
+        pos_t = pos[t_idx]
+        pos_s = pos[s_idx]
+        midpoints = 0.5 * (pos_t + pos_s)  # (NP,3)
+
+        edge_index = kdtree(
+            x=pos,                     # sources
+            y=midpoints,               # targets / queries
+            r=self.neighbor_cutoff,
+            batch_x=None,
+            batch_y=None,
+            max_num_neighbors=self.MAX_K_CANDIDATES,  # or some safe upper bound per target
+        )
+
+        if edge_index.numel() == 0:
+            empty_idx = torch.zeros(NP, self.max_k_neighbors, dtype=torch.long, device=device)
+            empty_mask = torch.zeros(NP, self.max_k_neighbors, dtype=torch.bool, device=device)
+            return empty_idx, empty_mask
+
+        pair_idx = edge_index[0]   # (NK,) indices into midpoints
+        k_idx = edge_index[1]      # (NK,) indices into all particle positions
+        return t_idx, s_idx, pair_idx, k_idx
 
 
     def get_k_neighbors(self, pos: torch.Tensor, 
                         pos_t: torch.Tensor, t_idx: torch.Tensor,
-                        pos_s: torch.Tensor, s_idx: torch.Tensor):
+                        pos_s: torch.Tensor, s_idx: torch.Tensor,
+                        pair_idx: torch.Tensor,
+                        k_idx: torch.Tensor,):
         """For each pair of particles within cutoff, get top-K neighbors for n-body effect, along with masks."""
-        N = pos.shape[0]
+        device = pos.device
         NP = pos_t.shape[0]
 
-        # 2. Neighbor candidate distances relative to pair midpoint (NP, N)
-        midpoints = 0.5 * (pos_t + pos_s)  # (NP,3)
-        dist_to_midpoint = torch.linalg.norm(pos.unsqueeze(0) - midpoints.unsqueeze(1), dim=2)  # (NP,N)
+        # exclude source and target particles from candidates
+        mask_exclude = (k_idx != t_idx[pair_idx]) & (k_idx != s_idx[pair_idx])  # (NK,) bool
+        pair_idx = pair_idx[mask_exclude]  # (NK',)
+        k_idx = k_idx[mask_exclude]        # (NK',)
 
-        # Exclude self indices t and s from candidates
-        k_indices = torch.arange(N, device=self.device).unsqueeze(0)  # (1,N)
-        neighbor_exclude_mask = (k_indices == t_idx.unsqueeze(1)) | (k_indices == s_idx.unsqueeze(1))  # (NP,N) bool
-        dist_to_midpoint = torch.where(neighbor_exclude_mask, torch.inf, dist_to_midpoint)  # (NP,N)
+        if pair_idx.numel() == 0:
+            empty_idx = torch.zeros(NP, self.max_k_neighbors, dtype=torch.long, device=device)
+            empty_mask = torch.zeros(NP, self.max_k_neighbors, dtype=torch.bool, device=device)
+            return empty_idx, empty_mask
 
-        # 3. Define neighbor score = d_kt * d_ks (NP, N), mask with cutoff and invalid pairs
-        d_kt = torch.linalg.norm(pos.unsqueeze(0) - pos[t_idx].unsqueeze(1), dim=2)  # (NP,N)
-        d_ks = torch.linalg.norm(pos.unsqueeze(0) - pos[s_idx].unsqueeze(1), dim=2)  # (NP,N)
-        score = d_kt * d_ks  # (NP,N)
-        score_mask = (dist_to_midpoint > self.neighbor_cutoff) | neighbor_exclude_mask
-        score = torch.where(score_mask, torch.inf, score)  # (NP,N)
+        # Sort by pair_idx first to ensure candidates are grouped per pair
+        order = torch.argsort(pair_idx)
+        pair_idx = pair_idx[order]
+        k_idx = k_idx[order]
 
-        # 4. Select static top-K neighbors (K << N; no special-casing)
-        K = self.max_neighbors
-        M = score.shape[1]
-        _, top_k_indices = torch.topk(score, K, dim=1, largest=False)  # indices:(NP,K)
-        gathered_scores = score.gather(1, top_k_indices)  # (NP,K)
+        # 3. Define neighbor score = d_kt * d_ks
+        pos_k = pos[k_idx]
+        d_kt = torch.linalg.norm(pos_k - pos_t[pair_idx], dim=1)  # (NK',)
+        d_ks = torch.linalg.norm(pos_k - pos_s[pair_idx], dim=1)  # (NK',)
+        score = d_kt * d_ks                                        # (NK',)
 
-        # neighbor_mask identifies finite (valid) neighbors among top-K
-        neighbor_mask = torch.isfinite(gathered_scores)  # (NP,K) bool
+        # 4. Pack ragged scores into dense matrix for torch.topk
+        counts = torch.bincount(pair_idx, minlength=NP)
+        max_candidates = self.MAX_K_CANDIDATES
 
-        # Sort neighbors so valids come first; use a sentinel for invalid entries for sorting only
-        sentinel = torch.full_like(top_k_indices, fill_value=M)  # (NP,K)
-        sort_keys = torch.where(neighbor_mask, top_k_indices, sentinel)  # (NP,K)
-        sort_perm = torch.argsort(sort_keys, dim=1)  # (NP,K)
-        top_k_indices = torch.gather(top_k_indices, 1, sort_perm)  # (NP,K)
-        gathered_scores = torch.gather(gathered_scores, 1, sort_perm)  # (NP,K)
-        neighbor_mask = torch.take_along_dim(neighbor_mask, sort_perm, dim=1)  # (NP,K) bool
-        return top_k_indices, neighbor_mask
+        scores_dense = torch.full(
+            (NP, max_candidates), torch.inf, dtype=score.dtype, device=device
+        )
+        idx_dense = torch.full(
+            (NP, max_candidates), -1, dtype=torch.long, device=device
+        )
+
+        prefix = torch.cumsum(counts, dim=0) - counts
+        local_pos = torch.arange(pair_idx.shape[0], device=device) - prefix[pair_idx]
+
+        scores_dense[pair_idx, local_pos] = score
+        idx_dense[pair_idx, local_pos] = k_idx
+
+        K = 10
+        topk_scores, topk_pos = torch.topk(scores_dense, K, dim=1, largest=False)
+        topk_indices = idx_dense.gather(1, topk_pos)
+        topk_valid = topk_indices >= 0
+
+        final_indices = torch.zeros(NP, K, dtype=torch.long, device=device)
+        final_mask = torch.zeros(NP, K, dtype=torch.bool, device=device)
+
+        final_indices[:, :K] = torch.where(
+            topk_valid, topk_indices, torch.zeros_like(topk_indices)
+        )
+        final_mask[:, :K] = topk_valid
+
+        return final_indices, final_mask
 
 
     def get_nbody_velocity(
@@ -148,6 +205,8 @@ class Mob_Nbody_Torch(NNMobTorch):
         force: torch.Tensor,   # shape (N, 6)
         t_idx: torch.Tensor,   # shape (num_pairs,)
         s_idx: torch.Tensor,   # shape (num_pairs,)
+        pair_idx: torch.Tensor, # shape (num_pairs,)
+        k_idx: torch.Tensor,    # shape (num_pairs,)
         viscosity: float,      # scalar
         print_dim: bool = False,
     ) -> torch.Tensor:
@@ -156,7 +215,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         _ = viscosity
 
         N = pos.shape[0]
-        K = self.max_neighbors
+        K = self.max_k_neighbors
 
         dtype = pos.dtype
 
@@ -166,7 +225,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         s_vec = pos_s - pos_t               # (num_pairs, 3)
 
         top_k_indices, neighbor_mask = self.get_k_neighbors(
-            pos, pos_t, t_idx, pos_s, s_idx
+            pos, pos_t, t_idx, pos_s, s_idx, pair_idx, k_idx
         )
 
         # 5. Build feature vector with fixed shapes
@@ -266,7 +325,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         v_base = super().apply(config, force, viscosity)
 
         pos = config[:, :3]
-        t_idx, s_idx = self.get_close_pairs(pos)
+        t_idx, s_idx, pair_idx, k_idx = self.get_close_pairs(pos)
 
         print("nbody: t_idx shape:", t_idx.shape, "s_idx shape:", s_idx.shape)
 
@@ -281,7 +340,9 @@ class Mob_Nbody_Torch(NNMobTorch):
             # Use compiled kernel if available
             torch.cuda.synchronize()
             start = time.perf_counter()
-            v_nbody = self._nbody_kernel(pos, force, t_idx, s_idx, viscosity)
+            v_nbody = self._nbody_kernel_compiled(
+                pos, force, t_idx, s_idx, pair_idx, k_idx, 
+                viscosity)
             torch.cuda.synchronize()
             end = time.perf_counter()
             print(f"Nbody kernel execution time: {(end - start)*1000:.6f} ms")
