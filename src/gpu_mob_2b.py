@@ -96,6 +96,7 @@ class NNMobTorch:
         nn_only: bool = False,
         rpy_only: bool = False,
         switch_dist: float = 6.0,
+        rpy_tile_size: int = 512,
         device: Union[str, torch.device, None] = None,
     ) -> None:
         if nn_only and rpy_only:
@@ -108,6 +109,7 @@ class NNMobTorch:
         self.nn_only = nn_only
         self.rpy_only = rpy_only
         self.switch_dist = switch_dist
+        self.rpy_tile_size = int(rpy_tile_size)
         self.device = _ensure_device(device)
 
         self.contact_distance = torch.tensor(2.0, dtype=torch.float32, device=self.device)
@@ -228,6 +230,103 @@ class NNMobTorch:
 
         return result * inv_mu
 
+    def _batch_rpy(
+        self,
+        positions: torch.Tensor,
+        force: torch.Tensor,
+        viscosity: TensorLike,
+        pair_mask: torch.Tensor | None = None,
+        min_distance: float | None = None,
+        tile_size: int | None = None,
+        out: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, int]:
+        """Evaluate far-field RPY interactions in cache-friendly tiles.
+
+        Parameters
+        ----------
+        positions:
+            Tensor of shape ``(N, 3)`` containing particle coordinates.
+        force:
+            Tensor of shape ``(N, 6)`` with force/torque for each particle.
+        viscosity:
+            Fluid viscosity passed to ``_rpy_velocity``.
+        pair_mask:
+            Optional boolean mask of shape ``(N, N)`` specifying which ordered
+            pairs should be evaluated. When omitted, ``min_distance`` must be
+            provided and the mask is generated on-the-fly by thresholding the
+            distances within each tile.
+        min_distance:
+            Minimum separation for including a pair when ``pair_mask`` is
+            ``None``.
+        tile_size:
+            Optional override for the square tile edge length. Defaults to
+            ``self.rpy_tile_size``.
+        out:
+            Optional tensor of shape ``(N, 6)`` to accumulate the results into.
+
+        Returns
+        -------
+        (torch.Tensor, int)
+            The tensor receiving the accumulated velocities and the total
+            number of evaluated pair interactions.
+        """
+
+        if pair_mask is None and min_distance is None:
+            raise ValueError("pair_mask or min_distance must be provided")
+
+        tile = int(tile_size or self.rpy_tile_size)
+        tile = max(tile, 1)
+
+        positions = positions.contiguous()
+        force = force.contiguous()
+        N = positions.shape[0]
+        device = positions.device
+        idx = torch.arange(N, device=device)
+
+        if out is None:
+            out = torch.zeros_like(force)
+
+        pair_counter = 0
+
+        for tgt_start in range(0, N, tile):
+            tgt_end = min(tgt_start + tile, N)
+            pos_t = positions[tgt_start:tgt_end]
+            tgt_idx = idx[tgt_start:tgt_end]
+
+            for src_start in range(0, N, tile):
+                src_end = min(src_start + tile, N)
+                pos_s = positions[src_start:src_end]
+                src_idx = idx[src_start:src_end]
+
+                rel = pos_t[:, None, :] - pos_s[None, :, :]
+
+                if pair_mask is not None:
+                    valid = pair_mask[tgt_start:tgt_end, src_start:src_end]
+                else:
+                    dist = torch.linalg.norm(rel, dim=-1)
+                    threshold = 0.0 if min_distance is None else float(min_distance)
+                    valid = dist > threshold
+                    if tgt_start == src_start:
+                        diag = torch.arange(pos_t.shape[0], device=device)
+                        valid[diag, diag] = False
+
+                if not torch.any(valid):
+                    continue
+
+                tgt_local, src_local = torch.nonzero(valid, as_tuple=True)
+                if tgt_local.numel() == 0:
+                    continue
+
+                rel_pairs = rel[tgt_local, src_local]
+                src_wrench = force[src_idx[src_local]]
+                tgt_global = tgt_idx[tgt_local]
+
+                vel = self._rpy_velocity_compiled(rel_pairs, src_wrench, viscosity)
+                out.index_add_(0, tgt_global, vel)
+                pair_counter += tgt_local.numel()
+
+        return out, pair_counter
+
     # ------------------------------------------------------------------
     # Two-body NN contribution
     # ------------------------------------------------------------------
@@ -313,11 +412,14 @@ class NNMobTorch:
                 print("no of RPY interactions:", rpy_mask.sum().item())
                 torch.cuda.synchronize()
                 start = time.perf_counter()
-                tgt_idx, src_idx = torch.nonzero(rpy_mask, as_tuple=True)
-                rel_rpy = rel[tgt_idx, src_idx]
-                src_wrench = force_t[src_idx]
-                vel_rpy = self._rpy_velocity_compiled(rel_rpy, src_wrench, viscosity)
-                velocities.index_add_(0, tgt_idx, vel_rpy)
+                _, _ = self._batch_rpy(
+                    positions,
+                    force_t,
+                    viscosity,
+                    pair_mask=rpy_mask,
+                    tile_size=self.rpy_tile_size,
+                    out=velocities,
+                )
                 torch.cuda.synchronize()
                 end = time.perf_counter()
                 print(f"RPY kernel execution time: {(end - start)*1000:.6f} ms")

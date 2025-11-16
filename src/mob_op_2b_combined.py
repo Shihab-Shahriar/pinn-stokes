@@ -19,7 +19,9 @@ from src.mfs_utils import min_distance_two_ellipsoids
 
 import sys 
 sys.path.append("/home/shihab/repo/utils")
-from viz3d import save_multiple_ellipsoids_legacy_vtk 
+
+from benchmarks.cluster import reference_data_generation, uniform_data_generation
+
 
 # NOTE orientation[i] is always the rotation needed to convert z-axis to the 
 # major axis of the particle. That is,
@@ -103,14 +105,19 @@ class NNMob:
         self.rpy_only  = rpy_only
         self.switch_dist = switch_dist  # distance at which we fall back to RPY
 
-        print("NNMob shape: ", shape)
-        print("NNMob axes: ", axes)
+
+        # Sphere-only diagnostics simplifying assumptions
+        if shape != 'sphere':
+            print("Warning: current SPD diagnostics assume sphere-only; results may be invalid for non-spherical shapes.")
+
+        self.M = None
 
     def get_self_vel_analytical(self, orientations, force, mu):
         """
         force:  (B,6) = [Fx,Fy,Fz, Tx,Ty,Tz]
-        radius: (B,)   sphere radius per sample
         returns (B,6) = [Ux,Uy,Uz, Ox,Oy,Oz]
+
+        This only works for radius =1.0 sphere (llok at inv_8pi_mu_a3)
         """
         F = force[:, :3]
         T = force[:, 3:]
@@ -119,6 +126,19 @@ class NNMob:
         U = inv_6pi_mu_a  * F
         Omega = inv_8pi_mu_a3 * T
         return np.concatenate([U, Omega], axis=1)
+
+    def _self_block_matrix(self, viscosity):
+        """
+        Build the 6x6 self-interaction mobility block M_ii for a unit-radius sphere.
+        M_ii = diag((1/6πμ) I3, (1/8πμ) I3) when a = 1.
+        Returns a numpy array of shape (6,6).
+        """
+        inv_6pi_mu_a = (1.0 / (6.0 * np.pi * viscosity))
+        inv_8pi_mu_a3 = (1.0 / (8.0 * np.pi * viscosity))
+        K = np.zeros((6, 6), dtype=float)
+        K[:3, :3] = inv_6pi_mu_a * np.eye(3)
+        K[3:, 3:] = inv_8pi_mu_a3 * np.eye(3)
+        return K
 
     def get_self_vel(self, orientations, force, viscosity):
         N = len(orientations)
@@ -218,13 +238,18 @@ class NNMob:
         ['center_x', 'center_y', 'center_z', 'dist', 'min_dist', 'quat_6d_1', 
         'quat_6d_2', 'quat_6d_3', 'quat_6d_4', 'quat_6d_5', 'quat_6d_6']
         """
-
         N = len(orientations)
+
         #print("for N=", N)
         assert pos.shape == (len(orientations), 3)
         assert force.shape == (len(orientations), 6)
 
         velocities = np.zeros((N, 6))
+        # For SPD diagnostic:
+        # - sum of spectral norms of off-diagonal two-body blocks M_ij per target t
+        # - sum of diagonal corrections from NN per neighbor: M_s^(t,neighbor) added to M_tt
+        # offdiag_spectral_sum = np.zeros(N, dtype=float)
+        # diag_ms_sum = np.zeros((N, 6, 6), dtype=float)
 
         rpy_freq = []
         rpy_dists_all = []
@@ -234,6 +259,7 @@ class NNMob:
             forces_t = []
             forces_s = []
             min_dist_all = np.inf
+            nn_neighbors_indices = []
             
             rpy_count = 0
             rpy_dists = 9999999999
@@ -243,96 +269,46 @@ class NNMob:
 
                 # NOTE src-target here, we're just translating so p_i is at the origin
                 # predict_velocity() reverses the direction 
-                center2 = pos[s] - pos[t] 
+                center2 = pos[s] - pos[t]
                 dist = np.linalg.norm(center2)
                 
-                use_rpy       = (
+                use_rpy = (
                     self.shape == 'sphere'
                     and (self.rpy_only or (not self.nn_only and dist > self.switch_dist))
                 )
-                use_stokeslet = (
-                    self.shape != 'sphere'
-                    and (not self.nn_only)            # honour nn_only
-                    and dist > 10.0                   # hard-coded cut-off
-                )
 
                 # RPY path ------------------------------------------------------
-                if use_rpy:          
-                    assert self.shape == 'sphere'
+                if use_rpy:
                     K_ij = self.compute_rpy_mobility(center2)
+                    self.M[t*6:(t+1)*6, s*6:(s+1)*6] = K_ij
                     velocities[t] += K_ij @ force[s]
+                    # accumulate spectral norm (largest singular value)
+                    #offdiag_spectral_sum[t] += np.max(np.linalg.eigvals(K_ij))
                     rpy_count += 1
                     rpy_dists = min(rpy_dists, dist)
                     continue  # next neighbour
 
-                if use_stokeslet:
-                    assert self.shape != 'sphere'
-                    K_ij = compute_stokeslet_mobility(center2, viscosity)
-                    velocities[t] += K_ij @ force[s]
-                    continue  # next neighbour
-
-                if self.shape=='sphere':
-                    min_dist = dist - 2.0
-                else: 
-                    min_dist = min_distance_two_ellipsoids(
-                        self.abc[0], self.abc[1], self.abc[2], pos[t], orientations[t],
-                        self.abc[0], self.abc[1], self.abc[2], pos[s], orientations[s],
-                        n_starts=20) 
-                
-                #assert np.allclose(min_dist, dist-2.0, 1e-3), f"{min_dist=} {dist=}" # for spheres of radius 1.0
+                # sphere-only minimum distance
+                min_dist = dist - 2.0
                 min_dist_all = min(min_dist_all, min_dist)
 
+                # Build sphere-only features
+                median = 5.01  # Constant based on dataset
+                r2 = (dist - median) ** 2
+                r4 = r2 * r2
+                inp_feat = np.concatenate((center2, [dist, r2, r4, min_dist]))
+                assert inp_feat.shape == (7,)
 
-                # TODO: I am not very confident about these rotations. Even if there 
-                # is a bug, we might not catch it with sphere.
-
-                # rotation needed to align p_t to z-axis
-                R_sys = orientations[t].inv()
-                
-                # Apply this rotation to force2, torque2
-                F1_new, T1_new = R_sys.apply(force[t, :3]), R_sys.apply(force[t, 3:])
-                F2_new, T2_new = R_sys.apply(force[s, :3]), R_sys.apply(force[s, 3:])
-                center2 = R_sys.apply(center2)
-
-                # But not to R_j. In training, we defined R_j as the rotation needed
-                # to align p1's major axis to p2's major axis. 
-                R_rel = orientations[s] * orientations[t].inv()
-
-                # TODO Update: I think center2 needs to be rotated as well
-
-                rot6d = quaternion_to_6d_batch([R_rel])[0]
-
-                if self.shape=='sphere':
-                    median = 5.01 # Constant based on dataset
-                    r2 = (dist - median)**2
-                    r4 = r2 * r2
-                    inp_feat = np.concatenate((center2, [dist, r2, r4, min_dist]))
-                    assert inp_feat.shape == (7,)
-                else:
-                    median = 7.034 # Constant based on dataset
-                    r2 = (dist - median)**2
-                    r4 = r2 * r2
-                    inp_feat = np.concatenate((center2, [dist, min_dist], rot6d, [r2, r4]))
-                    assert inp_feat.shape == (13,)
-
-                force_torque_s = np.concatenate((F1_new, T1_new))
-                force_torque_t = np.concatenate((F2_new, T2_new))
+                force_torque_s = force[t, :]
+                force_torque_t = force[s, :]
 
                 features.append(inp_feat)
                 forces_s.append(force_torque_s)
                 forces_t.append(force_torque_t)
+                nn_neighbors_indices.append(s)
 
                 assert force_torque_s.shape == (6,) == force_torque_t.shape
 
-                # if t==1 and s==2:
-                #     print("features", inp_feat)
-                #     print("forces_s", force_torque_s)
-                #     print("forces_t", force_torque_t)
-                #     print("min_dist", min_dist)
-                #     print("dist", dist)
-                #     print("min_dist_all", min_dist_all)
-
-            
             rpy_freq.append(rpy_count)
             rpy_dists_all.append(rpy_dists)
             if features:  # could be empty for N=1
@@ -342,8 +318,21 @@ class NNMob:
                 mu  = torch.tensor(viscosity, dtype=torch.float32, device=self.device)
                 
                 with torch.no_grad():
-                    v_two = self.two_nn.predict_velocity(X, Fs, Ft, mu).cpu().numpy()
+                    # For diagnostics: retrieve per-neighbor mobility blocks (M_s, M_t)
+                    M_s, M_t = self.two_nn.predict_mobility(X)
+                    # Scale by viscosity to match physical units of the analytical self block
+                    M_s = M_s / mu
+                    M_t = M_t / mu
+                    # accumulate spectral norms of off-diagonal blocks (mapping neighbor's force -> target's velocity)
+                    Mt_np = M_t.detach().cpu().numpy()
+                    Ms_np = M_s.detach().cpu().numpy()
+                    for k in range(Mt_np.shape[0]):
+                        s_idx = nn_neighbors_indices[k]
+                        self.M[t*6:(t+1)*6, s_idx*6:(s_idx+1)*6] = Mt_np[k]
+                        #offdiag_spectral_sum[t] += np.max(np.linalg.eigvals(Mt_np[k]))
+                        #diag_ms_sum[t] += Ms_np[k]
 
+                    v_two = self.two_nn.predict_velocity(X, Fs, Ft, mu).cpu().numpy()
                     assert v_two.shape == (len(features), 6)
 
                 # rotate back to lab frame & accumulate
@@ -353,12 +342,12 @@ class NNMob:
                 v_two = v_two.astype(np.float64)
                 velocities[t] += v_two.sum(axis=0)
         
-        print("RPY count per particle:", rpy_freq)
-        print("RPY distances per particle:", rpy_dists_all)
-        return velocities
+        #print("RPY count per particle:", rpy_freq)
+        #print("RPY distances per particle:", rpy_dists_all)
+        return velocities #, offdiag_spectral_sum, diag_ms_sum
 
         
-    def apply(self, config, force, viscosity):
+    def apply(self, config, force, viscosity, spd_diagnostics: bool = False):
         """
         For a given particle configuration, apply forces on the particles
         and return the velocity.
@@ -378,7 +367,10 @@ class NNMob:
 
         # Extract the positions and orientations
         N = config.shape[0]
+
         assert config.shape == (N, 7)
+
+        self.M = np.zeros((6*N, 6*N), dtype=np.float64)  # Store the full mobility matrix for diagnostics
 
         orientations = Rotation.from_quat(config[:, 3:], scalar_first=False) # (x, y, z, w) 
         pos = config[:, :3]
@@ -386,19 +378,85 @@ class NNMob:
         #v_self = self.get_self_vel(orientations, force, viscosity)
         v_self = self.get_self_vel_analytical(orientations, force, viscosity)
         
+        #v_two, offdiag_spectral_sum, diag_ms_sum = self.get_two_vel(pos, orientations, force, viscosity)
         v_two = self.get_two_vel(pos, orientations, force, viscosity)
 
-        return v_self + v_two
+        # SPD diagnostics: compare min eig of M_ii vs sum_j ||M_ij||_2
+        # Build per-particle diagonal blocks: M_ii = M_self + sum_j M_s^(i,j)
+        # M_self = self._self_block_matrix(viscosity)
+        # min_self_eigs = np.empty(N, dtype=float)
+        # for t in range(N):
+        #     M_ii = M_self + diag_ms_sum[t]
+        #     self.M[t*6:(t+1)*6, t*6:(t+1)*6] = M_ii
+        #     min_self_eigs[t] = float(np.min(np.linalg.eigvalsh(M_ii)))
+
+        # margins = min_self_eigs - offdiag_spectral_sum
+        # violations = np.where(margins <= 0)[0].tolist()
+
+        if spd_diagnostics:
+            print("\nSPD diagnostic per particle (sufficient condition check):")
+            for t in range(N):
+                print(f"  i={t}: lambda_min(M_ii)={min_self_eigs[t]:.4e}, sum_j||M_ij||_2={offdiag_spectral_sum[t]:.4e}, margin={margins[t]:+.4e}")
+            if violations:
+                print("Violation(s) detected at indices:", violations)
+            else:
+                print("No violations: sufficient SPD condition holds for all particles.")
+
+            # Store last report
+            # self.last_spd_report = {
+            #     'min_self_eigs': min_self_eigs,
+            #     'sum_offdiag_norms': offdiag_spectral_sum,
+            #     'margins': margins,
+            #     'violations': violations,
+            # }
+
+        output = v_self + v_two
+
+        # self.M = self.M / viscosity
+        # output2 = self.M @ force.flatten()
+        # output2 = output2.reshape(N, 6)
+
+        # for t in range(N):
+        #     # reduce atol from default 1e-8 to 1e-6
+        #     assert np.allclose(output[t], output2[t], atol=1e-6), f"Inconsistent velocity results between direct and matrix methods at particle {t}: {output[t]} vs {output2[t]}"
+
+        if spd_diagnostics:
+            is_sym = np.allclose(self.M, self.M.T, atol=1e-5)
+            print(f"Mobility matrix symmetry check: is_symmetric={is_sym}")
+            eigenvalues = np.linalg.eigvalsh(self.M)
+            is_spd = np.all(eigenvalues > 0)
+            print(f"Mobility matrix SPD check: is_spd={is_spd}")
+            print("5 smallest eigenvalues of M:", eigenvalues[:5])
+
+            if not is_spd:
+                print("How many eigenvalues <= 0?:", np.sum(eigenvalues <= 0))
+                eigvals, eigvecs = np.linalg.eigh(self.M)
+                eigvals_clipped = np.maximum(eigvals, 1e-9)
+                M_spd = eigvecs @ np.diag(eigvals_clipped) @ eigvecs.T
+
+                # # assert M_spd is SPD
+                # eig_spd = np.linalg.eigvalsh(M_spd)
+                # assert np.all(eig_spd > 0)
+
+                output_spd = M_spd @ force.flatten()
+                output_spd = output_spd.reshape(N, 6)
+
+                print("Replacing velocity with SPD-corrected version.")
+                err_spd = np.linalg.norm(output - output_spd, axis=1).mean()
+                print(f"Mean change in velocity after SPD correction: {err_spd:.6e}")
+                #output = output_spd
+
+        return output
 
 # --------------------------------------------------------
 # BASIC TESTING CODE BELOW
 
-def check_against_ref(mob, path):
+def check_against_ref(mob, path, print_stuff=False):
     # Load the reference data
     viscosity = 1.0
     df = pd.read_csv(path, float_precision="high",
                         header=0, index_col=False)
-    print(df.head())
+    #print(df.head())
 
     numParticles = df.shape[0]    
     config = df[["x","y","z","q_x","q_y","q_z","q_w"]].values
@@ -412,11 +470,12 @@ def check_against_ref(mob, path):
     lin_avg_rmse = 0
     ang_avg_rmse = 0
     for i in range(numParticles):
-        print(i)
         lin_rmse = np.sqrt(np.mean((v[i, :3] - velocity[i, :3])**2))
         ang_rmse = np.sqrt(np.mean((v[i, 3:] - velocity[i, 3:])**2))
-        print(f"linear: {v[i, :3]} {velocity[i, :3]} {lin_rmse:.4f}")
-        print(f"angular: {v[i, 3:]} {velocity[i, 3:]} {ang_rmse:.4f}")
+        if print_stuff:
+            print(i)
+            print(f"linear: {v[i, :3]} {velocity[i, :3]} {lin_rmse:.4f}")
+            print(f"angular: {v[i, 3:]} {velocity[i, 3:]} {ang_rmse:.4f}")
 
         lin_avg_rmse += lin_rmse
         ang_avg_rmse += ang_rmse
@@ -425,6 +484,9 @@ def check_against_ref(mob, path):
     ang_avg_rmse /= numParticles
     print(f"Avg linear RMSE: {lin_avg_rmse:.4f}")
     print(f"Avg angular RMSE: {ang_avg_rmse:.4f}")
+
+    err_2b = np.linalg.norm(velocity - v, axis=1).mean()
+    print(f"Avg 2-norm error: {err_2b:.4f}")
     return config
 
 def helens_3body_sphere():
@@ -471,6 +533,38 @@ def helens_3body_sphere():
     print()
     print(v)
 
+def check_against_cluster(mob, delta, numParticles):
+
+    df = reference_data_generation(shape, delta, numParticles)
+    # uniform_df = uniform_data_generation(shape, delta, numParticles)
+
+    config = df[["x","y","z","q_x","q_y","q_z","q_w"]].values
+    forces = df[["f_x","f_y","f_z","t_x","t_y","t_z"]].values
+    velocity = df[["v_x","v_y","v_z","w_x","w_y","w_z"]].values
+
+    v = mob.apply(config, forces, viscosity=1.0)
+    np.set_printoptions(precision=5, suppress=True)
+
+    lin_avg_rmse = 0
+    ang_avg_rmse = 0
+    for i in range(numParticles):
+        print(i)
+        lin_rmse = np.sqrt(np.mean((v[i, :3] - velocity[i, :3])**2))
+        ang_rmse = np.sqrt(np.mean((v[i, 3:] - velocity[i, 3:])**2))
+        print(f"linear: {v[i, :3]} {velocity[i, :3]} {lin_rmse:.4f}")
+        print(f"angular: {v[i, 3:]} {velocity[i, 3:]} {ang_rmse:.4f}")
+
+        lin_avg_rmse += lin_rmse
+        ang_avg_rmse += ang_rmse
+
+    lin_avg_rmse /= numParticles
+    ang_avg_rmse /= numParticles
+    print(f"Avg linear RMSE: {lin_avg_rmse:.4f}")
+    print(f"Avg angular RMSE: {ang_avg_rmse:.4f}")
+
+    err_2b = np.linalg.norm(velocity - v, axis=1).mean()
+    print(f"Avg 2-norm error: {err_2b:.4f}")
+
 
 if __name__ == "__main__":
     shape = "sphere"
@@ -481,45 +575,12 @@ if __name__ == "__main__":
 
     # max dist between spheres in the following is 12.78, something 
     # the model not trained to handle on nn_only mode
-    path = "/home/shihab/repo/data/reference_sphere.csv"
+    path = "/home/shihab/repo/tmp/reference_sphere_0.2.csv"
+    
     config = check_against_ref(mob, path)
+    
+    #check_against_cluster(mob, delta=0.4, numParticles=20)
 
 
 
-# if __name__ == "__main__":
-#     mob = NNMob("/home/shihab/repo/experiments/self_interaction.wt", 
-#                 "/home/shihab/repo/experiments/sphere_2body.wt")
-
-
-#     xs,ys = [],[]
-
-#     dataRoot = "/home/shihab/repo/data/"
-#     xs.append(np.load(dataRoot+"X_self_oblateSpheroid_23:07_4.npy"))
-#     ys.append(np.load(dataRoot+"Y_self_oblateSpheroid_23:07_4.npy"))
-
-#     xs.append(np.load(dataRoot+"X_self_prolateSpheroid_23:09_4.npy"))
-#     ys.append(np.load(dataRoot+"Y_self_prolateSpheroid_23:09_4.npy"))
-
-
-#     xs.append(np.load(dataRoot+"X_self_sphere_22:42_4.npy"))
-#     ys.append(np.load(dataRoot+"Y_self_sphere_22:42_4.npy"))
-
-#     X = np.concatenate(xs, axis=0)
-#     Y = np.concatenate(ys, axis=0)
-#     print(X.shape, Y.shape) 
-
-#     v = mob.apply(X[:, :9],X[:, 9:])
-
-
-#     def mean_abs_err(val_output, val_velocity_tensor, npp=False):
-#         # 6D vector: median % error for each vel component
-#         valid_mask = np.abs(val_velocity_tensor) > 1e-6
-        
-#         filtered_y_tensor = np.where(valid_mask, val_velocity_tensor, np.nan)
-#         relative_error = np.abs((val_output - filtered_y_tensor) / filtered_y_tensor)
-        
-#         a = np.nanmean(relative_error, axis=0)
-#         return a*100
-
-#     print(mean_abs_err(v, Y))
 
