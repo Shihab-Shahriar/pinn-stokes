@@ -102,20 +102,20 @@ class Mob_Nbody_Torch(NNMobTorch):
         pos: torch.Tensor,   # shape (N, 3
     ):
         # Build neighbor graph within cutoff using spatial indexing
-        edge_index = radius_graph(
-            pos,                        # (N, 3)
-            r=self.neighbor_cutoff, # cutoff radius
-            loop=False,                 # no self-edges
-            max_num_neighbors=self.MAX_PAIR_NEIGHBORS,       # adjust as needed
-        )
+        # edge_index = radius_graph(
+        #     pos,                        # (N, 3)
+        #     r=self.neighbor_cutoff, # cutoff radius
+        #     loop=False,                 # no self-edges
+        #     max_num_neighbors=self.MAX_PAIR_NEIGHBORS,       # adjust as needed
+        # )
 
-        # edge_index: (2, num_pairs); directed edges i -> j
-        t_idx, s_idx = edge_index[0], edge_index[1]  # both (num_pairs,)
-        NP = t_idx.shape[0]
+        # # edge_index: (2, num_pairs); directed edges i -> j
+        # t_idx, s_idx = edge_index[0], edge_index[1]  # both (num_pairs,)
+        pos_t = pos[self.t_idx_]
+        pos_s = pos[self.s_idx_]
 
-        pos_t = pos[t_idx]
-        pos_s = pos[s_idx]
         midpoints = 0.5 * (pos_t + pos_s)  # (NP,3)
+        NP = pos_t.shape[0]
 
         edge_index = kdtree(
             x=pos,                     # sources
@@ -133,7 +133,7 @@ class Mob_Nbody_Torch(NNMobTorch):
 
         pair_idx = edge_index[0]   # (NK,) indices into midpoints
         k_idx = edge_index[1]      # (NK,) indices into all particle positions
-        return t_idx, s_idx, pair_idx, k_idx
+        return self.t_idx_, self.s_idx_, pair_idx, k_idx
 
 
     def get_k_neighbors(self, pos: torch.Tensor, 
@@ -507,5 +507,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "profile":
         profile_get_nbody_velocity()
     else:
-        #perftest()
-        accuracy_test()
+        perftest()
+        #accuracy_test()
