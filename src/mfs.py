@@ -97,7 +97,12 @@ class MobOpMFS:
 
         self.B_orig = build_B(self.boundary, self.source, np.zeros(3))
         self.B_inv = np.linalg.pinv(self.B_orig)
-        
+
+        # opts for rk4-3sphere.py
+        self.B_inv_list = [self.B_inv for _ in range(3)]
+        self.F_ext_list = [np.array([0.0, 0.0, -1.0], dtype=np.float64) for _ in range(3)]
+        self.T_ext_list = [np.array([0.0, 0.0, 0.0], dtype=np.float64) for _ in range(3)]
+
     def apply(self, config, forces, viscosity=1.0):
         """
         Sphere-only
@@ -105,21 +110,21 @@ class MobOpMFS:
         N_particles = config.shape[0]
         b_list = []
         s_list = []
-        F_ext_list = []
-        T_ext_list = []
+        # F_ext_list = []
+        # T_ext_list = []
         for i in range(N_particles):
             center = config[i, :3]
             b_i = self.boundary + center[None, :]
             s_i = self.source + center[None, :]
             b_list.append(b_i)
             s_list.append(s_i)
-            F_ext_list.append(forces[i, :3])
-            T_ext_list.append(forces[i, 3:6])
+            # F_ext_list.append(forces[i, :3])
+            # T_ext_list.append(forces[i, 3:6])
 
-        B_inv_list = [self.B_inv for _ in range(N_particles)]
+        #B_inv_list = [self.B_inv for _ in range(N_particles)]
 
         V_tilde_list = imp_mfs_mobility_vec(
-            b_list, s_list, F_ext_list, T_ext_list, B_inv_list,
+            b_list, s_list, self.F_ext_list, self.T_ext_list, self.B_inv_list,
             max_iter=1000, tol=1e-8, print_steps=False
         )
 

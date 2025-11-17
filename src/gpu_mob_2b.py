@@ -96,7 +96,6 @@ class NNMobTorch:
         nn_only: bool = False,
         rpy_only: bool = False,
         switch_dist: float = 6.0,
-        rpy_tile_size: int = 512,
         device: Union[str, torch.device, None] = None,
     ) -> None:
         if nn_only and rpy_only:
@@ -109,7 +108,6 @@ class NNMobTorch:
         self.nn_only = nn_only
         self.rpy_only = rpy_only
         self.switch_dist = switch_dist
-        self.rpy_tile_size = int(rpy_tile_size)
         self.device = _ensure_device(device)
 
         self.contact_distance = torch.tensor(2.0, dtype=torch.float32, device=self.device)
@@ -125,6 +123,8 @@ class NNMobTorch:
             model = torch.compile(model, mode="max-autotune", backend="inductor")
         except Exception:
             pass
+
+        # model = torch.jit.load(two_nn_path, map_location=self.device).eval()
         
         self.two_nn = model
         # Build a fused, compiled kernel for pairwise NN velocity contribution
@@ -176,7 +176,7 @@ class NNMobTorch:
         res = torch.cat([u, omega], dim=-1)
         torch.cuda.synchronize()
         end = time.perf_counter()
-        print(f"Self velocity computation time: {(end - start)*1000:.6f} ms")
+        #print(f"Self velocity computation time: {(end - start)*1000:.6f} ms")
         return res
 
 
@@ -229,103 +229,6 @@ class NNMobTorch:
         result = torch.cat((trans_vel, rot_vel), dim=-1)
 
         return result * inv_mu
-
-    def _batch_rpy(
-        self,
-        positions: torch.Tensor,
-        force: torch.Tensor,
-        viscosity: TensorLike,
-        pair_mask: torch.Tensor | None = None,
-        min_distance: float | None = None,
-        tile_size: int | None = None,
-        out: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, int]:
-        """Evaluate far-field RPY interactions in cache-friendly tiles.
-
-        Parameters
-        ----------
-        positions:
-            Tensor of shape ``(N, 3)`` containing particle coordinates.
-        force:
-            Tensor of shape ``(N, 6)`` with force/torque for each particle.
-        viscosity:
-            Fluid viscosity passed to ``_rpy_velocity``.
-        pair_mask:
-            Optional boolean mask of shape ``(N, N)`` specifying which ordered
-            pairs should be evaluated. When omitted, ``min_distance`` must be
-            provided and the mask is generated on-the-fly by thresholding the
-            distances within each tile.
-        min_distance:
-            Minimum separation for including a pair when ``pair_mask`` is
-            ``None``.
-        tile_size:
-            Optional override for the square tile edge length. Defaults to
-            ``self.rpy_tile_size``.
-        out:
-            Optional tensor of shape ``(N, 6)`` to accumulate the results into.
-
-        Returns
-        -------
-        (torch.Tensor, int)
-            The tensor receiving the accumulated velocities and the total
-            number of evaluated pair interactions.
-        """
-
-        if pair_mask is None and min_distance is None:
-            raise ValueError("pair_mask or min_distance must be provided")
-
-        tile = int(tile_size or self.rpy_tile_size)
-        tile = max(tile, 1)
-
-        positions = positions.contiguous()
-        force = force.contiguous()
-        N = positions.shape[0]
-        device = positions.device
-        idx = torch.arange(N, device=device)
-
-        if out is None:
-            out = torch.zeros_like(force)
-
-        pair_counter = 0
-
-        for tgt_start in range(0, N, tile):
-            tgt_end = min(tgt_start + tile, N)
-            pos_t = positions[tgt_start:tgt_end]
-            tgt_idx = idx[tgt_start:tgt_end]
-
-            for src_start in range(0, N, tile):
-                src_end = min(src_start + tile, N)
-                pos_s = positions[src_start:src_end]
-                src_idx = idx[src_start:src_end]
-
-                rel = pos_t[:, None, :] - pos_s[None, :, :]
-
-                if pair_mask is not None:
-                    valid = pair_mask[tgt_start:tgt_end, src_start:src_end]
-                else:
-                    dist = torch.linalg.norm(rel, dim=-1)
-                    threshold = 0.0 if min_distance is None else float(min_distance)
-                    valid = dist > threshold
-                    if tgt_start == src_start:
-                        diag = torch.arange(pos_t.shape[0], device=device)
-                        valid[diag, diag] = False
-
-                if not torch.any(valid):
-                    continue
-
-                tgt_local, src_local = torch.nonzero(valid, as_tuple=True)
-                if tgt_local.numel() == 0:
-                    continue
-
-                rel_pairs = rel[tgt_local, src_local]
-                src_wrench = force[src_idx[src_local]]
-                tgt_global = tgt_idx[tgt_local]
-
-                vel = self._rpy_velocity_compiled(rel_pairs, src_wrench, viscosity)
-                out.index_add_(0, tgt_global, vel)
-                pair_counter += tgt_local.numel()
-
-        return out, pair_counter
 
     # ------------------------------------------------------------------
     # Two-body NN contribution
@@ -409,23 +312,23 @@ class NNMobTorch:
             velocities = torch.zeros_like(force_t)
 
             if rpy_mask.any():
-                print("no of RPY interactions:", rpy_mask.sum().item())
+                #print("no of RPY interactions:", rpy_mask.sum().item())
                 torch.cuda.synchronize()
                 start = time.perf_counter()
-                _, _ = self._batch_rpy(
-                    positions,
-                    force_t,
-                    viscosity,
-                    pair_mask=rpy_mask,
-                    tile_size=self.rpy_tile_size,
-                    out=velocities,
-                )
+                tgt_idx, src_idx = torch.nonzero(rpy_mask, as_tuple=True)
+                # two_body_rpy_batch expects rel = centre_target - centre_source,
+                # but `rel` stores source - target, so flip the sign for correctness
+                rel_rpy = -rel[tgt_idx, src_idx]
+                src_wrench = force_t[src_idx]
+                vel_rpy = self._rpy_velocity_compiled(rel_rpy, src_wrench, viscosity)
+                velocities.index_add_(0, tgt_idx, vel_rpy)
                 torch.cuda.synchronize()
                 end = time.perf_counter()
-                print(f"RPY kernel execution time: {(end - start)*1000:.6f} ms")
+                #print(f"RPY kernel execution time: {(end - start)*1000:.6f} ms")
+                #print("rpy mean:", vel_rpy.mean(dim=0))
 
             if nn_mask.any():
-                print("no of NN interactions:", nn_mask.sum().item())
+                #print("no of NN interactions:", nn_mask.sum().item())
                 torch.cuda.synchronize()
                 start = time.perf_counter()
                 tgt_idx, src_idx = torch.nonzero(nn_mask, as_tuple=True)
@@ -434,7 +337,8 @@ class NNMobTorch:
                 velocities += self._pair_kernel_compiled(rel, tgt_idx, src_idx, force_t, viscosity)
                 torch.cuda.synchronize()
                 end = time.perf_counter()
-                print(f"NN kernel execution time: {(end - start)*1000:.6f} ms")
+                #print(f"NN kernel execution time: {(end - start)*1000:.6f} ms")
+                #print("nn mean:", velocities.mean(dim=0))
 
             result = v_self + velocities
             return result
@@ -486,25 +390,28 @@ def check_against_ref_gpu(mob, path, print_stuff=False):
 def accuracy_test():
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"
-    two_body = "experiments/combined_2body.wt"
+    two_body_wt = "experiments/combined_2body.wt"
+    two_body_script = "data/models/two_body_combined_model.pt"
 
     just_rpy = False
 
-    mob = NNMobTorch(shape, self_path, two_body,
+    mob = NNMobTorch(shape, self_path, two_body_script,
                      nn_only=False, rpy_only=just_rpy)
 
-    mob_cpu = NNMob(shape, self_path, "data/models/two_body_combined_model.pt",
+    mob_cpu = NNMob(shape, self_path, two_body_script,
                     nn_only=False, rpy_only=just_rpy)
 
     # max dist between spheres in the following is 12.78, something 
     # the model not trained to handle on nn_only mode
-    path = "tmp/reference_sphere_0.2.csv"
-
-    print("GPU result:")
-    config = check_against_ref_gpu(mob, path)
-    print()
-    print("CPU result:")
-    check_against_ref(mob_cpu, path)
+    for d in ["0.1", "0.2", "0.5", "1.0", "2.0", "3.0"]:
+        print(f"---- Testing configuration with {d=} ----")
+        path = f"tmp/reference_sphere_{d}.csv"
+        print("GPU result:")
+        config = check_against_ref_gpu(mob, path)
+        print()
+        print("CPU result:")
+        check_against_ref(mob_cpu, path)
+        print("--------------------------------------------------\n\n")
 
 
 def profile_apply(
@@ -605,6 +512,6 @@ def perftest():
 
 
 if __name__ == "__main__":
-    #accuracy_test()
+    accuracy_test()
     #perftest()
-    profile_apply()
+    #profile_apply()

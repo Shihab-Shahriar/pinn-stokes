@@ -41,18 +41,6 @@ def test_M(M, sym_tol=1e-6, eig_tol=1e-4):
     print("min eigen: ", eigens.min())
     print("No of negative eigenvalues:", np.sum(eigens < -eig_tol))
 
-    N = M.shape[0]//6
-    M_ff = np.zeros((3*N, 3*N), dtype=np.float64)
-    print("Building M_ff", M_ff.shape)
-    for i in range(N):
-        for j in range(N):
-            M_ff[i*3:(i+1)*3, j*3:(j+1)*3] = M[i*6:i*6+3, j*6:j*6+3]
-    eigens_ff = np.linalg.eigvalsh(M_ff)
-    print("Eigenvalues of M_ff:", eigens_ff)
-    print("Is M_ff SPD?", np.all(eigens_ff > -eig_tol))
-    print("min eigen of M_ff: ", eigens_ff.min())
-    print("No of negative eigenvalues of M_ff:", np.sum(eigens_ff < -eig_tol))
-
     # Symmetry check.
     print("Is M symmetric?", np.allclose(M, M.T, atol=sym_tol))
     print("Max asymmetry:", np.max(np.abs(M-M.T)))
@@ -88,6 +76,7 @@ def sphere(mob_type, config_path, S):
         orientations = np.tile(r, (numParticles, 1))
         config = np.concatenate((centers, orientations), axis=1)
     else:
+        print(config_path)
         df = pd.read_csv(config_path, float_precision="high",
                         header=0, index_col=False)
         numParticles = df.shape[0]    
@@ -292,5 +281,5 @@ def bryce():
 
 
 if __name__ == "__main__":
-    M, eigens = sphere("nbody", None, S=0.20)
+    M, eigens = sphere("nbody", "tmp/uniform_sphere_0.15_20.csv", S=0.20)
 

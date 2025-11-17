@@ -10,3 +10,4 @@ src/.ipynb_checkpoints/
 utils/__pycache__
 benchmarks/__pycache__
 data/points/
+data/simulations/

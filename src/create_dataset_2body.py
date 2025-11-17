@@ -18,7 +18,7 @@ from scipy.spatial.transform import Rotation as R
 from mfs_utils import (build_B, createNewEllipsoid, get_QM_QN, 
                       min_distance_ellipsoids, random_unit_vector,
                       random_orientation_spheroid)
-#from utils import save_multiple_ellipsoids_legacy_vtk
+from create_dataset_self import get_self_vel
 
 # np.random.seed(42)
 # random.seed(43)
@@ -193,10 +193,9 @@ def createNewEllipsoid(center, rot, source_ref, boundary_ref):
 
 
 
-
 def solve_pair_interaction_spheroid(
     boundary1, source1, B1_inv, B_orig,
-    boundary2, source2, orientation2, force2, torque2
+    boundary2, source2, orientation2, force2, torque2, force_on_two
 ):
     """
     High-level routine that:
@@ -207,6 +206,9 @@ def solve_pair_interaction_spheroid(
     F_ext_list = [np.zeros(3), force2]     # external force on #2 only
     T_ext_list = [np.zeros(3), torque2]    # no external torque, for example
     
+    if force_on_two==False:
+        F_ext_list = [force2, np.zeros(3)] 
+        T_ext_list = [torque2, np.zeros(3)]
 
     QM, QN = get_QM_QN(orientation2, boundary2.shape[0], source2.shape[0])
     B2_inv = QM @ B1_inv @ QN.T
@@ -234,13 +236,15 @@ def solve_pair_interaction_spheroid(
 
 
 def generate_dataset_spheroid(shape, N_data, a, b, c,
-                             dist_min, dist_max):
+                             dist_min, dist_max, force_on_two):
     """
     Generates N_data samples. Each sample:
       Features: (relative_position, orientation_axis, force_dir)
       Target: 6D velocity of spheroid #1
     Prolate spheroids: #1 at origin, #2 at random orientation & position 
       but no overlap, with a random unit force on #2.
+
+      force_on_two: If True, force is applied on spheroid #2, else on #1.
     """
     acc = "fine"
     boundary1 = np.loadtxt(f'/home/shihab/src/mfs/points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
@@ -259,7 +263,7 @@ def generate_dataset_spheroid(shape, N_data, a, b, c,
     rejected = 0
     index = 0
     while n_accepted < N_data:
-        # introducde bias for smaller distance
+        # introduce bias for smaller distance
         def biased_distance():
             L = dist_max - dist_min
             u = np.random.uniform(0, 1)
@@ -304,7 +308,8 @@ def generate_dataset_spheroid(shape, N_data, a, b, c,
         try:
             velocity_6d = solve_pair_interaction_spheroid(
                 boundary1, source1, B1_inv, B_orig,
-                boundary2, source2, orientation2, force_on_2, torque_on_2
+                boundary2, source2, orientation2, force_on_2, torque_on_2,
+                force_on_two=force_on_two
             )
         except Exception as e:
             print(f"Error in sample {index}: {e}")
@@ -346,7 +351,7 @@ def generate_dataset_spheroid(shape, N_data, a, b, c,
 
 def main():
     N_samples = 4000
-    shape = "prolateSpheroid"
+    shape = "sphere"
     axes_length = {
         "prolateSpheroid": (1.0, 1.0, 3.0),
         "oblateSpheroid":  (2.0, 2.0, 1.0),
@@ -356,7 +361,7 @@ def main():
     
     # translation distance between ellipsoids
     dist_min = 2.02
-    dist_max = 12.0 
+    dist_max = 8.0 
 
     print("Generating dataset for", shape)
     print("Axes lengths:", a, b, c)

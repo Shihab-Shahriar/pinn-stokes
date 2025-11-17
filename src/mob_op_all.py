@@ -68,7 +68,7 @@ class NNMob:
 
     def get_self_vel(self, force, viscosity):
         """
-        Compute the isolated (single–sphere) self mobility contribution.
+        Compute the isolated (single-sphere) self mobility contribution.
 
         For a rigid sphere of radius R in Stokes flow:
             V = F / (6 π μ R)
@@ -166,7 +166,6 @@ class NNMob:
 
         mean_dist_s = 4.668671912939677
 
-        rpy_dists_all = []
 
         for t in range(N):
             v_2b_self = np.zeros(6)
@@ -187,13 +186,12 @@ class NNMob:
 
                 if self.rpy_only or (self.nn_only==False and dist > self.switch_dist):
                     # use RPY
-                    rpy_dists_all.append(dist)
                     K_rpy = self.compute_rpy_mobility(-dvec) #src-target
                     v_2b_cross += K_rpy @ force[s]
                     rpy_count  += 1
                 else:
                     # use NN
-                    d_vec_s = dvec / dist  # unit vector from target to source
+                    d_vec_s = dvec.copy()  # BUGfix: normalized by dist before, but model does that
 
                     # ['dist_s', 'dist_s_sq', 'dist_s_sqsq', 'min_dist_s']
                     dist_s = dist - mean_dist_s
@@ -226,10 +224,19 @@ class NNMob:
                     v_2b_cross += v_2b_cross_s.sum(dim=0).cpu().numpy()
                     v_2b_self  += v_2b_self_s.sum(dim=0).cpu().numpy()
 
-            velocities[t] = v_2b_self + v_2b_cross
-            rpy_dists_all.append(rpy_count)
+                    if t==0:
+                        print("debug t=0")
+                        print(v_2b_self)
+                        print(v_2b_cross)
+                        print(v_2b_cross_s)
+                        print("rpy....")
+                        for s in range(len(d_vecs)):
+                            K_rpy = self.compute_rpy_mobility(-d_vecs[s])
+                            print(K_rpy @ force[s])
 
-        print("RPY COUNT:", rpy_dists_all)
+            velocities[t] = v_2b_self + v_2b_cross
+            print(t, rpy_count)
+
         return velocities
 
     def apply(self, config, force, viscosity):
@@ -259,7 +266,7 @@ class NNMob:
         v_self = self.get_self_vel(force, viscosity)
         v_two = self.get_two_vel(pos, force, viscosity)
 
-        return v_self + v_two
+        return v_self+v_two
 
 # --------------------------------------------------------
 # BASIC TESTING CODE BELOW
@@ -342,14 +349,11 @@ def helens_3body_sphere():
     R = 1.0  
     S = 1.0   # separation between sphere centers equals R
 
-    just_rpy = False
+    just_rpy = True
     print("Just RPY? -- ", just_rpy)
 
-    self_path = "data/models/self_interaction_model.pt"
-    two_body = "data/models/two_body_sphere_model.pt"
-    two_body_F1 = "data/models/two_body_sphere_model_F1.pt"
-    mob = NNMob(shape, self_path, two_body, two_body_F1,
-                nn_only=False, rpy_only=just_rpy, switch_dist=6.0)
+    nn_path = "/home/shihab/repo/experiments/all_models_sphere.wt"
+    mob = NNMob(nn_path, nn_only=False, rpy_only=just_rpy, switch_dist=6.0)
     
 
     D = 2*R + S
@@ -388,8 +392,6 @@ def helens_3body_sphere():
     print(v)
 
 
-
-
 def main():
     nn_path = "/home/shihab/repo/experiments/all_models_sphere.wt"
     mob = NNMob(nn_path, nn_only=False, rpy_only=False, switch_dist=6.0)
@@ -405,5 +407,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-    #helens_3body_sphere()
+    #main()
+    helens_3body_sphere()

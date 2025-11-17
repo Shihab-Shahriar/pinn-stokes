@@ -226,10 +226,11 @@ def solve_pair_interaction_spheroid(
 
     M1 = source1.shape[0]
     solution_1 = V_tilde_list[0]
+    solution_2 = V_tilde_list[1]
     # last 6 are translational + rotational velocity
-    velocity_1 = solution_1[3*M1 : 3*M1 + 3]
-    omega_1    = solution_1[3*M1 + 3 : 3*M1 + 6]
-    return np.concatenate([velocity_1, omega_1])  # shape (6,)
+    velocity_1 = solution_1[3*M1 : 3*M1 + 6]
+    velocity_2 = solution_2[3*M1 : 3*M1 + 6]
+    return np.concatenate([velocity_1, velocity_2])  # shape (6,)
 
 
 def generate_dataset_spheroid(shape, N_data, a, b, c,
@@ -299,16 +300,11 @@ def generate_dataset_spheroid(shape, N_data, a, b, c,
         print(f"Iter {index}: Min dist: {min_dist}, center2: {center2}")
 
         try:
-            velocity_6d = solve_pair_interaction_spheroid(
+            velocity_12d = solve_pair_interaction_spheroid(
                 boundary1, source1, B1_inv, 
                 boundary2, source2, orientation2, 
                 force_on_1, torque_on_1, force_on_2, torque_on_2
             )
-            self_vel = get_self_vel(shape, boundary1.shape[0], source1.shape[0],
-                force_on_1, torque_on_1, B1_inv, Rotation.identity(3) 
-            )
-            self_vel = np.concatenate([self_vel[0], self_vel[1]])  # shape (6,)
-            velocity_6d = velocity_6d - self_vel
 
         except Exception as e:
             print(f"Error in sample {index}: {e}")
@@ -333,7 +329,7 @@ def generate_dataset_spheroid(shape, N_data, a, b, c,
         assert feature_i.shape == (21,) 
         
         X_features.append(feature_i)
-        y_targets.append(velocity_6d)  # shape (6,)
+        y_targets.append(velocity_12d)  # shape (6,)
         
         n_accepted += 1
         if n_accepted % 200 == 0:
@@ -351,7 +347,7 @@ def generate_dataset_spheroid(shape, N_data, a, b, c,
 
 
 def main():
-    N_samples = 8000
+    N_samples = 3
     shape = "sphere"
     axes_length = {
         "prolateSpheroid": (1.0, 1.0, 3.0),
@@ -362,7 +358,7 @@ def main():
     
     # translation distance between ellipsoids
     dist_min = 2.02
-    dist_max = 8.0 
+    dist_max = 4.0 
 
     print("Generating data for both 2bdy terms at once...")
     print("Generating dataset for", shape)
@@ -382,8 +378,8 @@ def main():
 
     t = time.localtime()
     current_time = time.strftime("%H:%M", t)
-    np.save(f"data/X_{shape}_{current_time}_both_{tmp}.npy", X)
-    np.save(f"data/Y_{shape}_{current_time}_both_{tmp}.npy",  Y)
+    np.save(f"tmp/X_{shape}_{current_time}_both_{tmp}.npy", X)
+    np.save(f"tmp/Y_{shape}_{current_time}_both_{tmp}.npy",  Y)
     print(f"Saved {N_samples} samples.")
 
 if __name__ == "__main__":

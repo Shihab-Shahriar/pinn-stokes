@@ -38,7 +38,6 @@ from src.gpu_nbody_mob import Mob_Nbody_Torch
 
 torch.set_grad_enabled(False)
 
-
 DATA_DIR = ROOT / "data"
 MODELS_DIR = DATA_DIR / "models"
 TMP_DIR = ROOT / "tmp"

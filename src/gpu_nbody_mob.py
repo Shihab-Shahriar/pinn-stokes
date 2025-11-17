@@ -327,7 +327,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         pos = config[:, :3]
         t_idx, s_idx, pair_idx, k_idx = self.get_close_pairs(pos)
 
-        print("nbody: t_idx shape:", t_idx.shape, "s_idx shape:", s_idx.shape)
+        #print("nbody: t_idx shape:", t_idx.shape, "s_idx shape:", s_idx.shape)
 
         if t_idx.numel() == 0:
             print("No valid pairs within neighbor cutoff; returning base velocities.")
@@ -345,7 +345,7 @@ class Mob_Nbody_Torch(NNMobTorch):
                 viscosity)
             torch.cuda.synchronize()
             end = time.perf_counter()
-            print(f"Nbody kernel execution time: {(end - start)*1000:.6f} ms")
+            #print(f"Nbody kernel execution time: {(end - start)*1000:.6f} ms")
 
             v_total = v_base + v_nbody
             return v_total
@@ -434,7 +434,7 @@ def perftest():
 
 
 def profile_get_nbody_velocity(
-    path: str = "tmp/uniform_sphere_0.1_400.csv",
+    path: str = "tmp/uniform_sphere_0.1_1600.csv",
     trace_dir: str = "tmp/profiler/nbody_kernel",
     wait_steps: int = 2,
     warmup_steps: int = 2,
@@ -507,5 +507,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "profile":
         profile_get_nbody_velocity()
     else:
-        perftest()
-        #accuracy_test()
+        #perftest()
+        accuracy_test()

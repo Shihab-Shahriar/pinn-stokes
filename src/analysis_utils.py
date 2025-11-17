@@ -79,6 +79,8 @@ def shuffle_and_split(df, dist_tensor, force_tensor, velocity_tensor, split_frac
     train_velocity_tensor = velocity_tensor[:split_idx]
     val_velocity_tensor = velocity_tensor[split_idx:]
 
+    train_idx, val_idx = indices[:split_idx], indices[split_idx:]
+
     return (train_dist_tensor, val_dist_tensor, 
             train_force_tensor, val_force_tensor, 
-            train_velocity_tensor, val_velocity_tensor)
+            train_velocity_tensor, val_velocity_tensor, (train_idx, val_idx))

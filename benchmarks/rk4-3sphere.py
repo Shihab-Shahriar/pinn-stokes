@@ -19,6 +19,16 @@ mob_2b = TwoBodyNNMob(shape, self_path, two_body,
 mob_rpy = TwoBodyNNMob(shape, self_path, two_body, 
             nn_only=False, rpy_only=True)
 
+mob_3b = NNMob3B(
+    shape=shape,
+    self_nn_path=self_path,
+    two_nn_path=two_body,
+    three_nn_path="data/models/3body_cross.pt",
+    nn_only=False,
+    rpy_only=False,
+    switch_dist=6.0,
+    triplet_cutoff=6.0,
+)
 
 mob_nbody = Mob_Op_Nbody(
     shape=shape,
@@ -30,7 +40,7 @@ mob_nbody = Mob_Op_Nbody(
     switch_dist=6.0,
 )
 
-mob_mfs = MobOpMFS(shape, acc="fine")
+mob_mfs = MobOpMFS(shape, acc="coarse")
 
 
 pos = np.array([
@@ -53,7 +63,7 @@ print(config.shape)
 
 
 # RK4 time integration
-HOW_MANY = 100
+HOW_MANY = 90
 dt = 1.0 # no obvious difference between 0.02 vs 1.0 at t=128
 T = 0
 target_time = 128*HOW_MANY
@@ -65,23 +75,36 @@ print(f"Total steps: {steps}, print every {print_interval} steps")
 ops = {
     "nbody": mob_nbody,
     "2b": mob_2b,
+    "3b": mob_3b,
     "mfs": mob_mfs,
 }
-METHOD = "2b"
+METHOD = "mfs"
 
+poo = 0
 def get_velocity(config, forces, radius):
     mob_op = ops[METHOD]
     return mob_op.apply(config, forces, radius)
 
 
+output_filename = "/home/shihab/programs/stokesian-dynamics/stokesian_dynamics/output/2510242122-s2-i1-100fr-t128p0-M1-gravity.npz"
+data1 = np.load(output_filename)
+sd_positions = data1['centres']
+
 positions_over_time = []
 for it in range(steps):
     T  = it*dt
     if  it % print_interval == 0:
-        print(f"Step {T}")
+        print(f"T= {T}, iter={it}")
         print(config[:, :3])
         print("---------\n")
         positions_over_time.append(config[:, :3].copy())
+        print("error with sd")
+        for i in range(3):
+            err = (config[i, :3] - sd_positions[it//print_interval, i])
+            #config[i, 0] = sd_positions[it//print_interval, i, 0] # Fix X axis
+            print(f"  Sphere {i}: error = {err}")
+        print("---------\n")
+
 
     # k1
     vel1 = get_velocity(config, forces, 1.0).astype(np.float64)
@@ -122,25 +145,26 @@ print("Final positions:")
 print(config[:, :3])
 
 positions_over_time = np.array(positions_over_time)  # shape (num_steps, N, 3)
+np.save(f"tmp/rk4_3sphere_{METHOD}.npz", positions_over_time)
+
+plt.plot(sd_positions[:HOW_MANY,:,0],sd_positions[:HOW_MANY,:,2], label="SD")
+
+print("sd_positions final:")
+print(sd_positions[-1])
+
+durlofsky_fig5_data = np.genfromtxt("/home/shihab/programs/stokesian-dynamics/examples/data/durlofsky_fig5_data.txt",delimiter=",")
+print(durlofsky_fig5_data.shape)
+print(durlofsky_fig5_data[0])
+plt.plot(durlofsky_fig5_data[:,0],durlofsky_fig5_data[:,1],'.',color='gray',ms=2,zorder=0, label="Durlofsky")
 
 
-output_filename = "/home/shihab/programs/stokesian-dynamics/stokesian_dynamics/output/2510242122-s2-i1-100fr-t128p0-M1-gravity.npz"
-
-data1 = np.load(output_filename)
-
-particle_positions = data1['centres']
-
-print("particle_positions[1]:")
-print(particle_positions[1])
-
-plt.plot(particle_positions[:HOW_MANY,:,0],particle_positions[:HOW_MANY,:,2])
-plt.plot(positions_over_time[:,:,0],positions_over_time[:,:,2], linestyle='--')
-plt.legend(['SD','ME'])
+plt.plot(positions_over_time[:,:,0],positions_over_time[:,:,2], linestyle='--', label="us")
+plt.legend()
 plt.xlabel('x')
 plt.ylabel('y',rotation=0)
 plt.xlim([-6,13])
-plt.ylim([-810,10])
+plt.ylim([-850,10])
 
-name = METHOD
-plt.savefig(f"tmp/rk4-{name}.png")
-plt.show()
+name = "mfs-coarse"
+plt.savefig(f"figs/rk4-{name}.png")
+#plt.show()
