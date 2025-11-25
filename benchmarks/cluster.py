@@ -351,14 +351,14 @@ def write_vtk(centers, filename="cluster.vtk"):
 
 
 
-def reference_data_generation(shape, delta, numParticles, tol=1e-7):
+def reference_data_generation(shape, delta, numParticles, tol=1e-7, seed=42):
     """
     Was used to both generate reference dataset, and compare cuda impl
     accuracy against this.
     """
     import random
-    random.seed(42)
-    np.random.seed(42)
+    random.seed(seed)
+    np.random.seed(seed)
 
     TOLERANCE = tol
     acc = "Xfine"
@@ -548,7 +548,7 @@ def uniform_data_generation(shape, volume_fraction, numParticles, TOLERANCE=1e-8
         numParticles: Number of spheres to generate
     """
     assert shape=="sphere", "Currently only 'sphere' shape is supported"
-    acc = "Xfine"
+    acc = "fine"
     axes_length = {
         "prolateSpheroid": (1.0, 1.0, 3.0),
         "oblateSpheroid":  (2.0, 2.0, 1.0),
@@ -586,17 +586,16 @@ def uniform_data_generation(shape, volume_fraction, numParticles, TOLERANCE=1e-8
     print("b_list[i][0]:", b_list[1][0], b_list[0].shape)
 
 
-    F = 1.0 * 6* np.pi  # choose some magnitude
-    # F_ext_list = [
-    #     np.array([0.0, 0.0, F], dtype=np.float64) for _ in centers
-    # ]
+
     F_ext_list = [
         np.random.uniform(-1, 1, 3).astype(np.float64) for _ in centers
     ]
-    F_ext_list = [F / np.linalg.norm(f) * f for f in F_ext_list]  # normalize to magnitude F
     T_ext_list = [
-        np.array([0.0, 0.0, 0.0], dtype=np.float64) for _ in centers
+        np.random.uniform(-1, 1, 3).astype(np.float64) for _ in centers
     ]
+
+    F_ext_list = [f / np.linalg.norm(f) * f for f in F_ext_list]  # normalize to magnitude F
+    T_ext_list = [t / np.linalg.norm(t) * t for t in T_ext_list]  # normalize to magnitude T
 
     B = build_B(b_single, s_single, np.zeros(3))
     Bpp_inv = np.linalg.pinv(B)
@@ -612,21 +611,7 @@ def uniform_data_generation(shape, volume_fraction, numParticles, TOLERANCE=1e-8
         else:
             Bpp_inv_list.append(Bpp_inv.copy())
 
-    print("Sum of template binv:", Bpp_inv.sum())
-    print(Bpp_inv.shape)
 
-    print("Sum of b_list:", np.array(b_list).sum())
-    print("Sum of s_list:", np.array(s_list).sum())
-    ft = np.concatenate((F_ext_list, T_ext_list), axis=1)
-    print("Sum of F_ext_list:", ft.sum())
-
-    b_inv = np.array(Bpp_inv_list)
-    print("Sum of Bpp_inv_list:", b_inv.sum())
-    print("Sum of Bpp_inv_list[0]:", b_inv[0].sum())
-    print("Sum of Bpp_inv_list[1]:", b_inv[1].sum())
-    print("Sum of Bpp_inv_list[2]:", b_inv[2].sum())
-
-    print("B_inv total terms:", np.prod(b_inv.shape))
 
     # Run the IMP-MFS mobility solver
     start_time = time.time()
@@ -658,7 +643,7 @@ def uniform_data_generation(shape, volume_fraction, numParticles, TOLERANCE=1e-8
         print("Ang velocity:", omega_i)
 
     #save to csv
-    df.to_csv(f"tmp/uniform_{shape}_{volume_fraction}.csv", index=False, header=True, float_format="%.16g")
+    df.to_csv(f"tmp/uniform_{volume_fraction}_{numParticles}.csv", index=False, header=True, float_format="%.16g")
     return df
 
 
@@ -698,24 +683,25 @@ def create_and_save_ellipsoid_cluster(numParticles):
 
 if __name__ == '__main__':
     shape = "sphere"
-    delta = 0.8
-    numParticles = 3200
+    P = 20
+    
+    delta = .5
     # df = reference_data_generation(shape, delta=delta, 
-    #                                numParticles=numParticles, tol=1e-8)
-    # df.to_csv(f"tmp/reference_{shape}_{delta}.csv", index=False, header=True, float_format="%.16g")
+    #                                numParticles=P, tol=1e-8, seed=123)
+    # df.to_csv(f"tmp/reference_{delta}_{P}.csv", index=False, header=True, float_format="%.16g")
     
     
-    #uniform_data_generation("sphere", volume_fraction=0.05, numParticles=20)
+    uniform_data_generation("sphere", volume_fraction=0.22, numParticles=P)
 
-    volume_frac = 0.10
-    centers, orients = uniform_sphere_cluster(volume_frac, numParticles)
-    quats = np.array([r.as_quat(scalar_first=False) for r in orients])
-    config = np.concatenate([centers, quats], axis=1)
+    # volume_frac = 0.10
+    # centers, orients = uniform_sphere_cluster(volume_frac, numParticles)
+    # quats = np.array([r.as_quat(scalar_first=False) for r in orients])
+    # config = np.concatenate([centers, quats], axis=1)
 
-    columns=["x", "y", "z",  "q_x", "q_y", "q_z", "q_w"]
+    # columns=["x", "y", "z",  "q_x", "q_y", "q_z", "q_w"]
 
-    df = pd.DataFrame(config, columns=columns)
+    # df = pd.DataFrame(config, columns=columns)
 
-    df.to_csv(f"tmp/uniform_sphere_{volume_frac}_{numParticles}.csv", index=False, header=True, float_format="%.16g")
+    # df.to_csv(f"tmp/uniform_sphere_{volume_frac}_{numParticles}.csv", index=False, header=True, float_format="%.16g")
 
 

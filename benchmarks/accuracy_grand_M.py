@@ -7,6 +7,7 @@ from src.mob_op_2b_combined import NNMob as TwoBodyNNMob
 from src.mob_op_3body import NNMob3B
 from src.mob_op_nbody import Mob_Op_Nbody
 from benchmarks.cluster import reference_data_generation, uniform_data_generation
+from src.gpu_nbody_mob import Mob_Nbody_Torch
 
 # None of them using self interaction NN model
 shape = "sphere"
@@ -35,19 +36,32 @@ mob_nbody = Mob_Op_Nbody(
     shape=shape,
     self_nn_path=self_path,
     two_nn_path=two_body,
-    nbody_nn_path="data/models/nbody_pinn_recovered.pt",
+    nbody_nn_path="data/models/nbody_pinn_b1.pt",
     nn_only=False,
     rpy_only=False,
     switch_dist=6.0,
 )
 
-numParticles = 10
+# mob_nbody = Mob_Nbody_Torch(
+#     shape=shape,
+#     self_nn_path=self_path,
+#     two_nn_path=two_body,
+#     nbody_nn_path="data/models/nbody_pinn_b1.pt",
+#     nn_only=False,
+#     rpy_only=False,
+#     switch_dist=6.0,
+# )
+
+
+numParticles = 20
 results = []
-deltas = [.1, .2, .5, 1.0,1.5, 2.0, 3.0, 4.0, 5.0]
-vol_fracs = [.01, .02, .05, .1, .15, .2][::-1]
+deltas = [.1, .2, .4, .5, .6, .8, 1.0,1.5, 2.0, 3.0] #At 4.0 & 5.0 everyone equal
+deltas = [.2, .4, .5, .6, .8, 1.0, 1.5, 2.0]
+vol_fracs = [.05, .1, .15, .2, .22][::-1]
 
 uniform_config = True
 iters = vol_fracs if uniform_config else deltas
+name = "grand_M_accuracy" if not uniform_config else "grand_M_accuracy_varying_uniform"
 
 print("Uniform config:", uniform_config)
 for delta in iters:
@@ -55,10 +69,14 @@ for delta in iters:
     
     #df = reference_data_generation(shape, delta, numParticles)
     if uniform_config:
-        df = uniform_data_generation(shape, delta, numParticles, TOLERANCE=1e-7)
-    else:
-        df = pd.read_csv(f"tmp/reference_sphere_{delta}.csv", float_precision="high",
+        df = pd.read_csv(f"tmp/uniform_{delta}_{numParticles}.csv", float_precision="high",
                          header=0, index_col=False)
+    else:
+        df = pd.read_csv(f"tmp/reference_{delta}_{numParticles}.csv", float_precision="high",
+                         header=0, index_col=False)
+        # df = pd.read_csv(f"tmp/reference_sphere_{delta}.csv", float_precision="high",
+        #             header=0, index_col=False)
+        print("num P:", df.shape[0])
 
 
     config = df[["x","y","z","q_x","q_y","q_z","q_w"]].values
@@ -84,13 +102,16 @@ for delta in iters:
         "err_nbody": float(err_nbody),
     })
 
-    print(f" errors -> 2b: {err_2b:.6e}, RPY: {err_rpy:.6e}, 3b: {err_3b:.6e}, nbody: {err_nbody:.6e}")
+    print(f"errors -> 2b: {err_2b:.6e}," 
+            f"RPY: {err_rpy:.6e}, "
+            f"3b: {err_3b:.6e}, "
+            f"nbody: {err_nbody:.6e}")
 
 # Convert to DataFrame with explicit column order: RPY, then 2b, then 3b, then nbody
 res_df = pd.DataFrame(results, columns=["delta", "err_rpy", "err_2b", "err_3b", "err_nbody"])
 res_df = res_df.round(5)
-res_df.to_csv("grand_M_accuracy.csv", index=False)
-print("Saved results to grand_M_accuracy.csv")
+res_df.to_csv(f"{name}.csv", index=False)
+print(f"Saved results to {name}.csv")
 
 plot_df = res_df.melt(id_vars=["delta"],
                       value_vars=["err_rpy", "err_2b", "err_3b", "err_nbody"],
@@ -121,6 +142,5 @@ plt.legend(title="Mobility operator", fontsize=12, title_fontsize=12)
 plt.tight_layout()
 
 #save figure
-name = "grand_M_accuracy" if not uniform_config else "grand_M_accuracy_varying_uniform"
 plt.savefig(f"{name}.png", dpi=300)
 plt.show()

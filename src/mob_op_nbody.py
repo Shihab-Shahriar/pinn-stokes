@@ -37,58 +37,6 @@ def fallback_axes(e_vec: torch.Tensor) -> torch.Tensor:
     g_vec = torch.cross(e_vec, cand, dim=-1)
     return normalize(g_vec)
 
-def create_basis(pos_flat: torch.Tensor, mask: torch.Tensor):
-    """Build a pair-symmetric orthonormal frame (e, ĝ) from target-centred inputs."""
-    B = pos_flat.size(0)
-    assert pos_flat.size(1) == 33
-    assert mask.size(0) == B and mask.size(1) == 10
-
-    device, dtype = pos_flat.device, pos_flat.dtype
-    eps = EPS
-
-    pos = pos_flat.reshape(B, 11, 3)
-    x_s = pos[:, 0, :]
-    x_k = pos[:, 1:, :]
-    m_k = mask.to(dtype)
-
-    e = normalize(-x_s)
-
-    midpoint = 0.5 * x_s
-    rel_mid = x_k - midpoint.unsqueeze(1)
-    rel_t = x_k
-    rel_s = x_k - x_s.unsqueeze(1)
-
-    d_t = rel_t.norm(dim=-1).clamp_min(eps)
-    d_s = rel_s.norm(dim=-1).clamp_min(eps)
-    w = m_k * (1.0 / (d_t * d_s))
-
-    weight_sum = w.sum(dim=1, keepdim=True).clamp_min(eps)
-
-    proj = torch.eye(3, device=device, dtype=dtype).expand(B, 3, 3) - e.unsqueeze(-1) * e.unsqueeze(-2)
-    rel_perp = torch.einsum("bij,bkj->bki", proj, rel_mid)
-
-    cov = torch.einsum("bk,bki,bkj->bij", w, rel_perp, rel_perp) / weight_sum.unsqueeze(-1)
-    cov = 0.5 * (cov + cov.transpose(-1, -2))
-    cov_plane = torch.einsum("bij,bjk->bik", proj, torch.einsum("bij,bjk->bik", cov, proj))
-
-    evals, evecs = torch.linalg.eigh(cov_plane)
-    ghat = evecs[..., -1]
-    ghat = normalize(ghat)
-
-    g_mean = torch.einsum("bk,bki->bi", w, rel_perp) / weight_sum
-    sign = torch.sign((ghat * g_mean).sum(dim=-1, keepdim=True))
-    sign = torch.where(sign == 0, torch.ones_like(sign), sign)
-    ghat = ghat * sign
-
-    ghat_norm = ghat.norm(dim=-1, keepdim=True)
-    use_fallback = (weight_sum.squeeze(-1) <= 5 * eps) | (ghat_norm.squeeze(-1) < 1e-4)
-    if use_fallback.any():
-        ghat_fb = fallback_axes(e[use_fallback])
-        ghat = ghat.clone()
-        ghat[use_fallback] = ghat_fb
-
-    return e, ghat
-
 
 # Ensure relative imports work if run as a script
 sys.path.append(os.path.dirname(__file__))
@@ -106,8 +54,8 @@ class Mob_Op_Nbody(TwoBodyNNMob):
 	``s``.
 	"""
 
-	DEFAULT_MEAN_DIST_S: float = 4.668671912939677
-	DEFAULT_MAX_NEIGHBORS: int = 10
+	DEFAULT_MEAN_DIST_S: float = 4.690027344329476# 4.668671912939677
+	DEFAULT_MAX_NEIGHBORS: int = 10 #this is hardcoded in the nbody model. Changing this requires retraining the model
 	DEFAULT_NEIGHBOR_CUTOFF: float = 6.0
 	_EPS: float = 1e-9
 
@@ -370,14 +318,6 @@ class Mob_Op_Nbody(TwoBodyNNMob):
 
 		X = torch.tensor(np.stack(pair_features), dtype=torch.float32, device=self.device)
 		Fs = torch.tensor(np.stack(pair_forces), dtype=torch.float32, device=self.device)
-
-		# e, ghat = create_basis(X[:,:33], torch.tensor(X[:,-self.max_neighbors:], dtype=torch.float32, device=self.device))
-		# for idx, (t, s) in enumerate(target_indices):
-		# 	for idx2, (t2, s2) in enumerate(target_indices):
-		# 		if t == s2 and s == t2:
-		# 			# check e, ghat for symmetry
-		# 			assert torch.allclose(e[idx], -e[idx2]), f"e not antisymmetric for {(t,s)} vs {(t2,s2)}"
-		# 			#assert torch.allclose(ghat[idx], ghat[idx2]), f"ghat not symmetric for {(t,s)} vs {(t2,s2)}"
 
 		with torch.no_grad():
 			pred = self.nbody_nn.predict_velocity(X, Fs)

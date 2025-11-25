@@ -192,17 +192,17 @@ def build_operators(shape: str) -> List[tuple[str, object]]:
                 switch_dist=6.0,
             ),
         ),
-        # (
-        #     "NNMobTorch_rpy",
-        #     NNMobTorch(
-        #         shape=shape,
-        #         self_nn_path=str(self_path),
-        #         two_nn_path=str(two_body_path),
-        #         nn_only=False,
-        #         rpy_only=True,
-        #         switch_dist=6.0,
-        #     ),
-        # ),
+        (
+            "NNMobTorch_rpy",
+            NNMobTorch(
+                shape=shape,
+                self_nn_path=str(self_path),
+                two_nn_path=str(two_body_path),
+                nn_only=False,
+                rpy_only=True,
+                switch_dist=6.0,
+            ),
+        ),
         (
             "NNMob_GPU_Nbody",
             Mob_Nbody_Torch(

@@ -76,14 +76,28 @@ ops = {
     "nbody": mob_nbody,
     "2b": mob_2b,
     "3b": mob_3b,
+    "rpy": mob_rpy,
     "mfs": mob_mfs,
 }
-METHOD = "mfs"
+METHOD = "2b"
 
 poo = 0
 def get_velocity(config, forces, radius):
     mob_op = ops[METHOD]
     return mob_op.apply(config, forces, radius)
+
+
+def plot_method_curves(traj_xyz, *, label, color, linestyle, **plot_kwargs):
+    """Plot each sphere's x-z trajectory using shared styles for one method."""
+    for idx in range(traj_xyz.shape[1]):
+        plt.plot(
+            traj_xyz[:, idx, 0],
+            traj_xyz[:, idx, 2],
+            color=color,
+            linestyle=linestyle,
+            label=label if idx == 0 else None,
+            **plot_kwargs,
+        )
 
 
 output_filename = "/home/shihab/programs/stokesian-dynamics/stokesian_dynamics/output/2510242122-s2-i1-100fr-t128p0-M1-gravity.npz"
@@ -145,26 +159,54 @@ print("Final positions:")
 print(config[:, :3])
 
 positions_over_time = np.array(positions_over_time)  # shape (num_steps, N, 3)
-np.save(f"tmp/rk4_3sphere_{METHOD}.npz", positions_over_time)
+np.save(f"tmp/rk4_3sphere_{METHOD}", positions_over_time)
 
-plt.plot(sd_positions[:HOW_MANY,:,0],sd_positions[:HOW_MANY,:,2], label="SD")
+plot_method_curves(
+    sd_positions[:HOW_MANY],
+    label="SD (Townsend et al.)",
+    color="tab:blue",
+    linestyle="--",
+)
 
 print("sd_positions final:")
 print(sd_positions[-1])
 
-durlofsky_fig5_data = np.genfromtxt("/home/shihab/programs/stokesian-dynamics/examples/data/durlofsky_fig5_data.txt",delimiter=",")
+durlofsky_fig5_flat = np.genfromtxt(
+    "/home/shihab/programs/stokesian-dynamics/examples/data/durlofsky_fig5_data.txt",
+    delimiter=",",
+)
+if durlofsky_fig5_flat.shape[0] % pos.shape[0] != 0:
+    raise ValueError("Durlofsky data length is not divisible by number of spheres")
+n_timesteps = durlofsky_fig5_flat.shape[0] // pos.shape[0]
+# File stores (x, z) coordinates for each sphere sequentially per time step; rebuild xyz layout
+durlofsky_fig5_flat = durlofsky_fig5_flat.reshape(n_timesteps, pos.shape[0], -1)
+if durlofsky_fig5_flat.shape[2] != 2:
+    raise ValueError("Durlofsky data is expected to have exactly two spatial columns (x, z)")
+durlofsky_fig5_data = np.zeros((n_timesteps, pos.shape[0], 3), dtype=durlofsky_fig5_flat.dtype)
+durlofsky_fig5_data[:, :, 0] = durlofsky_fig5_flat[:, :, 0]
+durlofsky_fig5_data[:, :, 2] = durlofsky_fig5_flat[:, :, 1]
 print(durlofsky_fig5_data.shape)
 print(durlofsky_fig5_data[0])
-plt.plot(durlofsky_fig5_data[:,0],durlofsky_fig5_data[:,1],'.',color='gray',ms=2,zorder=0, label="Durlofsky")
-
-
-plt.plot(positions_over_time[:,:,0],positions_over_time[:,:,2], linestyle='--', label="us")
+plot_method_curves(
+    durlofsky_fig5_data,
+    label="SD (Durlofsky et al.)",
+    color="gray",
+    linestyle="None",
+    marker=".",
+    ms=2,
+    zorder=0,
+)
+plot_method_curves(
+    positions_over_time,
+    label=f"M_{METHOD}",
+    color="tab:orange",
+    linestyle="-",
+)
 plt.legend()
 plt.xlabel('x')
 plt.ylabel('y',rotation=0)
 plt.xlim([-6,13])
 plt.ylim([-850,10])
 
-name = "mfs-coarse"
-plt.savefig(f"figs/rk4-{name}.png")
-#plt.show()
+plt.savefig(f"figs/rk4-{METHOD}.pdf", dpi=600, bbox_inches='tight')
+plt.show()

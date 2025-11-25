@@ -14,6 +14,7 @@ from scipy.spatial.transform import Rotation
 from mfs_utils import build_B
 from mfs import imp_mfs_mobility_vec
 from src.mob_op_3body import NNMob3B
+from src.mob_op_nbody import Mob_Op_Nbody
 
 
 def get_mfs_drags(sphere_positions, F_ext_list, T_ext_list):
@@ -61,29 +62,15 @@ def get_mob_op_drags(pos, F, T, is_3b):
     two_body = "data/models/two_body_combined_model.pt"
     three_body = "data/models/3body_cross.pt"
 
-    if is_3b:
-        print("Using 3-body model")
-        mob = NNMob3B(
-            shape="sphere",
-            self_nn_path=self_path,
-            two_nn_path=two_body,
-            three_nn_path=three_body,
-            nn_only=False,
-            rpy_only=False,
-            switch_dist=6.0,
-            triplet_cutoff=6.0,
-        )
-    else:
-        print("Using 2-body model")
-        from src.mob_op_2b_combined import NNMob
-        mob = NNMob(
-            shape="sphere",
-            self_nn_path=self_path,
-            two_nn_path=two_body,
-            nn_only=False,
-            rpy_only=False,
-            switch_dist=6.0,
-        )
+    mob = Mob_Op_Nbody(
+        shape="sphere",
+        self_nn_path=self_path,
+        two_nn_path=two_body,
+        nbody_nn_path="data/models/nbody_pinn_b1.pt",
+        nn_only=False,
+        rpy_only=False,
+        switch_dist=6.0,
+    )
 
     config = np.ones((N, 7))
     orientations = [Rotation.identity() for _ in range(N)]
@@ -121,9 +108,8 @@ mfs_coeffs = [0.61787316, 0.55555363, 0.53188422, 0.51888724, 0.51095464,
               0.50609488, 0.50343569, 0.502587,   0.50343569, 0.50609488,
               0.51095464, 0.51888724, 0.53188422, 0.55555363, 0.61787315]
 
-is_3b_op = True
 mob_coeffs = get_mob_op_drags(sphere_positions, F_ext_list, T_ext_list,
-                              is_3b=is_3b_op)
+                              is_3b=False)
 
 print("MFS coeffs:", mfs_coeffs)
 
@@ -139,11 +125,12 @@ durlofsky_data = [0.5018, 0.5029, 0.5054, 0.5102,
 legends = []
 plt.figure(figsize=(14, 8), dpi=150)
 #plt.plot(range(N),townsend_data[N-1:]); legends.append('townsend_data')
-plt.plot(range(N),durlofsky_data,'x'); legends.append('Scraped from paper')
+plt.plot(range(N),durlofsky_data,'x'); legends.append('Durlofsky et al.')
 #plt.plot(range(N),mfs_coeffs[N-1:]); legends.append("MFS")
-plt.plot(range(N),mob_coeffs[N-1:]); legends.append("MOB-OP-3B" if is_3b_op else "MOB-OP-2B")
+plt.plot(range(N),mob_coeffs[N-1:]); legends.append("M_nbody")
 plt.tight_layout()
 plt.legend(legends)
 plt.xlabel('Sphere number')
-plt.ylabel('λ',rotation=0)
+plt.ylabel('λ', rotation=0, fontsize=16)
+plt.savefig("horizontal_chain_drag.pdf", dpi=600, format="pdf")
 plt.show()

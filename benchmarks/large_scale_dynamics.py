@@ -39,7 +39,7 @@ from src.gpu_nbody_mob import Mob_Nbody_Torch
 
 GRID_SHAPE = (10, 10, 16)  # (nx, ny, nz)
 SPACING = 3.0  # center-to-center distance between adjacent spheres
-VELOCITY_CLIM = (0.0, 100.0)
+VELOCITY_CLIM = (30.0, 60.0)
 DEFAULT_DT = 1e-3
 DEFAULT_TOTAL_SECONDS = 2.0
 DEFAULT_OUTPUT_FPS = 60.0
@@ -370,7 +370,7 @@ def save_simulation_video(
     if hasattr(ax, "dist"):
         ax.dist = camera_dist
     cbar = fig.colorbar(scalar_mappable, ax=ax, fraction=0.025, pad=0.04)
-    cbar.set_label("Speed (a.u.)", color="#222222")
+    cbar.set_label("Velocity Norm", color="#222222")
     cbar.ax.tick_params(colors="#222222")
 
     with imageio.get_writer(video_path, fps=fps) as writer:
@@ -418,6 +418,8 @@ def save_simulation_video(
     print(f"Saved video preview to {video_path}")
 
 
+# assumes VELOCITY_CLIM and _draw_bounding_box are defined elsewhere
+
 def save_snapshots(
     output_dir: Path,
     positions: np.ndarray,
@@ -425,7 +427,7 @@ def save_snapshots(
     *,
     times: np.ndarray,
 ) -> None:
-    """Save high-resolution PDF snapshots at t=0, 1, 2s."""
+    """Save a single high-resolution PDF with four horizontal time snapshots."""
     if positions.ndim != 3:
         raise ValueError("positions must be an array of shape (frames, particles, 3)")
 
@@ -460,7 +462,6 @@ def save_snapshots(
     print(maxs)
     print(lims_vis)
 
-    
     frame_speeds = np.linalg.norm(velocities, axis=2)
     norm = colors_mod.Normalize(*VELOCITY_CLIM)
     cmap = colors_mod.LinearSegmentedColormap.from_list(
@@ -472,30 +473,64 @@ def save_snapshots(
     )
     scalar_mappable = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
 
-    fig = plt.figure(figsize=(10, 8), dpi=300)
-    ax = fig.add_subplot(111, projection="3d")
+    # Prepare a row of 3D subplots so time progresses left to right.
+    snapshot_times = [0.01, 1.0, 2.0, 3.0]
+    fig = plt.figure(figsize=(4.5 * len(snapshot_times), 6), dpi=300)
+    gs = matplotlib.gridspec.GridSpec(
+        1,
+        len(snapshot_times) + 1,
+        figure=fig,
+        width_ratios=[1] * len(snapshot_times) + [0.05],
+        wspace=0.0,
+        left=0.02,
+        right=0.98,
+        bottom=0.07,
+        top=0.94,
+    )
+    axes = [fig.add_subplot(gs[0, idx], projection="3d") for idx in range(len(snapshot_times))]
     fig.patch.set_facecolor("white")
-    if hasattr(ax, "set_proj_type"):
-        ax.set_proj_type("persp")
-    # Use closer camera distance for better view of particles
-    camera_dist = 7.5
-    if hasattr(ax, "dist"):
-        ax.dist = camera_dist
-    cbar = fig.colorbar(scalar_mappable, ax=ax, fraction=0.025, pad=0.04)
-    cbar.set_label("Speed (a.u.)", color="#222222")
+    camera_dist = 7.5  # Use closer camera distance for better view of particles
+    marker_size = 17
+
+    # Keep a slim, right-aligned colorbar that mirrors the old layout without pushing panels apart
+    cbar_ax = fig.add_subplot(gs[0, -1])
+    cbar = fig.colorbar(scalar_mappable, cax=cbar_ax)
+    cbar.set_label("Velocity Norm", color="#222222")
     cbar.ax.tick_params(colors="#222222")
 
-    # Creating marker size to scale failed
-    marker_size = 17
-    
-    snapshot_times = [0.01, 1.0, 2.0]
-    for t_snap in snapshot_times:
+    # ---- tighten spacing between the 4 snapshot panels (only layout change) ----
+    fig.canvas.draw()  # make sure positions are up to date
+
+    pos0 = axes[0].get_position()
+    bottom = pos0.y0
+    height = pos0.height
+
+    left_margin = pos0.x0                           # keep original left margin
+    right_margin = cbar_ax.get_position().x0 - 0.01 # end just before colorbar
+
+    total_width = right_margin - left_margin
+    n_axes = len(axes)
+    gap = 0.003  # small horizontal gap; use 0.0 if you want them literally touching
+
+    ax_width = (total_width - gap * (n_axes - 1)) / n_axes
+
+    for i, ax in enumerate(axes):
+        new_left = left_margin + i * (ax_width + gap)
+        ax.set_position([new_left, bottom, ax_width, height])
+
+    # shrink colorbar height so it matches the snapshot panels
+    cbar_pos = cbar_ax.get_position()
+    cbar_height = height * 0.6
+    cbar_bottom = bottom + 0.5 * (height - cbar_height)
+    cbar_ax.set_position([cbar_pos.x0, cbar_bottom, cbar_pos.width, cbar_height])
+    # ---------------------------------------------------------------------------
+
+    for ax, t_snap in zip(axes, snapshot_times):
         idx = np.argmin(np.abs(times - t_snap))
-        t_current = times[idx]
         pts = positions[idx]
         speeds = np.clip(frame_speeds[idx], *VELOCITY_CLIM)
         colors = cmap(norm(speeds))
-        ax.clear()
+
         ax.set_facecolor("white")
         ax.set_box_aspect((lims_vis[1] - lims_vis[0]).tolist())
         if hasattr(ax, "set_proj_type"):
@@ -504,7 +539,6 @@ def save_snapshots(
             ax.dist = camera_dist
         ax.view_init(elev=-2, azim=-10)
         ax.grid(False)
-        
         ax.scatter(
             pts[:, 0],
             pts[:, 1],
@@ -521,11 +555,12 @@ def save_snapshots(
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_zticks([])
-        snapshot_path = output_dir / f"snapshot_t{int(round(t_snap))}.pdf"
-        fig.savefig(snapshot_path, format="pdf", bbox_inches="tight", pad_inches=0.1)
-        print(f"Saved snapshot to {snapshot_path}")
+        ax.set_title(f"t = {times[idx]:.2f}s", color="#222222")
 
+    combined_path = output_dir / "snapshots_side_by_side.png"
+    fig.savefig(combined_path, format="png", bbox_inches="tight", pad_inches=0.1)
     plt.close(fig)
+    print(f"Saved combined snapshots to {combined_path}")
 
 
 def _write_vtp_frame(path: Path, points: np.ndarray, velocities: np.ndarray | None) -> None:
@@ -743,7 +778,7 @@ def main() -> None:
         return
 
     config0 = build_initial_config(points)
-    mobility = build_mobility_operator('rpy')
+    mobility = build_mobility_operator('nbody')
     print("Running explicit Euler simulation via Mob_Nbody_Torch ...")
 
     positions, velocities, times = run_simulation(

@@ -24,6 +24,53 @@ sys.path.append(os.path.dirname(__file__))
 from mob_op_2b_combined import NNMob as TwoBodyNNMob
 
 
+def outer(u):                        
+    return torch.einsum('bi,bj->bij', u, u)
+
+def sym(u, v):                        
+    return 0.5*(torch.einsum('bi,bj->bij', u, v) +
+                torch.einsum('bi,bj->bij', v, u))
+
+def cross_mat(u):                     # [u]×
+    levi = torch.tensor([[[0,0,0],[0,0,1],[0,-1,0]],
+                         [[0,0,-1],[0,0,0],[1,0,0]],
+                         [[0,1,0],[-1,0,0],[0,0,0]]],
+                        dtype=u.dtype, device=u.device)
+    return torch.einsum('ijk,bk->bij', levi, u)
+
+def triplet_basis(r12, r13):          # r12 = x2–x1 , r13 = x3–x1
+    e = r12 / r12.norm(p=2, dim=1, keepdim=True)
+    f = r13 / r13.norm(p=2, dim=1, keepdim=True)
+    I  = torch.eye(3, device=e.device).expand(len(e),3,3)
+    B  = {                          # six independent pieces
+        'I' : I,        'ee': outer(e),
+        'ff': outer(f), 'ef': sym(e,f),
+        'Xe': cross_mat(e), 'Xf': cross_mat(f)
+    }
+    return B
+
+def triplet_block_corrected(r12, r13, coeff):
+    B = triplet_basis(r12, r13)
+
+    TT = (coeff[:,0,None,None]*B['I']  + coeff[:,1,None,None]*B['ee']
+        + coeff[:,2,None,None]*B['ff'] + coeff[:,3,None,None]*B['ef'])
+    RT = (coeff[:,4,None,None]*B['Xe'] + coeff[:,5,None,None]*B['Xf'])
+    RR = (coeff[:,6,None,None]*B['I']  + coeff[:,7,None,None]*B['ee']
+        + coeff[:,8,None,None]*B['ff'] + coeff[:,9,None,None]*B['ef'])
+
+    K   = torch.zeros(len(r12),6,6, device=r12.device)
+    K[:,:3,:3] = TT           # TT block
+    K[:,3:,:3] = RT           # RT block
+    K[:,:3,3:] = 0.0          # TR = 0 (Ignore spurious torque coupling)
+    K[:,3:,3:] = RR           # RR block
+    return K                 # shape [batch,6,6]
+
+def velocity_triplet_corrected(r12, r13, coeff, force_s):
+    K   = triplet_block_corrected(r12, r13, coeff)      # [B,6,6]
+    v  = torch.einsum('bij,bj->bi', K, force_s)   # [B,6]
+    return v
+
+
 class NNMob3B(TwoBodyNNMob):
     """NNMob with an additional additive three-body cross term."""
 
@@ -153,7 +200,13 @@ class NNMob3B(TwoBodyNNMob):
             mu = torch.tensor(float(viscosity), dtype=torch.float32, device=self.device)
 
             with torch.no_grad():
-                pred_v = self.three_nn.predict_velocity(X, Fs).cpu().numpy()
+                # pred_v = self.three_nn.predict_velocity(X, Fs).cpu().numpy()
+                
+                # Use corrected velocity calculation
+                coeffs = self.three_nn(X[:, 6:])
+                r12 = X[:, 0:3]
+                r13 = X[:, 3:6]
+                pred_v = velocity_triplet_corrected(r12, r13, coeffs, Fs).cpu().numpy()
 
             velocities[t] = pred_v.sum(axis=0)
             velocities[t, 3:] = 0.0 #angular prediction bad for 3b_cross
@@ -173,14 +226,26 @@ class NNMob3B(TwoBodyNNMob):
         N = config.shape[0]
         assert config.shape == (N, 7)
 
-        pos = config[:, :3]
-        orientations = [Rotation.identity() for _ in range(N)]  # unused for spheres
+        # Initialize M matrix as in the parent class, required for get_two_vel
+        self.M = np.zeros((6*N, 6*N), dtype=np.float64)
 
-        v_s_and_2b = super().apply(config, force, viscosity)
+        pos = config[:, :3]
+        # orientations = [Rotation.identity() for _ in range(N)]  # unused for spheres
+        orientations = Rotation.from_quat(config[:, 3:], scalar_first=False)
+
+        # v_s_and_2b = super().apply(config, force, viscosity)
+        
+        # 1. Self velocity
+        v_self = self.get_self_vel_analytical(orientations, force, viscosity)
+
+        # 2. Two-body velocity
+        v_two = self.get_two_vel(pos, orientations, force, viscosity)
+
+        # 3. Three-body velocity
         v_three = self.get_3b_vel(pos, None, force, viscosity)
 
         #print(v_s_and_2b.shape, v_three.shape)
-        return v_s_and_2b + v_three
+        return v_self + v_two + v_three
 
 
 if __name__ == "__main__":

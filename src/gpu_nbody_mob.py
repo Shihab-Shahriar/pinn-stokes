@@ -350,6 +350,24 @@ class Mob_Nbody_Torch(NNMobTorch):
             v_total = v_base + v_nbody
             return v_total
 
+    def apply_cpu(
+        self,
+        config: np.ndarray,
+        force: np.ndarray,
+        viscosity: TensorLike,
+    ) -> np.ndarray:
+        """NumPy convenience wrapper that reuses the GPU-backed apply()."""
+
+        config_t = torch.as_tensor(
+            np.ascontiguousarray(config, dtype=np.float32), device=self.device
+        )
+        force_t = torch.as_tensor(
+            np.ascontiguousarray(force, dtype=np.float32), device=self.device
+        )
+
+        velocities = self.apply(config_t, force_t, viscosity)
+        return velocities.detach().cpu().numpy()
+
 import numpy as np
 from src.mob_op_nbody import Mob_Op_Nbody
 
