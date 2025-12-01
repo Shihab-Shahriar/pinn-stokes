@@ -5,6 +5,7 @@ data/.ipynb_checkpoints
 experiments/.ipynb_checkpoints
 experiments/figs/.ipynb_checkpoints
 experiments/*.png
+experiments/*.eps
 src/__pycache__/
 src/.ipynb_checkpoints/
 utils/__pycache__

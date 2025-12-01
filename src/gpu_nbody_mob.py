@@ -59,6 +59,7 @@ class Mob_Nbody_Torch(NNMobTorch):
             switch_dist=switch_dist,
         )
         assert shape == "sphere", "Only sphere shape currently supported for n-body operator"
+        assert rpy_only == False, "RPY-only mode not supported with n-body operator"
 
         median_2b = 5.008307682776568 #copied from 2b training notebook
         # state_dict = torch.load("experiments/nbody_cross_tmp.wt", weights_only=True)
@@ -101,6 +102,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         self,
         pos: torch.Tensor,   # shape (N, 3
     ):
+        device = pos.device
         # Build neighbor graph within cutoff using spatial indexing
         # edge_index = radius_graph(
         #     pos,                        # (N, 3)
@@ -316,13 +318,25 @@ class Mob_Nbody_Torch(NNMobTorch):
 
         return velocities  # (N,6)
 
-    def apply(self, config: torch.Tensor, 
-           force: torch.Tensor, viscosity: TensorLike) -> torch.Tensor:
+    def apply(
+        self,
+        config: torch.Tensor,
+        force: torch.Tensor,
+        viscosity: TensorLike,
+        t_idx: torch.Tensor | None = None,
+        s_idx: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         """Override base apply with additional n-body correction."""
         N = config.shape[0]
         assert config.shape == (N, 7)
 
-        v_base = super().apply(config, force, viscosity)
+        # assert all inputs are on the correct cuda
+        assert config.is_cuda, "config tensor must be on CUDA device"
+        assert force.is_cuda, "force tensor must be on CUDA device"
+        assert t_idx is None or t_idx.is_cuda
+        assert s_idx is None or s_idx.is_cuda
+
+        v_base = super().apply(config, force, viscosity, t_idx=t_idx, s_idx=s_idx)
 
         pos = config[:, :3]
         t_idx, s_idx, pair_idx, k_idx = self.get_close_pairs(pos)
@@ -364,7 +378,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         force_t = torch.as_tensor(
             np.ascontiguousarray(force, dtype=np.float32), device=self.device
         )
-
+        assert config_t.is_cuda, f"config tensor must be on CUDA device (got {config_t.device})"
         velocities = self.apply(config_t, force_t, viscosity)
         return velocities.detach().cpu().numpy()
 

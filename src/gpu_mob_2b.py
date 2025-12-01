@@ -27,9 +27,7 @@ TensorLike = Union[torch.Tensor, float]
 
 
 def _ensure_device(device: Union[str, torch.device, None]) -> torch.device:
-    if device is None:
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return torch.device(device)
+    return torch.device("cuda")
 
 
 def _as_float_tensor(data, device: torch.device) -> torch.Tensor:
@@ -52,7 +50,7 @@ class PairVelKernel(torch.nn.Module):
 
     def forward(
         self,
-        rel_vecs: torch.Tensor,
+        rel_selected: torch.Tensor,
         target_indices: torch.Tensor,
         source_indices: torch.Tensor,
         force: torch.Tensor,
@@ -60,8 +58,6 @@ class PairVelKernel(torch.nn.Module):
     ) -> torch.Tensor:
         if target_indices.numel() == 0:
             return torch.zeros_like(force)
-
-        rel_selected = rel_vecs[target_indices, source_indices]
         dist = torch.linalg.norm(rel_selected, dim=-1, keepdim=True).clamp_min(1e-8)
 
         r_shift = dist - self.median
@@ -268,7 +264,8 @@ class NNMobTorch:
     # Public API
     # ------------------------------------------------------------------
     def apply(self, config: torch.Tensor, 
-           force: torch.Tensor, viscosity: TensorLike) -> torch.Tensor:
+           force: torch.Tensor, viscosity: TensorLike,
+           t_idx = None, s_idx = None) -> torch.Tensor:
         """Return particle velocities for the supplied configuration.
 
         Parameters
@@ -279,7 +276,16 @@ class NNMobTorch:
             Force and torque vectors per particle.
         viscosity : float or tensor
             Dynamic viscosity of the fluid.
+        t_idx : torch.Tensor, optional
+            Precomputed target indices for pair interactions.
+        s_idx : torch.Tensor, optional
+            Precomputed source indices for pair interactions.
         """
+        assert self.shape == "sphere", "Currently only sphere shape is supported."
+        if t_idx is not None:
+            print("Using 2body on nearfield pairs only.")
+        else:
+            print("Using 2body on all pairs (O(N^2)).")
 
         with torch.no_grad():
             config_t = _as_float_tensor(config, self.device)
@@ -293,32 +299,50 @@ class NNMobTorch:
             if N == 1:
                 return v_self.detach().cpu().numpy()
 
-            rel = positions.unsqueeze(0) - positions.unsqueeze(1)
-            dist = torch.linalg.norm(rel, dim=-1)
-            mask_offdiag = ~torch.eye(N, dtype=torch.bool, device=self.device)
+            if (t_idx is None) ^ (s_idx is None):
+                raise ValueError("Both t_idx and s_idx must be provided together.")
 
-            rpy_mask = torch.zeros_like(mask_offdiag)
-            if self.shape == "sphere":
-                if self.rpy_only:
-                    rpy_mask = mask_offdiag
-                elif not self.nn_only:
-                    rpy_mask = mask_offdiag & (dist > self.switch_dist)
+            if t_idx is not None:
+                t_idx = torch.as_tensor(t_idx, dtype=torch.long, device=self.device)
+                s_idx = torch.as_tensor(s_idx, dtype=torch.long, device=self.device)
             else:
-                if self.rpy_only:
-                    raise ValueError("RPY fallback currently supports spheres only")
+                print("O(N^2) computing pairwise distances...")
+                rel_full = positions[:, None, :] - positions[None, :, :]
+                dist_full = torch.linalg.norm(rel_full, dim=-1)
+                mask_offdiag = ~torch.eye(N, dtype=torch.bool, device=self.device)
+                pair_mask = mask_offdiag
+                t_idx, s_idx = torch.nonzero(mask_offdiag, as_tuple=True)
 
-            nn_mask = mask_offdiag & ~rpy_mask
+            if t_idx.numel() == 0:
+                return v_self.detach().cpu().numpy()
+
+            # Order matters for angular terms: RPY expects vectors pointing
+            # from source→target while the NN surrogate was trained with
+            # target translated to the origin (vector = source - target).
+            rel_source_to_target = positions[t_idx] - positions[s_idx]
+            rel_target_to_source = -rel_source_to_target
+            dist = torch.linalg.norm(rel_source_to_target, dim=-1)
+
+            n_pairs = t_idx.size(0)
+
+            rpy_mask = torch.ones(n_pairs, dtype=torch.bool, device=self.device)
+            if self.nn_only:
+                rpy_mask = torch.zeros_like(rpy_mask)
+            elif self.rpy_only:
+                rpy_mask = torch.ones_like(rpy_mask)
+            else:
+                rpy_mask = dist > self.switch_dist
+
+            nn_mask = ~rpy_mask
 
             velocities = torch.zeros_like(force_t)
 
             if rpy_mask.any():
-                #print("no of RPY interactions:", rpy_mask.sum().item())
+                print("no of RPY interactions:", rpy_mask.sum().item())
                 torch.cuda.synchronize()
                 start = time.perf_counter()
-                tgt_idx, src_idx = torch.nonzero(rpy_mask, as_tuple=True)
-                # two_body_rpy_batch expects rel = centre_target - centre_source,
-                # but `rel` stores source - target, so flip the sign for correctness
-                rel_rpy = -rel[tgt_idx, src_idx]
+                tgt_idx, src_idx = t_idx[rpy_mask], s_idx[rpy_mask]
+                rel_rpy = rel_source_to_target[rpy_mask]
                 src_wrench = force_t[src_idx]
                 vel_rpy = self._rpy_velocity_compiled(rel_rpy, src_wrench, viscosity)
                 velocities.index_add_(0, tgt_idx, vel_rpy)
@@ -328,13 +352,14 @@ class NNMobTorch:
                 #print("rpy mean:", vel_rpy.mean(dim=0))
 
             if nn_mask.any():
-                #print("no of NN interactions:", nn_mask.sum().item())
+                print("no of NN interactions:", nn_mask.sum().item())
                 torch.cuda.synchronize()
                 start = time.perf_counter()
-                tgt_idx, src_idx = torch.nonzero(nn_mask, as_tuple=True)
+                tgt_idx, src_idx = t_idx[nn_mask], s_idx[nn_mask]
                 self.t_idx_ = tgt_idx
                 self.s_idx_ = src_idx
-                velocities += self._pair_kernel_compiled(rel, tgt_idx, src_idx, force_t, viscosity)
+                rel_nn = rel_target_to_source[nn_mask]
+                velocities += self._pair_kernel_compiled(rel_nn, tgt_idx, src_idx, force_t, viscosity)
                 torch.cuda.synchronize()
                 end = time.perf_counter()
                 #print(f"NN kernel execution time: {(end - start)*1000:.6f} ms")
