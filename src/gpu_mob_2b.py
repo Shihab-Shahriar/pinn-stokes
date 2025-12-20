@@ -91,20 +91,22 @@ class NNMobTorch:
         shape: str,
         self_nn_path: str,
         two_nn_path: str,
-        nn_only: bool = False,
-        rpy_only: bool = False,
+        near_field: str,
+        far_field: str,
         switch_dist: float = 6.0,
         device: Union[str, torch.device, None] = None,
     ) -> None:
-        if nn_only and rpy_only:
-            raise ValueError("`nn_only` and `rpy_only` are mutually exclusive")
+        if near_field not in ["nn", "rpy"]:
+            raise ValueError(f"Invalid near_field: {near_field}")
+        if far_field not in ["rpy", None]:
+             raise ValueError(f"Invalid far_field: {far_field}")
 
         if shape != "sphere":
             raise ValueError("gpu_mob_2b.NNMob currently supports spheres only")
 
         self.shape = shape
-        self.nn_only = nn_only
-        self.rpy_only = rpy_only
+        self.near_field = near_field
+        self.far_field = far_field
         self.switch_dist = switch_dist
         self.device = _ensure_device(device)
 
@@ -146,20 +148,14 @@ class NNMobTorch:
         self._rpy_velocity_compiled = torch.compile(self._rpy_kernel, mode="max-autotune", backend="inductor")
 
 
-        ## Resure nearest neighbor indices and positions in nbody. TODO: Preallocate buffers
-        self.t_idx_ = torch.empty(0, dtype=torch.long, device=self.device)
-        self.s_idx_ = torch.empty(0, dtype=torch.long, device=self.device)
-        # self.pos_t_ = torch.empty(0, dtype=torch.float32, device=self.device)
-        # self.pos_s_ = torch.empty(0, dtype=torch.float32, device=self.device)
-
-
+    @torch.no_grad()
     def get_neighbor_pairs(self, pos):
-        assert self.neighbor_cutoff == 6.0
-        max_neighbors = int((self.neighbor_cutoff ** 3) /2)  # Max 50% volume fraction
+        assert self.switch_dist == 6.0
+        max_neighbors = int((self.switch_dist ** 3) /2)  # Max 50% volume fraction
 
         edge_index = radius_graph(
             pos,
-            r=self.neighbor_cutoff,
+            r=self.switch_dist,
             loop=False,
             max_num_neighbors=max_neighbors,
         )
@@ -289,9 +285,10 @@ class NNMobTorch:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    @torch.no_grad()
     def apply(self, config: torch.Tensor, 
            force: torch.Tensor, viscosity: TensorLike,
-           t_idx = None, s_idx = None) -> torch.Tensor:
+           near_t_idx = None, near_s_idx = None) -> torch.Tensor:
         """Return particle velocities for the supplied configuration.
 
         Parameters
@@ -302,97 +299,106 @@ class NNMobTorch:
             Force and torque vectors per particle.
         viscosity : float or tensor
             Dynamic viscosity of the fluid.
-        t_idx : torch.Tensor, optional
-            Precomputed target indices for pair interactions.
-        s_idx : torch.Tensor, optional
-            Precomputed source indices for pair interactions.
+        near_t_idx : torch.Tensor, optional
+            Precomputed target indices for nearfield pair interactions.
+        near_s_idx : torch.Tensor, optional
+            Precomputed source indices for nearfield pair interactions.
         """
         assert self.shape == "sphere", "Currently only sphere shape is supported."
-        if t_idx is not None:
-            print("Using 2body on nearfield pairs only.")
-        else:
-            print("Using 2body on all pairs (O(N^2)).")
+        if (near_t_idx is None) ^ (near_s_idx is None):
+            raise ValueError("Both near_t_idx and near_s_idx must be provided together.")
 
-        with torch.no_grad():
-            config_t = _as_float_tensor(config, self.device)
-            force_t = _as_float_tensor(force, self.device)
+        N = config.shape[0]
+        assert N > 1, "Just don't do single particle calls here."
 
-            positions = config_t[:, :3]
 
-            v_self = self._self_velocity(force_t, viscosity)
+        config_t = _as_float_tensor(config, self.device)
+        force_t = _as_float_tensor(force, self.device)
+        positions = config_t[:, :3]
 
-            N = positions.shape[0]
-            if N == 1:
-                return v_self.detach().cpu().numpy()
+        # If nearfield not provided, compute them here first
+        if near_t_idx is None:
+            with torch.no_grad():
+                near_t_idx, near_s_idx = self.get_neighbor_pairs(positions)
 
-            if (t_idx is None) ^ (s_idx is None):
-                raise ValueError("Both t_idx and s_idx must be provided together.")
-
-            if t_idx is not None:
-                t_idx = torch.as_tensor(t_idx, dtype=torch.long, device=self.device)
-                s_idx = torch.as_tensor(s_idx, dtype=torch.long, device=self.device)
-            else:
-                print("O(N^2) computing pairwise distances...")
-                rel_full = positions[:, None, :] - positions[None, :, :]
-                dist_full = torch.linalg.norm(rel_full, dim=-1)
+        # Now compute edges for far-field interactions
+        if self.far_field is not None:
+            with torch.no_grad():
                 mask_offdiag = ~torch.eye(N, dtype=torch.bool, device=self.device)
-                pair_mask = mask_offdiag
-                t_idx, s_idx = torch.nonzero(mask_offdiag, as_tuple=True)
+                mask_offdiag[near_t_idx, near_s_idx] = False
+                far_t_idx, far_s_idx = torch.nonzero(mask_offdiag, as_tuple=True)
 
-            if t_idx.numel() == 0:
-                return v_self.detach().cpu().numpy()
+        # Remove before benchmarking
+        # Assert no overlap between near and far indices 
+        if True:
+            near_set = set((int(t.item()), int(s.item())) for t, s in zip(near_t_idx, near_s_idx))
+            
+            if self.far_field is not None:
+                far_set = set((int(t.item()), int(s.item())) for t, s in zip(far_t_idx, far_s_idx))
+                assert near_set.isdisjoint(far_set), "Near and far field index sets overlap"
+                
+                # and their union is full (except diagonal) when far field eval is requested
+                full_set = set((i, j) for i in range(N) for j in range(N) if i != j)
+                assert near_set.union(far_set) == full_set, "Near and far field index sets do not cover all pairs"
 
-            # Order matters for angular terms: RPY expects vectors pointing
-            # from source→target while the NN surrogate was trained with
-            # target translated to the origin (vector = source - target).
-            rel_source_to_target = positions[t_idx] - positions[s_idx]
-            rel_target_to_source = -rel_source_to_target
-            dist = torch.linalg.norm(rel_source_to_target, dim=-1)
 
-            n_pairs = t_idx.size(0)
+        v_self = self._self_velocity(force_t, viscosity)
 
-            rpy_mask = torch.ones(n_pairs, dtype=torch.bool, device=self.device)
-            if self.nn_only:
-                rpy_mask = torch.zeros_like(rpy_mask)
-            elif self.rpy_only:
-                rpy_mask = torch.ones_like(rpy_mask)
-            else:
-                rpy_mask = dist > self.switch_dist
+        t_idx_rpy = None 
+        s_idx_rpy = None
 
-            nn_mask = ~rpy_mask
+        if self.near_field == "rpy" or self.far_field == "rpy":
+            if self.near_field == "rpy" and self.far_field == "rpy":
+                t_idx_rpy = torch.cat([near_t_idx, far_t_idx], dim=0)
+                s_idx_rpy = torch.cat([near_s_idx, far_s_idx], dim=0)
+            elif self.near_field == "rpy":
+                t_idx_rpy = near_t_idx
+                s_idx_rpy = near_s_idx
+            elif self.far_field == "rpy":
+                t_idx_rpy = far_t_idx
+                s_idx_rpy = far_s_idx
 
-            velocities = torch.zeros_like(force_t)
+        assert self.far_field != "nn", "Far field NN not supported in gpu_mob_2b.NNMobTorch"
+        
+        t_idx_nn = None
+        s_idx_nn = None
+        if self.near_field == "nn":
+            t_idx_nn = near_t_idx
+            s_idx_nn = near_s_idx
 
-            if rpy_mask.any():
-                print("no of RPY interactions:", rpy_mask.sum().item())
-                torch.cuda.synchronize()
-                start = time.perf_counter()
-                tgt_idx, src_idx = t_idx[rpy_mask], s_idx[rpy_mask]
-                rel_rpy = rel_source_to_target[rpy_mask]
-                src_wrench = force_t[src_idx]
-                vel_rpy = self._rpy_velocity_compiled(rel_rpy, src_wrench, viscosity)
-                velocities.index_add_(0, tgt_idx, vel_rpy)
-                torch.cuda.synchronize()
-                end = time.perf_counter()
-                #print(f"RPY kernel execution time: {(end - start)*1000:.6f} ms")
-                #print("rpy mean:", vel_rpy.mean(dim=0))
 
-            if nn_mask.any():
-                print("no of NN interactions:", nn_mask.sum().item())
-                torch.cuda.synchronize()
-                start = time.perf_counter()
-                tgt_idx, src_idx = t_idx[nn_mask], s_idx[nn_mask]
-                self.t_idx_ = tgt_idx
-                self.s_idx_ = src_idx
-                rel_nn = rel_target_to_source[nn_mask]
-                velocities += self._pair_kernel_compiled(rel_nn, tgt_idx, src_idx, force_t, viscosity)
-                torch.cuda.synchronize()
-                end = time.perf_counter()
-                #print(f"NN kernel execution time: {(end - start)*1000:.6f} ms")
-                #print("nn mean:", velocities.mean(dim=0))
+        # IMPORTANT: Order matters for angular terms
+        # RPY: pos(target) - pos(source)
+        # NN: pos(source) - pos(target). This is to match training data convention.
 
-            result = v_self + velocities
-            return result
+        velocities = torch.zeros_like(force_t)
+
+        if t_idx_rpy is not None:
+            print("no of RPY interactions:", t_idx_rpy.numel())
+            torch.cuda.synchronize()
+            start = time.perf_counter()
+            rel_rpy = positions[t_idx_rpy] - positions[s_idx_rpy]
+            src_wrench = force_t[s_idx_rpy]
+            vel_rpy = self._rpy_velocity_compiled(rel_rpy, src_wrench, viscosity)
+            velocities.index_add_(0, t_idx_rpy, vel_rpy)
+            torch.cuda.synchronize()
+            end = time.perf_counter()
+            #print(f"RPY kernel execution time: {(end - start)*1000:.6f} ms")
+            #print("rpy mean:", vel_rpy.mean(dim=0))
+
+        if t_idx_nn is not None:
+            print("no of NN interactions:", t_idx_nn.numel())
+            torch.cuda.synchronize()
+            start = time.perf_counter()
+            rel_nn = positions[s_idx_nn] - positions[t_idx_nn]
+            velocities += self._pair_kernel_compiled(rel_nn, t_idx_nn, s_idx_nn, force_t, viscosity)
+            torch.cuda.synchronize()
+            end = time.perf_counter()
+            #print(f"NN kernel execution time: {(end - start)*1000:.6f} ms")
+            #print("nn mean:", velocities.mean(dim=0))
+
+        result = v_self + velocities
+        return result
 
 
 from src.mob_op_2b_combined import NNMob
@@ -447,7 +453,7 @@ def accuracy_test():
     just_rpy = False
 
     mob = NNMobTorch(shape, self_path, two_body_script,
-                     nn_only=False, rpy_only=just_rpy)
+                     near_field="nn", far_field="rpy")
 
     mob_cpu = NNMob(shape, self_path, two_body_script,
                     nn_only=False, rpy_only=just_rpy)
@@ -488,7 +494,7 @@ def profile_apply(
     self_path = "data/models/self_interaction_model.pt"
     two_body = "data/models/two_body_combined_model.pt"
     mob_gpu = NNMobTorch(shape, self_path, two_body,
-                         nn_only=False, rpy_only=False)
+                         near_field="nn", far_field="rpy")
 
     # Warm-up outside profiler to stabilize kernels
     for _ in range(3):
@@ -545,7 +551,7 @@ def perftest():
     just_rpy = False
 
     mob = NNMobTorch(shape, self_path, two_body,
-                     nn_only=False, rpy_only=just_rpy, switch_dist=6.0)
+                     near_field="nn", far_field="rpy", switch_dist=6.0)
 
     dev = torch.device("cuda")
     for i in range(4):
