@@ -152,7 +152,7 @@ class MobStkFMM():
         print(f"[MobFMM] stkfmm solve: {fmm_elapsed*1e3:.3f} ms")
         return vel
     
-    def remove_stokeslets_for_near_pairs(self, pos, forces, viscosity, target_idx, source_idx):
+    def remove_rpy_for_near_pairs(self, pos, forces, viscosity, target_idx, source_idx):
         if target_idx is None or source_idx is None:
             raise ValueError("Target/source indices are required to remove near-field duplicates")
 
@@ -172,12 +172,39 @@ class MobStkFMM():
         dist = dist[valid]
 
         r_hat = rel / dist.unsqueeze(1)
-        kernels = torch.einsum("bi,bj->bij", r_hat, r_hat)
-        kernels = kernels + torch.eye(3, device=pos.device, dtype=pos.dtype).unsqueeze(0)
-    
-        vis_sel = viscosity[tidx]
-        coeff = 1.0 / (8.0 * math.pi * vis_sel * dist)
-        kernels = kernels * coeff.view(-1, 1, 1)
+        r_hat_outer = torch.einsum("bi,bj->bij", r_hat, r_hat)
+        
+        # RPY parameters
+        a = 1.0
+        two_a = 2.0 * a
+        
+        # Masks for piecewise function
+        mask_far = dist >= two_a
+        mask_near = ~mask_far
+        
+        # Initialize kernels
+        kernels = torch.zeros((dist.shape[0], 3, 3), device=pos.device, dtype=pos.dtype)
+        I = torch.eye(3, device=pos.device, dtype=pos.dtype).unsqueeze(0)
+        
+        # Far field case: r >= 2a
+        if mask_far.any():
+            d_far = dist[mask_far]
+            inv_r = 1.0 / d_far
+            inv_r2 = inv_r ** 2
+            sum_a2 = 2.0 * (a ** 2)
+            
+            c1 = 1.0 + (sum_a2 * inv_r2) / 3.0
+            c2 = 1.0 - (sum_a2 * inv_r2)
+            
+            k_far = c1.view(-1, 1, 1) * I + c2.view(-1, 1, 1) * r_hat_outer[mask_far]
+            
+            vis_far = viscosity[tidx[mask_far]]
+            prefactor_far = 1.0 / (8.0 * math.pi * vis_far * d_far)
+            kernels[mask_far] = k_far * prefactor_far.view(-1, 1, 1)
+            
+        # Near field case: r < 2a
+        assert not mask_near.any(), "Near field case: r < 2a should not occur"
+
         forces_sel = forces[sidx, :3].to(dtype=pos.dtype)
         contrib = torch.einsum("bij,bj->bi", kernels, forces_sel)
 
@@ -315,7 +342,7 @@ class MobStkFMM():
 
             remove_start_evt.record()
             vis_tensor = torch.from_numpy(vis_arr).to(device=gpu_device, dtype=torch.float32)
-            v_far_delta = self.remove_stokeslets_for_near_pairs(
+            v_far_delta = self.remove_rpy_for_near_pairs(
                 positions_t,
                 forces_t,
                 vis_tensor,
@@ -430,20 +457,14 @@ def accuracy_test(
 
         edge_index_attr = getattr(mob_fmm, "near_pair_edge_index", None)
         if edge_index_attr is None:
-            neighbors_per_particle = np.zeros(config.shape[0], dtype=int)
-            total_neighbors = 0
+            neighbors_per_particle = np.zeros(config.shape[0], dtype=int) - 1.0
+            total_neighbors = -1
         else:
-            if isinstance(edge_index_attr, torch.Tensor):
-                edge_np = edge_index_attr.detach().cpu().numpy()
-            else:
-                edge_np = np.asarray(edge_index_attr, dtype=np.int64)
-            if edge_np.size == 0:
-                neighbors_per_particle = np.zeros(config.shape[0], dtype=int)
-                total_neighbors = 0
-            else:
-                targets = np.asarray(edge_np[0], dtype=np.int64).ravel()
-                neighbors_per_particle = np.bincount(targets, minlength=config.shape[0])
-                total_neighbors = int(targets.size)
+            assert not isinstance(edge_index_attr, torch.Tensor), "near_pair_edge_index must be on CPU"
+            targets = np.asarray(edge_index_attr[0], dtype=np.int64).ravel()
+            neighbors_per_particle = np.bincount(targets, minlength=config.shape[0])
+            total_neighbors = int(targets.size)
+
         # #print(
         #     "RPY-limit neighbors: "
         #     f"total directed pairs {total_neighbors}, per-particle counts {neighbors_per_particle.tolist()}"
