@@ -174,8 +174,6 @@ class NNMob:
     
     
     def compute_rpy_mobility(self, c2):
-        import sys
-        sys.path.insert(0, '/home/shihab/hignn')
         from grpy_tensors import mu 
     
         c = np.array([[0.0, 0.0, 0.0], list(c2)])

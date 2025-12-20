@@ -37,7 +37,7 @@ from src.gpu_mob_2b import NNMobTorch
 from src.gpu_nbody_mob import Mob_Nbody_Torch
 
 
-GRID_SHAPE = (10, 10, 16)  # (nx, ny, nz)
+GRID_SHAPE = (10, 10, 20)  # (nx, ny, nz)
 SPACING = 3.0  # center-to-center distance between adjacent spheres
 VELOCITY_CLIM = (0.0, 100.0)
 DEFAULT_DT = 1e-3
@@ -187,9 +187,6 @@ def run_simulation(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Advance the system with explicit Euler and sample frames at the requested FPS."""
 
-    if output_fps <= 0:
-        raise ValueError("output_fps must be positive")
-
     device = mobility.device
     config = torch.as_tensor(config0, device=device, dtype=torch.float32).clone()
     total_steps = int(np.ceil(total_seconds / dt))
@@ -203,8 +200,8 @@ def run_simulation(
         dtype=config.dtype,
     )
 
-    frames = [config[:, :3].detach().cpu().numpy()]
-    vel_hist = [np.zeros_like(frames[0])]
+    frames = [] #[config[:, :3].detach().cpu().numpy()]
+    vel_hist = [] # [np.zeros_like(frames[0])]
     times = [0.0]
 
     for step in range(1, total_steps + 1):
@@ -212,14 +209,14 @@ def run_simulation(
         config[:, :3] = config[:, :3] + dt * velocities[:, :3]
 
         current_time = step * dt
-        if current_time + 1e-12 >= next_frame_time:
-            frames.append(config[:, :3].detach().cpu().numpy())
-            vel_hist.append(velocities[:, :3].detach().cpu().numpy())
-            times.append(current_time)
-            next_frame_time += frame_dt
-            print(f"Recorded frame at t = {current_time:.4f} s")
+        # if current_time + 1e-12 >= next_frame_time:
+        #     frames.append(config[:, :3].detach().cpu().numpy())
+        #     vel_hist.append(velocities[:, :3].detach().cpu().numpy())
+        #     times.append(current_time)
+        #     next_frame_time += frame_dt
+        #     print(f"Recorded frame at t = {current_time:.4f} s")
 
-    return np.stack(frames), np.stack(vel_hist), np.asarray(times)
+    return 5 #np.stack(frames), np.stack(vel_hist), np.asarray(times)
 
 
 def save_simulation(
@@ -743,27 +740,44 @@ def main() -> None:
         return
 
     config0 = build_initial_config(points)
-    mobility = build_mobility_operator('rpy')
+    mobility = build_mobility_operator('nbody')
+
+    print("Warming up mob_op ...")
+    _ = run_simulation(
+        mobility,
+        config0,
+        dt=args.dt,
+        total_seconds=.1,
+        output_fps=args.fps,
+        force_scale=1.0
+    )
     print("Running explicit Euler simulation via Mob_Nbody_Torch ...")
 
-    positions, velocities, times = run_simulation(
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+    start.record()
+    #positions, velocities, times = run_simulation(
+    _ = run_simulation(
         mobility,
         config0,
         dt=args.dt,
         total_seconds=args.seconds,
         output_fps=args.fps,
-        force_scale=9.81
+        force_scale=1.0
     )
+    end.record()
+    torch.cuda.synchronize()
+    print(f"Simulation completed in {start.elapsed_time(end):.2f} ms")
 
-    save_simulation(
-        args.output,
-        positions,
-        velocities,
-        times,
-        dt=args.dt,
-        fps=args.fps,
-        spacing=SPACING,
-    )
+    # save_simulation(
+    #     args.output,
+    #     positions,
+    #     velocities,
+    #     times,
+    #     dt=args.dt,
+    #     fps=args.fps,
+    #     spacing=SPACING,
+    # )
 
     if not args.no_video:
         try:

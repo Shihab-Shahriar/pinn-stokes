@@ -9,8 +9,6 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.profiler as profiler
-from torch_geometric.nn import radius_graph
-from torch_cluster import radius as kdtree
 
 torch.set_float32_matmul_precision('high')
 
@@ -59,6 +57,7 @@ class Mob_Nbody_Torch(NNMobTorch):
             switch_dist=switch_dist,
         )
         assert shape == "sphere", "Only sphere shape currently supported for n-body operator"
+        assert rpy_only == False, "RPY-only mode not supported with n-body operator"
 
         median_2b = 5.008307682776568 #copied from 2b training notebook
         # state_dict = torch.load("experiments/nbody_cross_tmp.wt", weights_only=True)
@@ -97,42 +96,128 @@ class Mob_Nbody_Torch(NNMobTorch):
         self._nbody_kernel = _NBodyKernelModule(self).to(self.device)
         self._nbody_kernel_compiled = torch.compile(self._nbody_kernel, mode="max-autotune", backend="inductor")
 
+    def _build_particle_neighbor_lists(
+        self, t_idx: torch.Tensor, s_idx: torch.Tensor, num_particles: int
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Build per-particle neighbor lists directly from FMM pair indices."""
+        device = t_idx.device
+        max_candidates = self.MAX_K_CANDIDATES
+        neighbors = torch.full(
+            (num_particles, max_candidates), -1, dtype=torch.long, device=device
+        )
+        mask = torch.zeros((num_particles, max_candidates), dtype=torch.bool, device=device)
+
+        if num_particles == 0 or t_idx.numel() == 0:
+            return neighbors, mask
+
+        src = torch.cat([t_idx, s_idx])
+        dst = torch.cat([s_idx, t_idx])
+
+        # Deduplicate (src, dst) pairs to avoid overfilling the fixed buffers.
+        keys = src * num_particles + dst
+        order = torch.argsort(keys)
+        src = src[order]
+        dst = dst[order]
+        keys = keys[order]
+
+        keep = torch.ones_like(keys, dtype=torch.bool)
+        keep[1:] = keys[1:] != keys[:-1]
+        src = src[keep]
+        dst = dst[keep]
+
+        counts = torch.bincount(src, minlength=num_particles)
+        prefix = torch.cumsum(counts, dim=0) - counts
+        local_pos = torch.arange(src.shape[0], device=device) - prefix[src]
+        valid_slots = local_pos < max_candidates
+        src = src[valid_slots]
+        dst = dst[valid_slots]
+        local_pos = local_pos[valid_slots]
+
+        neighbors[src, local_pos] = dst
+        mask[src, local_pos] = True
+
+        return neighbors, mask
+
+    def _pair_candidates_from_neighbors(
+        self,
+        t_idx: torch.Tensor,
+        s_idx: torch.Tensor,
+        particle_neighbors: torch.Tensor,
+        particle_neighbor_mask: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Merge per-particle neighbor lists into per-pair candidate sets."""
+        device = t_idx.device
+        num_pairs = t_idx.shape[0]
+        if num_pairs == 0:
+            return torch.empty(0, dtype=torch.long, device=device), torch.empty(0, dtype=torch.long, device=device)
+
+        neighbors_t = particle_neighbors[t_idx]
+        mask_t = particle_neighbor_mask[t_idx]
+        neighbors_s = particle_neighbors[s_idx]
+        mask_s = particle_neighbor_mask[s_idx]
+
+        candidates = torch.cat([neighbors_t, neighbors_s], dim=1)
+        candidate_mask = torch.cat([mask_t, mask_s], dim=1)
+
+        total_candidates = candidates.shape[1]
+        pair_ids = torch.arange(num_pairs, device=device, dtype=torch.long).unsqueeze(1).expand(num_pairs, total_candidates).reshape(-1)
+        candidate_flat = candidates.reshape(-1)
+        mask_flat = candidate_mask.reshape(-1)
+
+        t_idx_flat = t_idx.unsqueeze(1).expand(-1, total_candidates).reshape(-1)
+        s_idx_flat = s_idx.unsqueeze(1).expand(-1, total_candidates).reshape(-1)
+
+        valid_mask = mask_flat & (candidate_flat >= 0) & (candidate_flat != t_idx_flat) & (candidate_flat != s_idx_flat)
+        pair_ids = pair_ids[valid_mask]
+        candidate_flat = candidate_flat[valid_mask]
+
+        if pair_ids.numel() == 0:
+            return pair_ids, candidate_flat
+
+        num_particles = particle_neighbors.shape[0]
+        keys = pair_ids * num_particles + candidate_flat
+        order = torch.argsort(keys)
+        keys = keys[order]
+        pair_ids = pair_ids[order]
+        candidate_flat = candidate_flat[order]
+
+        keep = torch.ones_like(keys, dtype=torch.bool)
+        keep[1:] = keys[1:] != keys[:-1]
+        pair_ids = pair_ids[keep]
+        candidate_flat = candidate_flat[keep]
+
+        if pair_ids.numel() == 0:
+            return pair_ids, candidate_flat
+
+        counts = torch.bincount(pair_ids, minlength=num_pairs)
+        prefix = torch.cumsum(counts, dim=0) - counts
+        local_pos = torch.arange(pair_ids.shape[0], device=device) - prefix[pair_ids]
+        valid_slots = local_pos < self.MAX_K_CANDIDATES
+        pair_ids = pair_ids[valid_slots]
+        candidate_flat = candidate_flat[valid_slots]
+
+        return pair_ids, candidate_flat
+
     def get_close_pairs(
         self,
         pos: torch.Tensor,   # shape (N, 3
     ):
-        # Build neighbor graph within cutoff using spatial indexing
-        # edge_index = radius_graph(
-        #     pos,                        # (N, 3)
-        #     r=self.neighbor_cutoff, # cutoff radius
-        #     loop=False,                 # no self-edges
-        #     max_num_neighbors=self.MAX_PAIR_NEIGHBORS,       # adjust as needed
-        # )
 
-        # # edge_index: (2, num_pairs); directed edges i -> j
-        # t_idx, s_idx = edge_index[0], edge_index[1]  # both (num_pairs,)
-        pos_t = pos[self.t_idx_]
-        pos_s = pos[self.s_idx_]
+        torch.cuda.synchronize()
+        start = time.perf_counter()
+        num_particles = pos.shape[0]
+        assert self.t_idx_.numel() > 0 and self.s_idx_.numel() > 0, "Expected precomputed neighbor pairs from FMM"
 
-        midpoints = 0.5 * (pos_t + pos_s)  # (NP,3)
-        NP = pos_t.shape[0]
-
-        edge_index = kdtree(
-            x=pos,                     # sources
-            y=midpoints,               # targets / queries
-            r=self.neighbor_cutoff,
-            batch_x=None,
-            batch_y=None,
-            max_num_neighbors=self.MAX_K_CANDIDATES,  # or some safe upper bound per target
+        particle_neighbors, particle_neighbor_mask = self._build_particle_neighbor_lists(
+            self.t_idx_, self.s_idx_, num_particles
+        )
+        pair_idx, k_idx = self._pair_candidates_from_neighbors(
+            self.t_idx_, self.s_idx_, particle_neighbors, particle_neighbor_mask
         )
 
-        if edge_index.numel() == 0:
-            empty_idx = torch.zeros(NP, self.max_k_neighbors, dtype=torch.long, device=device)
-            empty_mask = torch.zeros(NP, self.max_k_neighbors, dtype=torch.bool, device=device)
-            return empty_idx, empty_mask
-
-        pair_idx = edge_index[0]   # (NK,) indices into midpoints
-        k_idx = edge_index[1]      # (NK,) indices into all particle positions
+        torch.cuda.synchronize()
+        end = time.perf_counter()
+        print(f"[Mob_Nbody] get_close_pairs() time: {(end - start)*1000:.6f} ms")
         return self.t_idx_, self.s_idx_, pair_idx, k_idx
 
 
@@ -316,23 +401,46 @@ class Mob_Nbody_Torch(NNMobTorch):
 
         return velocities  # (N,6)
 
-    def apply(self, config: torch.Tensor, 
-           force: torch.Tensor, viscosity: TensorLike) -> torch.Tensor:
+    def apply(
+        self,
+        config: torch.Tensor,
+        force: torch.Tensor,
+        viscosity: TensorLike,
+        t_idx: torch.Tensor | None = None,
+        s_idx: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         """Override base apply with additional n-body correction."""
         N = config.shape[0]
         assert config.shape == (N, 7)
 
-        v_base = super().apply(config, force, viscosity)
+        # assert all inputs are on the correct cuda
+        assert config.is_cuda, "config tensor must be on CUDA device"
+        assert force.is_cuda, "force tensor must be on CUDA device"
+        assert t_idx is None or t_idx.is_cuda
+        assert s_idx is None or s_idx.is_cuda
+
+        torch.cuda.synchronize()
+        base_start = time.perf_counter()
+        v_base = super().apply(config, force, viscosity, t_idx=t_idx, s_idx=s_idx)
+        torch.cuda.synchronize()
+        base_end = time.perf_counter()
+        print(f"[Mob_Nbody] Base velocity compute time: {(base_end - base_start) * 1000:.3f} ms")
 
         pos = config[:, :3]
         t_idx, s_idx, pair_idx, k_idx = self.get_close_pairs(pos)
 
         #print("nbody: t_idx shape:", t_idx.shape, "s_idx shape:", s_idx.shape)
 
+        torch.cuda.synchronize()
+        rest_start = time.perf_counter()
+
         if t_idx.numel() == 0:
             print("No valid pairs within neighbor cutoff; returning base velocities.")
             print("Press any key to continue...")
             input()
+            torch.cuda.synchronize()
+            rest_end = time.perf_counter()
+            print(f"Post-base path time: {(rest_end - rest_start) * 1000:.3f} ms")
             return v_base
 
         # Compute and add n-body correction
@@ -348,7 +456,28 @@ class Mob_Nbody_Torch(NNMobTorch):
             #print(f"Nbody kernel execution time: {(end - start)*1000:.6f} ms")
 
             v_total = v_base + v_nbody
+            torch.cuda.synchronize()
+            rest_end = time.perf_counter()
+            print(f"[Mob_Nbody] Post-base path time: {(rest_end - rest_start) * 1000:.3f} ms")
             return v_total
+
+    def apply_cpu(
+        self,
+        config: np.ndarray,
+        force: np.ndarray,
+        viscosity: TensorLike,
+    ) -> np.ndarray:
+        """NumPy convenience wrapper that reuses the GPU-backed apply()."""
+
+        config_t = torch.as_tensor(
+            np.ascontiguousarray(config, dtype=np.float32), device=self.device
+        )
+        force_t = torch.as_tensor(
+            np.ascontiguousarray(force, dtype=np.float32), device=self.device
+        )
+        assert config_t.is_cuda, f"config tensor must be on CUDA device (got {config_t.device})"
+        velocities = self.apply(config_t, force_t, viscosity)
+        return velocities.detach().cpu().numpy()
 
 import numpy as np
 from src.mob_op_nbody import Mob_Op_Nbody

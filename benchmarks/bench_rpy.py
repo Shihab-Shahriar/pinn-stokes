@@ -625,7 +625,8 @@ def bench(
         use_compile = False
 
     if batch_sizes is None:
-        batch_sizes = (512, 1024, 2048, 4096, 8192, 16384, 32768, 32768 * 2, 32768 * 4)
+        batch_sizes = [16384, 24064, 32768, 65536,
+        2**17, 2**18, 2**19, 2**20, 2**21, 2**22]
 
     print("\nRPY two-body throughput benchmark (GPU)")
     print(f"Timing {n_iter} iterations after {n_warmup} warmup runs.")
@@ -656,7 +657,8 @@ def bench(
 
 
 if __name__ == "__main__":
-    accuracy_test()
+    #accuracy_test()
+    bench()
 
     if torch.cuda.is_available():
         max_vram_gb = torch.cuda.max_memory_allocated() / (1024**3)

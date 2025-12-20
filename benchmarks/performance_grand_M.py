@@ -48,7 +48,7 @@ class BenchmarkConfig:
     """Benchmark configuration parameters."""
 
     viscosity: float = 1.0
-    warmup_runs: int = 4
+    warmup_runs: int = 10
     timed_runs: int = 5
 
     def total_runs(self) -> int:
@@ -148,7 +148,9 @@ def benchmark_apply(
         torch.cuda.synchronize(device)
         end = time.perf_counter()
         timings.append(end - start)
+        time.sleep(0.5)  # brief pause to avoid GPU overheating issues
 
+    print(f"total time for {bench_cfg.timed_runs} runs:", sum(timings)*1000, "ms", timings)
     device = resolve_device(operator)
     return BenchmarkResult(label=label, device=device.type, timings=np.array(timings, dtype=np.float64))
 
@@ -158,13 +160,13 @@ def format_results(results: Iterable[BenchmarkResult], bench_cfg: BenchmarkConfi
 
     header = f"Benchmark: N={batch_size}, warmup={bench_cfg.warmup_runs}, runs={bench_cfg.timed_runs}"
     lines = [header, "-" * len(header)]
-    lines.append(f"{'Operator':<32}{'Device':<8}{'Mean (ms)':>12}{'Std (ms)':>10}{'Min (ms)':>10}{'Max (ms)':>10}{'Hz':>12}")
+    lines.append(f"{'Operator':<32}{'Device':<8}{'Mean (ms)':>12}{'Std (ms)':>10}")
     lines.append("-" * len(lines[-1]))
 
     for res in results:
         lines.append(
             f"{res.label:<32}{res.device:<8}"
-            f"{res.mean_ms:>12.2f}{res.std_ms:>10.2f}{res.min_ms:>10.2f}{res.max_ms:>10.2f}{res.throughput_hz:>12.1f}"
+            f"{res.mean_ms:>12.2f}{res.std_ms:>10.2f}"
         )
 
     return "\n".join(lines)
@@ -192,17 +194,17 @@ def build_operators(shape: str) -> List[tuple[str, object]]:
                 switch_dist=6.0,
             ),
         ),
-        # (
-        #     "NNMobTorch_rpy",
-        #     NNMobTorch(
-        #         shape=shape,
-        #         self_nn_path=str(self_path),
-        #         two_nn_path=str(two_body_path),
-        #         nn_only=False,
-        #         rpy_only=True,
-        #         switch_dist=6.0,
-        #     ),
-        # ),
+        (
+            "NNMobTorch_rpy",
+            NNMobTorch(
+                shape=shape,
+                self_nn_path=str(self_path),
+                two_nn_path=str(two_body_path),
+                nn_only=False,
+                rpy_only=True,
+                switch_dist=6.0,
+            ),
+        ),
         (
             "NNMob_GPU_Nbody",
             Mob_Nbody_Torch(
@@ -217,7 +219,7 @@ def build_operators(shape: str) -> List[tuple[str, object]]:
         ),
     ]
 
-    return operators
+    return operators[::-1]
 
 
 def main() -> None:

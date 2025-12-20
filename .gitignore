@@ -11,3 +11,6 @@ utils/__pycache__
 benchmarks/__pycache__
 data/points/
 data/simulations/
+
+*.data
+*.txt

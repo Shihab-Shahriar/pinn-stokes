@@ -7,7 +7,7 @@ We will measure performance of our model, MFS and RPY
 import torch
 import torch.nn as nn
 import time
-
+import tinycudann as tcnn
 torch.set_float32_matmul_precision('high')
 
 # import torch_tensorrt
@@ -51,14 +51,27 @@ class ScNetwork(nn.Module):
         self.register_buffer("levi_civita", lc)
         self.inv_visc = 1.0/viscosity
 
-        self.layers = nn.Sequential(
-            nn.Linear(input_dim, 64),
-            nn.Tanh(),
-            nn.Linear(64, 32),
-            nn.Tanh(),
-            nn.Linear(32, 64),
-            nn.Tanh(),
-            nn.Linear(64, 5),
+        # self.layers = nn.Sequential(
+        #     nn.Linear(input_dim, 64),
+        #     nn.Tanh(),
+        #     nn.Linear(64, 32),
+        #     nn.Tanh(),
+        #     nn.Linear(32, 64),
+        #     nn.Tanh(),
+        #     nn.Linear(64, 5),
+        # )
+        config = {
+            "otype": "FullyFusedMLP",    # The magic happens here
+            "activation": "Tanh",        # Tanh as per your original
+            "output_activation": "None",
+            "n_neurons": 64,             # Width
+            "n_hidden_layers": 3         # Hidden layers (excluding input/output)
+        }
+        
+        self.layers = tcnn.Network(
+            n_input_dims=input_dim,
+            n_output_dims=5,
+            network_config=config
         )
 
     def L3(self, d):
@@ -143,9 +156,8 @@ def bench():
     # 1) Baseline PyTorch model (without compile)
     # --------------------------------------------------
     print("\n-- Baseline PyTorch --")
-    batch_candidates = [1024, 8192, 16384, 24064, 32768, 65536, ]
-                        #2**17, 2**18, 2**19, 2**20, 2**21, 2**22, 
-                        #2**23, 2**24, 2**25]
+    batch_candidates = [16384, 24064, 32768, 65536,
+        2**17, 2**18, 2**19, 2**20, 2**21, 2**22]
     #batch_candidates = [16384]
     best_throughput_pt = 0
     best_batch_pt = 1
@@ -164,7 +176,7 @@ def bench():
     # --------------------------------------------------
     print("-- torch.compile --")
     if hasattr(torch, "compile"):
-        compiled_model = torch.compile(base_model,fullgraph=True)
+        compiled_model = torch.compile(base_model, fullgraph=False)
         best_throughput_compile = 0
         best_batch_compile = 1
         
