@@ -21,6 +21,8 @@ import torch.profiler as profiler
 from benchmarks.bench_rpy import _two_body_mu_batch, two_body_rpy_batch
 from src.model_archs import TwoBodyCombined
 
+from torch_geometric.nn import radius_graph
+from torch_geometric.utils import sort_edge_index, is_undirected
 
 
 TensorLike = Union[torch.Tensor, float]
@@ -149,6 +151,30 @@ class NNMobTorch:
         self.s_idx_ = torch.empty(0, dtype=torch.long, device=self.device)
         # self.pos_t_ = torch.empty(0, dtype=torch.float32, device=self.device)
         # self.pos_s_ = torch.empty(0, dtype=torch.float32, device=self.device)
+
+
+    def get_neighbor_pairs(self, pos):
+        assert self.neighbor_cutoff == 6.0
+        max_neighbors = int((self.neighbor_cutoff ** 3) /2)  # Max 50% volume fraction
+
+        edge_index = radius_graph(
+            pos,
+            r=self.neighbor_cutoff,
+            loop=False,
+            max_num_neighbors=max_neighbors,
+        )
+        edge_index = sort_edge_index(edge_index)
+
+        # You want edge_index[0] to be the *target* index:
+        t_idx = edge_index[0]
+        s_idx = edge_index[1]
+
+        # Assert targets are nondecreasing (grouped/sorted by target):
+        assert torch.all(t_idx[1:] >= t_idx[:-1]), "radius_graph edge_index[0] (targets) is not sorted"
+
+        N = pos.size(0)
+        assert is_undirected(edge_index, num_nodes=N), "Radius graph contains directed edges"
+        return t_idx, s_idx
 
     # ------------------------------------------------------------------
     # Self interaction (analytic for unit-radius spheres)

@@ -324,8 +324,8 @@ class MobStkFMM():
             N = positions_t.size(0)
             assert is_undirected(edge_index, num_nodes=N), "Radius graph contains directed edges"
 
-            # edge_index_cpu = edge_index.detach().cpu()
-            # self.near_field_operator.near_pair_edge_index = edge_index_cpu
+            edge_index_cpu = edge_index.detach().cpu()
+            self.near_field_operator.near_pair_edge_index = edge_index_cpu
 
             nf_start_evt.record()
             assert config_t.is_cuda, "config tensor not on GPU"
@@ -367,7 +367,7 @@ class MobStkFMM():
         nf_elapsed = nf_start_evt.elapsed_time(nf_end_evt)
         print(f"[MobFMM] near-field operator apply: {nf_elapsed:.3f} ms")
         remove_elapsed = remove_start_evt.elapsed_time(remove_end_evt)
-        print(f"[MobFMM] near-field Stokeslet removal: {remove_elapsed:.3f} ms")
+        print(f"[MobFMM] near-field RPY removal: {remove_elapsed:.3f} ms")
         overall_elapsed = start_evt.elapsed_time(end_evt)
         print(f"[MobFMM] overall GPU time: {overall_elapsed:.3f} ms")
 
