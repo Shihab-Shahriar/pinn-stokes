@@ -61,14 +61,14 @@ class Mob_Nbody_Torch(NNMobTorch):
         assert shape == "sphere", "Only sphere shape currently supported for n-body operator"
 
         median_2b = 5.008307682776568 #copied from 2b training notebook
-        # state_dict = torch.load("experiments/nbody_cross_tmp.wt", weights_only=True)
-        # two_nn_keys = [k for k in state_dict.keys() if k.startswith("two_nn.")]
-        # for k in two_nn_keys:
-        #     del state_dict[k]
-        # model = MultiBodyCorrection(114,median_2b, mean_dist_s, 33).to(self.device)
-        # model.load_state_dict(state_dict)
-        # self.nbody_nn = model.eval()
-        self.nbody_nn = torch.jit.load(nbody_nn_path, map_location=self.device).eval()
+        state_dict = torch.load("experiments/nbody_cross_tmp.wt", weights_only=True)
+        two_nn_keys = [k for k in state_dict.keys() if k.startswith("two_nn.")]
+        for k in two_nn_keys:
+            del state_dict[k]
+        model = MultiBodyCorrection(114,median_2b, mean_dist_s, 33).to(self.device)
+        model.load_state_dict(state_dict)
+        self.nbody_nn = model.eval()
+        #self.nbody_nn = torch.jit.load(nbody_nn_path, map_location=self.device).eval()
 
         self.max_k_neighbors = int(max_k_neighbors)
         self.neighbor_cutoff = float(neighbor_cutoff)
@@ -241,14 +241,14 @@ class Mob_Nbody_Torch(NNMobTorch):
 
         # Positional features (NP, 3 + 3K)
         idx_pos_feat_end = 3 + K * 3
-        pos_feats_padded = torch.zeros(P, idx_pos_feat_end, device=self.device, dtype=dtype)  # (NP,3+3K)
-        pos_feats_padded[:, :3] = s_vec  # (NP,3)
+        # pos_feats_padded = torch.zeros(P, idx_pos_feat_end, device=self.device, dtype=dtype)  # (NP,3+3K)
+        # pos_feats_padded[:, :3] = s_vec  # (NP,3)
 
-        flat_neighbors = neighbor_vectors.reshape(P, K * 3)  # (NP,3K)
-        pos_feats_padded[:, 3:3 + K * 3] = flat_neighbors  # (NP,3K)
+        # flat_neighbors = neighbor_vectors.reshape(P, K * 3)  # (NP,3K)
+        # pos_feats_padded[:, 3:3 + K * 3] = flat_neighbors  # (NP,3K)
 
-        if print_dim:
-            print("pos_feats_padded shape:", pos_feats_padded.shape)
+        # if print_dim:
+        #     print("pos_feats_padded shape:", pos_feats_padded.shape)
 
         # Pair distance scalars (NP, 4)
         dist_raw = torch.linalg.norm(s_vec, dim=1)  # (NP,)
@@ -297,7 +297,7 @@ class Mob_Nbody_Torch(NNMobTorch):
             print("sym_feats shape:", sym_feats.shape)
 
         # Assemble final feature tensor X with fixed width
-        X = torch.cat([pos_feats_padded, dist_feats, sym_feats, neighbor_mask_f], dim=1)  # (NP,7+14K)
+        X = torch.cat([s_vec, dist_feats, sym_feats, neighbor_mask_f], dim=1)  # (NP,7+14K)
         if print_dim:
             print("Final feature tensor X shape:", X.shape)
 
@@ -312,7 +312,7 @@ class Mob_Nbody_Torch(NNMobTorch):
                 pred = self.nbody_nn.predict_velocity(X, Fs)
                 end.record()
                 torch.cuda.synchronize()
-                print(f"nbody_neural_net: {start.elapsed_time(end):.3f} ms")
+                #print(f"nbody_neural_net: {start.elapsed_time(end):.3f} ms")
 
             if print_dim:
                 print("Predicted velocities shape:", pred.shape)

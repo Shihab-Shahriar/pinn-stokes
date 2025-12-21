@@ -390,13 +390,13 @@ class MultiBodyCorrection(nn.Module):
     def __init__(self, input_dim, median_2b, mean_dist_s, dist_s_feat_loc):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(input_dim, 128),
+            nn.Linear(input_dim, 64),
             nn.Tanh(),
-            nn.Linear(128, 64),
+            nn.Linear(64, 64),
             nn.Tanh(),
-            nn.Linear(64, 128),
+            nn.Linear(64, 64),
             nn.Tanh(),
-            nn.Linear(128, 64),
+            nn.Linear(64, 64),
             nn.Tanh(),
             nn.Linear(64, 5)
         )
@@ -409,8 +409,11 @@ class MultiBodyCorrection(nn.Module):
         return self.net(X)   
 
     def predict_velocity(self, X, force_s): 
-        coeff = self.net(X[:,33:]) # 3:33 cols not being used
+        coeff = self.net(X[:,3:]) # 3:33 cols not being used
         d_vec = X[:,:3]
+
+        # TEMPFIX: self.dist_s_feat_loc is being modified
+        self.dist_s_feat_loc = 3
         dist_s_centered = X[:, self.dist_s_feat_loc]                  # col 'dist_s'
         r = dist_s_centered + self.mean_dist_s
         

@@ -119,10 +119,8 @@ class NNMobTorch:
         model.eval()
         model = model.to(self.device)
         # Keep base model compiled for its internal ops
-        try:
-            model = torch.compile(model, mode="max-autotune", backend="inductor")
-        except Exception:
-            pass
+        model = torch.compile(model, mode="max-autotune", backend="inductor")
+
 
         # model = torch.jit.load(two_nn_path, map_location=self.device).eval()
         
