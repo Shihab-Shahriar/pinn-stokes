@@ -330,7 +330,7 @@ class NNMobTorch:
 
         # Remove before benchmarking
         # Assert no overlap between near and far indices 
-        if True:
+        if False:
             near_set = set((int(t.item()), int(s.item())) for t, s in zip(near_t_idx, near_s_idx))
             
             if self.far_field is not None:

@@ -33,7 +33,7 @@ class Mob_Nbody_Torch(NNMobTorch):
 
     DEFAULT_MEAN_DIST_S: float = 4.690027344329476
     DEFAULT_MAX_K_NEIGHBORS: int = 10  # K, consider at most 10 neighbors for nbody effect
-    DEFAULT_NEIGHBOR_CUTOFF: float = 6.0
+    DEFAULT_NEIGHBOR_CUTOFF: float = 6.0 # Line between near and far field
     MAX_PARTICLE_NEIGHBORS: int = 128  # max neighbors cached per particle
     _EPS: float = 1e-9
 
@@ -43,9 +43,9 @@ class Mob_Nbody_Torch(NNMobTorch):
         self_nn_path: str,
         two_nn_path: str,
         nbody_nn_path: str,
-        nn_only: bool = False,
-        rpy_only: bool = False,
-        switch_dist: float = 6.0,
+        near_field_2b: str,
+        far_field_2b: str,
+        near_far_switch: float = DEFAULT_NEIGHBOR_CUTOFF,
         neighbor_cutoff: float = DEFAULT_NEIGHBOR_CUTOFF,
         max_k_neighbors: int = DEFAULT_MAX_K_NEIGHBORS,
         mean_dist_s: float = DEFAULT_MEAN_DIST_S,
@@ -54,12 +54,11 @@ class Mob_Nbody_Torch(NNMobTorch):
             shape=shape,
             self_nn_path=self_nn_path,
             two_nn_path=two_nn_path,
-            nn_only=nn_only,
-            rpy_only=rpy_only,
-            switch_dist=switch_dist,
+            near_field=near_field_2b,
+            far_field=far_field_2b,
+            switch_dist=near_far_switch,
         )
         assert shape == "sphere", "Only sphere shape currently supported for n-body operator"
-        assert rpy_only == False, "RPY-only mode not supported with n-body operator"
 
         median_2b = 5.008307682776568 #copied from 2b training notebook
         # state_dict = torch.load("experiments/nbody_cross_tmp.wt", weights_only=True)
@@ -96,7 +95,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         self._nbody_kernel = _NBodyKernelModule(self).to(self.device)
         self._nbody_kernel_compiled = torch.compile(self._nbody_kernel, mode="max-autotune", backend="inductor")
 
-
+    @torch.no_grad()
     def get_k_per_pair(
         self,
         pos: torch.Tensor,
@@ -139,14 +138,14 @@ class Mob_Nbody_Torch(NNMobTorch):
         local_pos = torch.arange(src.shape[0], device=device) - prefix[src]
         valid_slots = local_pos < max_neighbors
 
-        if valid_slots.any():
-            src = src[valid_slots]
-            dst = dst[valid_slots]
-            dist = dist[valid_slots]
-            local_pos = local_pos[valid_slots]
+        # if valid_slots.any(): # Removed to avoid CPU-GPU sync
+        src = src[valid_slots]
+        dst = dst[valid_slots]
+        dist = dist[valid_slots]
+        local_pos = local_pos[valid_slots]
 
-            neighbors[src, local_pos] = dst
-            neighbor_dists[src, local_pos] = dist
+        neighbors[src, local_pos] = dst
+        neighbor_dists[src, local_pos] = dist
 
         topk_dists, topk_pos = torch.topk(neighbor_dists, K, dim=1, largest=False, sorted=True)
         topk_indices = neighbors.gather(1, topk_pos)
@@ -196,7 +195,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         return final_indices, final_mask
 
 
-
+    @torch.no_grad()
     def get_nbody_velocity(
         self,
         pos: torch.Tensor,     # shape (N, 3)
@@ -220,9 +219,10 @@ class Mob_Nbody_Torch(NNMobTorch):
         pos_s = pos[s_idx]                  # (num_pairs, 3)
         s_vec = pos_s - pos_t               # (num_pairs, 3)
 
-        top_k_indices, neighbor_mask = self.get_k_per_pair(
-            pos, pos_t, t_idx, pos_s, s_idx, s_vec
-        )
+        with torch.profiler.record_function("get_k_per_pair"):
+            top_k_indices, neighbor_mask = self.get_k_per_pair(
+                pos, pos_t, t_idx, pos_s, s_idx, s_vec
+            )
 
         assert top_k_indices.shape[0] == t_idx.shape[0]
         assert top_k_indices.shape[1] == K
@@ -304,7 +304,15 @@ class Mob_Nbody_Torch(NNMobTorch):
         # 6. Predict velocities for all pairs, zeroing invalid pairs
         Fs = force[s_idx]  # (NP,6)
         with torch.no_grad():
-            pred = self.nbody_nn.predict_velocity(X, Fs)  # (NP,6)
+            with torch.profiler.record_function("nbody_neural_net"):
+                start = torch.cuda.Event(enable_timing=True)
+                end = torch.cuda.Event(enable_timing=True)
+                torch.cuda.synchronize()
+                start.record()
+                pred = self.nbody_nn.predict_velocity(X, Fs)
+                end.record()
+                torch.cuda.synchronize()
+                print(f"nbody_neural_net: {start.elapsed_time(end):.3f} ms")
 
             if print_dim:
                 print("Predicted velocities shape:", pred.shape)
@@ -315,6 +323,8 @@ class Mob_Nbody_Torch(NNMobTorch):
 
         return velocities  # (N,6)
 
+
+    @torch.no_grad()
     def apply(
         self,
         config: torch.Tensor,
@@ -337,18 +347,21 @@ class Mob_Nbody_Torch(NNMobTorch):
 
         # if t_idx not provided, compute neighbor pairs
         if t_idx is None or s_idx is None:
+            print("Computing neighbor pairs for n-body correction...")
             t_idx, s_idx = self.get_neighbor_pairs(pos)
 
         torch.cuda.synchronize()
         base_start = time.perf_counter()
-        v_base = super().apply(config, force, viscosity, t_idx=t_idx, s_idx=s_idx)
+        v_base = super().apply(
+            config, force, viscosity, 
+            near_t_idx=t_idx, near_s_idx=s_idx
+        )
         torch.cuda.synchronize()
         base_end = time.perf_counter()
         print(f"[Mob_Nbody] Base velocity compute time: {(base_end - base_start) * 1000:.3f} ms")
 
 
         torch.cuda.synchronize()
-        rest_start = time.perf_counter()
 
         if t_idx.numel() == 0:
             print("No valid pairs within neighbor cutoff; returning base velocities.")
@@ -359,23 +372,23 @@ class Mob_Nbody_Torch(NNMobTorch):
             print(f"[Mob_Nbody] No near-field pairs; returning base velocities. Post-base path time: {(rest_end - rest_start) * 1000:.3f} ms")
             return v_base
 
-        # Compute and add n-body correction
-        with torch.no_grad():
-            # Use compiled kernel if available
-            torch.cuda.synchronize()
-            start = time.perf_counter()
-            v_nbody = self._nbody_kernel_compiled(
-                pos, force, t_idx, s_idx,
-                viscosity)
-            torch.cuda.synchronize()
-            end = time.perf_counter()
-            #print(f"Nbody kernel execution time: {(end - start)*1000:.6f} ms")
+        rest_start = time.perf_counter()
 
-            v_total = v_base + v_nbody
-            torch.cuda.synchronize()
-            rest_end = time.perf_counter()
-            print(f"[Mob_Nbody] Post-base path time: {(rest_end - rest_start) * 1000:.3f} ms")
-            return v_total
+        # Compute and add n-body correction
+        torch.cuda.synchronize()
+        start = time.perf_counter()
+        v_nbody = self._nbody_kernel_compiled(
+            pos, force, t_idx, s_idx,
+            viscosity)
+        torch.cuda.synchronize()
+        end = time.perf_counter()
+        #print(f"Nbody kernel execution time: {(end - start)*1000:.6f} ms")
+
+        v_total = v_base + v_nbody
+        torch.cuda.synchronize()
+        rest_end = time.perf_counter()
+        print(f"[Mob_Nbody] Post-base path time: {(rest_end - rest_start) * 1000:.3f} ms")
+        return v_total
 
     def apply_cpu(
         self,
@@ -419,9 +432,9 @@ def accuracy_test():
         self_nn_path=self_path,
         two_nn_path=two_body,
         nbody_nn_path="data/models/nbody_pinn_b1.pt",
-        nn_only=False,
-        rpy_only=False,
-        switch_dist=6.0,
+        near_field_2b="nn",
+        far_field_2b="rpy",
+        near_far_switch=6.0,
     )
 
     for d in ["0.1", "0.2", "0.5", "1.0", "2.0", "3.0"]:
@@ -458,9 +471,9 @@ def perftest():
         self_nn_path=self_path,
         two_nn_path=two_body,
         nbody_nn_path="data/models/nbody_pinn_b1.pt",
-        nn_only=False,
-        rpy_only=False,
-        switch_dist=6.0,
+        near_field_2b="nn",
+        far_field_2b="rpy",
+        near_far_switch=6.0,
     )
 
     # warm-up
@@ -506,14 +519,16 @@ def profile_get_nbody_velocity(
         self_nn_path=self_path,
         two_nn_path=two_body,
         nbody_nn_path="data/models/nbody_pinn_b1.pt",
-        nn_only=False,
-        rpy_only=False,
-        switch_dist=6.0,
+        near_field_2b="nn",
+        far_field_2b="rpy",
+        near_far_switch=6.0,
     )
+
+    t_idx, s_idx = mob_gpu.get_neighbor_pairs(pos)
 
     # Warm-up outside profiler to stabilize kernels
     for _ in range(3):
-        mob_gpu.get_nbody_velocity(pos, force, viscosity=1.0)
+        mob_gpu.get_nbody_velocity(pos, force, t_idx, s_idx, viscosity=1.0)
     torch.cuda.synchronize()
 
     activities = [profiler.ProfilerActivity.CPU]
@@ -534,7 +549,7 @@ def profile_get_nbody_velocity(
         on_trace_ready=trace_handler,
     ) as prof:
         for _ in range(total_steps):
-            mob_gpu.get_nbody_velocity(pos, force, viscosity=1.0)
+            mob_gpu.get_nbody_velocity(pos, force, t_idx, s_idx, viscosity=1.0)
             torch.cuda.synchronize()
             prof.step()
 

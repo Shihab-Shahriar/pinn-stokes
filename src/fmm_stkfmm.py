@@ -324,8 +324,8 @@ class MobStkFMM():
             N = positions_t.size(0)
             assert is_undirected(edge_index, num_nodes=N), "Radius graph contains directed edges"
 
-            edge_index_cpu = edge_index.detach().cpu()
-            self.near_field_operator.near_pair_edge_index = edge_index_cpu
+            # edge_index_cpu = edge_index.detach().cpu().numpy()
+            # self.near_field_operator.near_pair_edge_index = edge_index_cpu
 
             nf_start_evt.record()
             assert config_t.is_cuda, "config tensor not on GPU"
@@ -399,9 +399,9 @@ def accuracy_test(
         self_nn_path=self_path,
         two_nn_path=two_body,
         nbody_nn_path="data/models/nbody_pinn_b1.pt",
-        nn_only=False,
-        rpy_only=False,
-        switch_dist=6.0,
+        near_field_2b="nn",
+        far_field_2b=None,
+        near_far_switch=6.0,
     )
 
     baseline_mob = Mob_Nbody_Torch(
@@ -409,9 +409,9 @@ def accuracy_test(
         self_nn_path=self_path,
         two_nn_path=two_body,
         nbody_nn_path="data/models/nbody_pinn_b1.pt",
-        nn_only=False,
-        rpy_only=False,
-        switch_dist=6.0,
+        near_field_2b="nn",
+        far_field_2b="rpy",
+        near_far_switch=6.0,
     )
 
     fmm_solver = MobStkFMM(shape=shape, 
@@ -452,7 +452,6 @@ def accuracy_test(
         if isinstance(fmm_vel, torch.Tensor):
             fmm_vel = fmm_vel.detach().cpu().numpy()
         fmm_vel = np.asarray(fmm_vel, dtype=np.float64)
-
 
 
         edge_index_attr = getattr(mob_fmm, "near_pair_edge_index", None)
@@ -517,6 +516,7 @@ def perf_test(
     warmup_runs: int = 3,
     timed_runs: int = 5,
     seed: int = 1234,
+    profile_run: bool = False,
 ) -> dict:
     """Benchmark MobFMM alone and report timing statistics."""
 
@@ -535,9 +535,9 @@ def perf_test(
         self_nn_path=self_model,
         two_nn_path=two_body_model,
         nbody_nn_path=nbody_path,
-        nn_only=False,
-        rpy_only=False,
-        switch_dist=6.0,
+        near_field_2b="nn",
+        far_field_2b=None,
+        near_far_switch=6.0,
     )
     fmm_solver = MobStkFMM(shape=shape, near_field_operator=mob_fmm,
                            mult_order=mult_order)
@@ -575,40 +575,77 @@ def perf_test(
         fmm_fn()
     torch.cuda.synchronize()
 
-    fmm_times = []
-    for _ in range(timed_runs):
-        fmm_times.append(_time_callable(fmm_fn))
-    torch.cuda.synchronize()
+    if profile_run:
+        print("Profiling multiple runs...")
+        trace_dir = "./profiler/fmm_stkfmm"
+        os.makedirs(trace_dir, exist_ok=True)
 
-    fmm_times = np.asarray(fmm_times)
-    fmm_mean = float(fmm_times.mean())
-    fmm_std = float(fmm_times.std(ddof=1)) if timed_runs > 1 else 0.0
-    per_particle_us = fmm_mean * 1e6 / n_particles
+        # Profile 3 active runs to get averages
+        with profiler.profile(
+            activities=[profiler.ProfilerActivity.CPU, profiler.ProfilerActivity.CUDA],
+            schedule=profiler.schedule(wait=1, warmup=2, active=3, repeat=1),
+            #on_trace_ready=profiler.tensorboard_trace_handler(trace_dir),
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=True
+        ) as prof:
+            for _ in range(1 + 2 + 3):
+                fmm_fn()
+                torch.cuda.synchronize()
+                prof.step()
+        
+        print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=20))
+        print("\n--- Specific Tag Stats ---")
+        key_averages = prof.key_averages()
+        for evt in key_averages:
+            if evt.key == "nbody_nn" or evt.key == "get_k_per_pair":
+                print(f"Tag: {evt.key}")
+                print(f"Total CPU Time: {evt.cpu_time_total_str}") # Human readable (e.g., 5.4ms)
+                print(f"Self CPU Time:  {evt.self_cpu_time_total_str}")
+                print(f"Number of calls: {evt.count}")
 
-    print(
-        f"MobFMM: {fmm_mean*1e3:.3f}±{fmm_std*1e3:.3f} ms "
-        f"({per_particle_us:.2f} us per particle)"
-    )
+    else:
+        print("Timing multiple runs...")
+        fmm_times = []
+        for _ in range(timed_runs):
+            fmm_times.append(_time_callable(fmm_fn))
+        torch.cuda.synchronize()
 
-    return {
-        "ref_path": ref_path,
-        "n_particles": n_particles,
-        "mean_seconds": fmm_mean,
-        "std_seconds": fmm_std,
-        "per_particle_us": per_particle_us,
-    }
+        fmm_times = np.asarray(fmm_times)
+        fmm_mean = float(fmm_times.mean())
+        fmm_std = float(fmm_times.std(ddof=1)) if timed_runs > 1 else 0.0
+        per_particle_us = fmm_mean * 1e6 / n_particles
+
+        print(
+            f"MobFMM: {fmm_mean*1e3:.3f}±{fmm_std*1e3:.3f} ms "
+            f"({per_particle_us:.2f} us per particle)"
+        )
+
 
 
 
 
 
 if __name__ == "__main__":
+    # check if user specified OMP_NUM_THREADS environment variable
+    
+    if "OMP_NUM_THREADS" in os.environ:
+        print(f"Using OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']}")
+    else:
+        # set OMP_NUM_THREADS to 64 by default
+        print("WARNING: OMP_NUM_THREADS not set, setting to 16 by default.")
+        os.environ["OMP_NUM_THREADS"] = "16"
+
+
     import sys
     if sys.argv[-1] == "acc":
         accuracy_test(mult_order=12)
 
     elif sys.argv[-1] == "perf":
         perf_test(mult_order=6, warmup_runs=4, timed_runs=3)
+
+    elif sys.argv[-1] == "profile":
+        perf_test(mult_order=6, profile_run=True)
 
 
     elif sys.argv[-1] == "perf_compare":
