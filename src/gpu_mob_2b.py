@@ -119,7 +119,7 @@ class NNMobTorch:
         model.eval()
         model = model.to(self.device)
         # Keep base model compiled for its internal ops
-        model = torch.compile(model, mode="max-autotune", backend="inductor")
+        model = torch.compile(model, mode="max-autotune", backend="inductor", dynamic=True)
 
 
         # model = torch.jit.load(two_nn_path, map_location=self.device).eval()
@@ -128,7 +128,7 @@ class NNMobTorch:
         # Build a fused, compiled kernel for pairwise NN velocity contribution
         self._pair_kernel = PairVelKernel(self.two_nn, self.median, self.contact_distance).to(self.device)
         self._pair_kernel_compiled = torch.compile(
-            self._pair_kernel, mode="max-autotune", backend="inductor"
+            self._pair_kernel, mode="max-autotune", backend="inductor", dynamic=True
         )
         self.self_nn_path = self_nn_path  # kept for API compatibility; not used.
 
@@ -143,7 +143,7 @@ class NNMobTorch:
                 return self.parent._rpy_velocity(rel_vecs, src_wrench, viscosity)
 
         self._rpy_kernel = _RPYKernelModule(self).to(self.device)
-        self._rpy_velocity_compiled = torch.compile(self._rpy_kernel, mode="max-autotune", backend="inductor")
+        self._rpy_velocity_compiled = torch.compile(self._rpy_kernel, mode="max-autotune", backend="inductor", dynamic=True)
 
 
     @torch.no_grad()

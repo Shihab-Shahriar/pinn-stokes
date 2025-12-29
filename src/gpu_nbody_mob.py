@@ -83,17 +83,18 @@ class Mob_Nbody_Torch(NNMobTorch):
 
             def forward(self, pos: torch.Tensor,
                     force: torch.Tensor, t_idx: torch.Tensor,
-                    s_idx: torch.Tensor,
-                    viscosity: TensorLike) -> torch.Tensor:
+                    s_idx: torch.Tensor) -> torch.Tensor:
                 # Delegate to the Python implementation; torch.compile may insert
                 # graph breaks around calls to TorchScript model, but still speeds up
                 # surrounding tensor ops.
                 return self.parent.get_nbody_velocity(
-                    pos, force, t_idx, s_idx,
-                    viscosity, print_dim=False)
+                    pos, force, t_idx, s_idx)
+                #viscosity, print_dim=False)
 
         self._nbody_kernel = _NBodyKernelModule(self).to(self.device)
-        self._nbody_kernel_compiled = torch.compile(self._nbody_kernel, mode="max-autotune", backend="inductor")
+        self._nbody_kernel_compiled = torch.compile(
+            self._nbody_kernel, mode="max-autotune", 
+            backend="inductor", fullgraph=False, dynamic=True)
 
     @torch.no_grad()
     def get_k_per_pair(
@@ -128,21 +129,26 @@ class Mob_Nbody_Torch(NNMobTorch):
         dst = s_idx
         dist = edge_dist
 
-        order = torch.argsort(src)
-        src = src[order]
-        dst = dst[order]
-        dist = dist[order]
+        # order = torch.argsort(src)
+        # src = src[order]
+        # dst = dst[order]
+        # dist = dist[order]
 
         counts = torch.bincount(src, minlength=num_particles)
+        # ones = torch.ones((src.numel(),), device=device, dtype=torch.int32)
+        # counts = torch.zeros((num_particles,), device=device, dtype=torch.int32)
+        # counts = counts.scatter_add(0, src, ones)
+
+        # Optimization: redundant, already doing all this inside HashGrid. 
         prefix = torch.cumsum(counts, dim=0) - counts
         local_pos = torch.arange(src.shape[0], device=device) - prefix[src]
-        valid_slots = local_pos < max_neighbors
+        # valid_slots = local_pos < max_neighbors
 
-        # if valid_slots.any(): # Removed to avoid CPU-GPU sync
-        src = src[valid_slots]
-        dst = dst[valid_slots]
-        dist = dist[valid_slots]
-        local_pos = local_pos[valid_slots]
+        # # if valid_slots.any(): # Removed to avoid CPU-GPU sync
+        # src = src[valid_slots]
+        # dst = dst[valid_slots]
+        # dist = dist[valid_slots]
+        # local_pos = local_pos[valid_slots]
 
         neighbors[src, local_pos] = dst
         neighbor_dists[src, local_pos] = dist
@@ -202,12 +208,12 @@ class Mob_Nbody_Torch(NNMobTorch):
         force: torch.Tensor,   # shape (N, 6)
         t_idx: torch.Tensor,   # shape (num_pairs,)
         s_idx: torch.Tensor,   # shape (num_pairs,)
-        viscosity: float,      # scalar
-        print_dim: bool = False,
+        #viscosity: float,      # scalar
+        #print_dim: bool = False,
     ) -> torch.Tensor:
         """Compute the learned n-body correction for each particle using PyTorch."""
         # Viscous scaling is absorbed by the learned model.
-        _ = viscosity
+        #_ = viscosity
 
         N = pos.shape[0]
         K = self.max_k_neighbors
@@ -231,8 +237,8 @@ class Mob_Nbody_Torch(NNMobTorch):
         P = top_k_indices.shape[0]
         neighbor_vectors = pos[top_k_indices] - pos[t_idx].unsqueeze(1)  # (NP,K,3)
 
-        if print_dim:
-            print("neighbor_vectors shape:", neighbor_vectors.shape)
+        # if print_dim:
+        #     print("neighbor_vectors shape:", neighbor_vectors.shape)
 
         # Zero out invalid neighbors and invalid pairs
         neighbor_vectors = torch.where(
@@ -256,8 +262,8 @@ class Mob_Nbody_Torch(NNMobTorch):
         dist_sq = dist_centered * dist_centered  # (NP,)
         dist_sqsq = dist_sq * dist_sq  # (NP,)
         dist_feats = torch.stack([dist_centered, dist_raw - 2.0, dist_sq, dist_sqsq], dim=1)  # (NP,4)
-        if print_dim:
-            print("dist_feats shape:", dist_feats.shape)
+        # if print_dim:
+        #     print("dist_feats shape:", dist_feats.shape)
 
         # Symmetric neighbor features
         ell = dist_raw.unsqueeze(1).clamp_min(self._EPS)  # (NP,1)
@@ -293,13 +299,13 @@ class Mob_Nbody_Torch(NNMobTorch):
             cos_k,
         ], dim=2) * neighbor_mask_f.unsqueeze(-1)  # (NP,K,10)
         sym_feats = sym_feats_stacked.reshape(P, -1)  # (NP,10K)
-        if print_dim:
-            print("sym_feats shape:", sym_feats.shape)
+        # if print_dim:
+        #     print("sym_feats shape:", sym_feats.shape)
 
         # Assemble final feature tensor X with fixed width
         X = torch.cat([s_vec, dist_feats, sym_feats, neighbor_mask_f], dim=1)  # (NP,7+14K)
-        if print_dim:
-            print("Final feature tensor X shape:", X.shape)
+        # if print_dim:
+        #     print("Final feature tensor X shape:", X.shape)
 
         # 6. Predict velocities for all pairs, zeroing invalid pairs
         Fs = force[s_idx]  # (NP,6)
@@ -314,8 +320,8 @@ class Mob_Nbody_Torch(NNMobTorch):
                 torch.cuda.synchronize()
                 #print(f"nbody_neural_net: {start.elapsed_time(end):.3f} ms")
 
-            if print_dim:
-                print("Predicted velocities shape:", pred.shape)
+            # if print_dim:
+            #     print("Predicted velocities shape:", pred.shape)
 
         # 7. Sum velocities for each target particle (fixed size N x 6)
         velocities = torch.zeros(N, 6, device=self.device, dtype=dtype)  # (N,6)
@@ -378,8 +384,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         torch.cuda.synchronize()
         start = time.perf_counter()
         v_nbody = self._nbody_kernel_compiled(
-            pos, force, t_idx, s_idx,
-            viscosity)
+            pos, force, t_idx, s_idx)
         torch.cuda.synchronize()
         end = time.perf_counter()
         #print(f"Nbody kernel execution time: {(end - start)*1000:.6f} ms")

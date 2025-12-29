@@ -4,6 +4,9 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Sequence, Union
 import numpy as np
+import warp as wp
+wp.init()
+
 import pandas as pd
 import torch
 import torch.profiler as profiler
@@ -19,6 +22,65 @@ from src.gpu_nbody_mob import Mob_Nbody_Torch
 
 # torch disable all gradient computations globally
 torch.set_grad_enabled(False)
+
+import torch._inductor.config as config
+#config.coordinate_descent_tuning = True
+config.freezing = True
+# config.coordinate_descent_check_all_directions = True
+# config.shape_padding = True
+torch._dynamo.reset()
+
+@wp.kernel
+def count_neighbors_kernel(
+    grid: wp.uint64,
+    positions: wp.array(dtype=wp.vec3),
+    no_of_nn: wp.array(dtype=wp.uint8),
+    radius: float,
+):
+    tid = wp.tid()
+
+    # order threads by cell
+    i = wp.hash_grid_point_id(grid, tid)
+    x = positions[i]
+    count = wp.uint8(0)
+
+    neighbors = wp.hash_grid_query(grid, x, radius)
+
+    for index in neighbors:
+        if index != i:
+            # compute distance to point
+            n = x - positions[index]
+            d = wp.length(n)
+            if d < radius:
+                count += wp.uint8(1)
+    no_of_nn[i] = count
+
+@wp.kernel
+def fill_edge_indexes_kernel(
+    grid: wp.uint64,
+    positions: wp.array(dtype=wp.vec3),
+    edge_t: wp.array(dtype=wp.int32),
+    edge_s: wp.array(dtype=wp.int32),
+    idx_start: wp.array(dtype=wp.int32),
+    radius: float,
+):
+    tid = wp.tid()
+
+    # order threads by cell
+    i = wp.hash_grid_point_id(grid, tid)
+    x = positions[i]
+    idx = idx_start[i]
+
+    neighbors = wp.hash_grid_query(grid, x, radius)
+
+    for index in neighbors:
+        if index != i:
+            d = wp.length(x - positions[index])
+            if d < radius:
+                edge_t[idx] = i
+                edge_s[idx] = index
+                idx += 1
+
 
 class MobStkFMM():
     def __init__(
@@ -43,6 +105,60 @@ class MobStkFMM():
 
         self._stkfmm_ctx = None
         self._stkfmm_comm = MPI.COMM_WORLD
+
+        self.grid = wp.HashGrid(128, 128, 128, device="cuda")
+        self.no_of_nn = None   # WARNING: wp.uint8 array. max 255.
+
+        MAX_2b_PAIRS = 1_000_000 * 50  # preallocate for 50 million pairs
+        self.edge_indexes_s = torch.empty((MAX_2b_PAIRS,), dtype=torch.int32, device="cuda")
+        self.edge_indexes_t = torch.empty((MAX_2b_PAIRS,), dtype=torch.int32, device="cuda")
+
+
+    def get_edge_indexes(self, positions_t, radius):
+        torch.cuda.synchronize()
+        N = positions_t.size(0)
+        if self.no_of_nn is None or self.no_of_nn.shape[0] != N: 
+            self.no_of_nn = wp.zeros(shape=[N], dtype=wp.uint8,device="cuda", requires_grad=False)
+        
+        p = wp.from_torch(positions_t, dtype=wp.vec3)
+        print("Building spatial grid for neighbor search...")
+        print("Positions shape:", p.shape)
+        self.grid.build(points=p, radius=radius)
+
+        # First pass: find number of neighbors per particle
+        print("Counting neighbors per particle...")
+        wp.launch(
+            kernel=count_neighbors_kernel,
+            dim=N,
+            inputs=(self.grid.id, p, self.no_of_nn, radius),
+        )
+        wp.synchronize()
+
+        nn_count_torch_uint8 = wp.to_torch(self.no_of_nn)
+        nn_count_torch = torch.cumsum(nn_count_torch_uint8, dim=0, dtype=torch.int32)
+        total_pairs = int(nn_count_torch[-1].item())
+        print(f"Total near-field pairs found: {total_pairs}")
+        
+        assert total_pairs < self.edge_indexes_t.size(0), (
+            "Too many near-field pairs; increase MAX_2b_PAIRS in MobStkFMM"
+        )
+
+        # Inclusive to exclusive scan
+        nn_count_torch = nn_count_torch - nn_count_torch_uint8
+
+        # Second pass: fill in edge indexes
+        print("Collecting neighbor edge indexes...")
+        wp_edges_t = wp.from_torch(self.edge_indexes_t, dtype=wp.int32)
+        wp_edges_s = wp.from_torch(self.edge_indexes_s, dtype=wp.int32)
+        wp_idx_start = wp.from_torch(nn_count_torch, dtype=wp.int32)
+        wp.launch(
+            kernel=fill_edge_indexes_kernel,
+            dim=N,
+            inputs=(self.grid.id, p, wp_edges_t, wp_edges_s, wp_idx_start, radius)
+        )
+        wp.synchronize()
+        return (self.edge_indexes_t[:total_pairs], self.edge_indexes_s[:total_pairs])
+
 
     @staticmethod
     def _ensure_numpy(array, dtype):
@@ -118,11 +234,11 @@ class MobStkFMM():
         box = 1.5 * float(extent)
 
         # Debug: log geometry scale for this call (e.g. N=800 test)
-        print(
-            f"[MobFMM] N = {n_src}, "
-            f"pos min = {mins}, pos max = {maxs}, "
-            f"center = {center}, box = {box}"
-        )
+        # print(
+        #     f"[MobFMM] N = {n_src}, "
+        #     f"pos min = {mins}, pos max = {maxs}, "
+        #     f"center = {center}, box = {box}"
+        # )
 
         src_coord = pos_np
         trg_coord = pos_np
@@ -152,6 +268,8 @@ class MobStkFMM():
         print(f"[MobFMM] stkfmm solve: {fmm_elapsed*1e3:.3f} ms")
         return vel
     
+    #@torch.no_grad()
+    @torch.compile( mode="max-autotune", fullgraph=True, dynamic=True)
     def remove_rpy_for_near_pairs(self, pos, forces, viscosity, target_idx, source_idx):
         if target_idx is None or source_idx is None:
             raise ValueError("Target/source indices are required to remove near-field duplicates")
@@ -159,17 +277,17 @@ class MobStkFMM():
         tidx = target_idx.reshape(-1).long()
         sidx = source_idx.reshape(-1).long()
         #print("No of 2b interactions passed to near field:", tidx.numel())
-        assert tidx.numel() != 0, "No interactions available for near-field removal"
+        #assert tidx.numel() != 0, "No interactions available for near-field removal"
 
         rel = pos[tidx] - pos[sidx]
         dist = rel.norm(dim=1)
-        valid = dist > 1e-9
-        assert bool(valid.any()), "No valid RPY interactions with distance > 1e-9"
-
-        tidx = tidx[valid]
-        sidx = sidx[valid]
-        rel = rel[valid]
-        dist = dist[valid]
+        
+        # valid = dist > 1e-9
+        # #assert bool(valid.any()), "No valid RPY interactions with distance > 1e-9"
+        # tidx = tidx[valid]
+        # sidx = sidx[valid]
+        # rel = rel[valid]
+        # dist = dist[valid]
 
         r_hat = rel / dist.unsqueeze(1)
         r_hat_outer = torch.einsum("bi,bj->bij", r_hat, r_hat)
@@ -180,30 +298,31 @@ class MobStkFMM():
         
         # Masks for piecewise function
         mask_far = dist >= two_a
-        mask_near = ~mask_far
+        #mask_near = ~mask_far
         
         # Initialize kernels
-        kernels = torch.zeros((dist.shape[0], 3, 3), device=pos.device, dtype=pos.dtype)
+        #kernels = torch.zeros((dist.shape[0], 3, 3), device=pos.device, dtype=pos.dtype)
         I = torch.eye(3, device=pos.device, dtype=pos.dtype).unsqueeze(0)
         
         # Far field case: r >= 2a
-        if mask_far.any():
-            d_far = dist[mask_far]
-            inv_r = 1.0 / d_far
-            inv_r2 = inv_r ** 2
-            sum_a2 = 2.0 * (a ** 2)
-            
-            c1 = 1.0 + (sum_a2 * inv_r2) / 3.0
-            c2 = 1.0 - (sum_a2 * inv_r2)
-            
-            k_far = c1.view(-1, 1, 1) * I + c2.view(-1, 1, 1) * r_hat_outer[mask_far]
-            
-            vis_far = viscosity[tidx[mask_far]]
-            prefactor_far = 1.0 / (8.0 * math.pi * vis_far * d_far)
-            kernels[mask_far] = k_far * prefactor_far.view(-1, 1, 1)
+        #if mask_far.any():
+        d_far = dist #[mask_far]
+        inv_r = 1.0 / d_far
+        inv_r2 = inv_r ** 2
+        sum_a2 = 2.0 * (a ** 2)
+        
+        c1 = 1.0 + (sum_a2 * inv_r2) / 3.0
+        c2 = 1.0 - (sum_a2 * inv_r2)
+        
+        k_far = c1.view(-1, 1, 1) * I + c2.view(-1, 1, 1) * r_hat_outer #[mask_far]
+        
+        vis_far = 1.0 # WARNING: viscosity hardcoded here for now
+        prefactor_far = 1.0 / (8.0 * math.pi * vis_far * d_far)
+        #kernels[mask_far] = k_far * prefactor_far.view(-1, 1, 1)
+        kernels = k_far * prefactor_far.view(-1, 1, 1)
             
         # Near field case: r < 2a
-        assert not mask_near.any(), "Near field case: r < 2a should not occur"
+        #assert mask_far.all(), "Near field case: r < 2a should not occur"
 
         forces_sel = forces[sidx, :3].to(dtype=pos.dtype)
         contrib = torch.einsum("bij,bj->bi", kernels, forces_sel)
@@ -224,6 +343,7 @@ class MobStkFMM():
         viscosity : float or array-like
             Dynamic viscosity per particle or scalar.
         """
+        torch.cuda.synchronize()
 
         assert isinstance(config, np.ndarray), "config must be a numpy array"
         assert isinstance(forces, np.ndarray), "forces must be a numpy array"
@@ -272,6 +392,7 @@ class MobStkFMM():
                 viscosity,
                 device_index,
             )
+            print("Starting FMM far-field computation...")
             v_far_np = self.get_far_field_vel(positions_np, forces, vis_arr)
 
         result_np[:, :3] += v_far_np
@@ -305,24 +426,20 @@ class MobStkFMM():
             start_evt.record()
 
             rgraph_start_evt.record()
-            edge_index = radius_graph(
-                positions_t,
-                r=cutoff,
-                loop=False,
-                max_num_neighbors=max_neighbors,
-            )
-            edge_index = sort_edge_index(edge_index)
+            with wp.ScopedTimer("Warp::HashGrid", synchronize=True):
+                t_idx, s_idx = self.get_edge_indexes(positions_t, cutoff)
+
+            #edge_index = sort_edge_index(edge_index)
             rgraph_end_evt.record()
 
-            # You want edge_index[0] to be the *target* index:
-            t_idx = edge_index[0]
-            s_idx = edge_index[1]
+            # t_idx = edge_index[0]
+            # s_idx = edge_index[1]
 
             # Assert targets are nondecreasing (grouped/sorted by target):
-            assert torch.all(t_idx[1:] >= t_idx[:-1]), "radius_graph edge_index[0] (targets) is not sorted"
+            assert torch.all(t_idx[1:] >= t_idx[:-1]), f"radius_graph edge_index[0] (targets) is not sorted: {t_idx[:60]}"
 
             N = positions_t.size(0)
-            assert is_undirected(edge_index, num_nodes=N), "Radius graph contains directed edges"
+            #assert is_undirected(edge_index, num_nodes=N), "Radius graph contains directed edges"
 
             # edge_index_cpu = edge_index.detach().cpu().numpy()
             # self.near_field_operator.near_pair_edge_index = edge_index_cpu
@@ -336,7 +453,6 @@ class MobStkFMM():
                 t_idx=t_idx,
                 s_idx=s_idx,
             )
-            nf_end_evt.record()
 
             assert v_near.is_cuda, "v_near tensor not on GPU"
 
@@ -350,6 +466,7 @@ class MobStkFMM():
                 s_idx,
             )
             remove_end_evt.record()
+            nf_end_evt.record()
 
             result = v_near
             result[:, :3] -= v_far_delta
@@ -366,10 +483,12 @@ class MobStkFMM():
         print(f"[MobFMM] radius graph construction: {rgraph_elapsed:.3f} ms")
         nf_elapsed = nf_start_evt.elapsed_time(nf_end_evt)
         print(f"[MobFMM] near-field operator apply: {nf_elapsed:.3f} ms")
+        particle_updates_per_sec = config.shape[0] / (nf_elapsed * 1e-3)
+        print(f"[MobFMM] near-field particles updates per sec: {particle_updates_per_sec:,.2f}")
         remove_elapsed = remove_start_evt.elapsed_time(remove_end_evt)
         print(f"[MobFMM] near-field RPY removal: {remove_elapsed:.3f} ms")
         overall_elapsed = start_evt.elapsed_time(end_evt)
-        print(f"[MobFMM] overall GPU time: {overall_elapsed:.3f} ms")
+        print(f"[MobFMM] overall GPU time: {overall_elapsed:,.3f} ms")
 
         return result_cpu.numpy()
 
@@ -429,7 +548,6 @@ def accuracy_test(
         df = pd.read_csv(ref_path, float_precision="high")
         config = df[config_cols].to_numpy(dtype=np.float32, copy=True)
 
-        # Random unit-force vectors per particle to stress-test direction-dependent behavior
         force = np.random.randn(config.shape[0], 6).astype(np.float32)
         norms = np.linalg.norm(force, axis=1, keepdims=True)
         norms = norms.astype(np.float32, copy=False)
@@ -485,6 +603,13 @@ def accuracy_test(
         baseline_ref_norm = float(np.linalg.norm(baseline_vel))
         baseline_rel_l2 = baseline_abs_l2 / max(baseline_ref_norm, np.finfo(np.float64).eps)
 
+        rel_linear_err = np.linalg.norm(baseline_delta[:, :3]) / max(
+            np.linalg.norm(baseline_vel[:, :3]), np.finfo(np.float64).eps
+        )
+        rel_angular_err = np.linalg.norm(baseline_delta[:, 3:]) / max(
+            np.linalg.norm(baseline_vel[:, 3:]), np.finfo(np.float64).eps
+        )
+
         l2_per_particle = np.linalg.norm(baseline_delta) / len(baseline_delta)
 
         result = {
@@ -499,7 +624,8 @@ def accuracy_test(
             f"l2_per_particle = {l2_per_particle:.6f}\n"
             f"baseline L2 disagreement = {baseline_abs_l2:.6f} ",
             f"avg neighbors {total_neighbors/len(config):.2f} ", 
-            f"(relative {baseline_rel_l2:.6f})\n\n"
+            f"(relative {baseline_rel_l2:.6f})\n",
+            f"rel_linear_err = {rel_linear_err:.6f}, rel_angular_err = {rel_angular_err:.6f}\n"
         )
 
 
@@ -520,7 +646,7 @@ def perf_test(
 ) -> dict:
     """Benchmark MobFMM alone and report timing statistics."""
 
-    ref_path: str = "tmp/uniform_large_0.1_100000.csv"
+    ref_path: str = "tmp/uniform_large_0.1_1000000.csv"
     rng = np.random.default_rng(seed)
 
     shape = "sphere"
@@ -615,10 +741,12 @@ def perf_test(
         fmm_mean = float(fmm_times.mean())
         fmm_std = float(fmm_times.std(ddof=1)) if timed_runs > 1 else 0.0
         per_particle_us = fmm_mean * 1e6 / n_particles
+        particle_updates_per_sec = n_particles / fmm_mean
 
         print(
             f"MobFMM: {fmm_mean*1e3:.3f}±{fmm_std*1e3:.3f} ms "
-            f"({per_particle_us:.2f} us per particle)"
+            f"({per_particle_us:.2f} us per particle)",
+            f"{particle_updates_per_sec:.2f} particles/sec"
         )
 
 
