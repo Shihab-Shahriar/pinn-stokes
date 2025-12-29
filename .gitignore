@@ -1,3 +1,4 @@
+figures/
 tmp/
 data/*.npy
 data/**/*.npy 
