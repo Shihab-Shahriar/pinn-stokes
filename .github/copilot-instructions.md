@@ -1,3 +1,3 @@
-For accuracy tests, bugfix, always disable torch compile feature and use OMP_NUM_THREADS=8
+For accuracy tests, bugfix, always disable torch compile feature: export TORCH_COMPILE_DISABLE=1
 
-Avoid too much error checking in final code, prefer assertions instead. 
+while writing code: Avoid too much error checking in final code, prefer assertions instead. 

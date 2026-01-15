@@ -284,15 +284,18 @@ class NNMobTorch:
     # Public API
     # ------------------------------------------------------------------
     @torch.no_grad()
-    def apply(self, config: torch.Tensor, 
+    def apply(self, positions: torch.Tensor,
+           orientations: torch.Tensor,
            force: torch.Tensor, viscosity: TensorLike,
            near_t_idx = None, near_s_idx = None) -> torch.Tensor:
         """Return particle velocities for the supplied configuration.
 
         Parameters
         ----------
-        config : array-like, shape (N, 7)
-            Particle positions and quaternions (x, y, z, qx, qy, qz, qw).
+        positions : torch.Tensor, shape (N, 3)
+            Particle positions (x, y, z).
+        orientations : torch.Tensor, shape (N, 4)
+            Particle quaternions (qx, qy, qz, qw). Ignored for spheres.
         force : array-like, shape (N, 6)
             Force and torque vectors per particle.
         viscosity : float or tensor
@@ -302,17 +305,16 @@ class NNMobTorch:
         near_s_idx : torch.Tensor, optional
             Precomputed source indices for nearfield pair interactions.
         """
+        _ = orientations  # ignored for spheres
         assert self.shape == "sphere", "Currently only sphere shape is supported."
         if (near_t_idx is None) ^ (near_s_idx is None):
             raise ValueError("Both near_t_idx and near_s_idx must be provided together.")
 
-        N = config.shape[0]
+        N = positions.shape[0]
         assert N > 1, "Just don't do single particle calls here."
 
-
-        config_t = _as_float_tensor(config, self.device)
-        force_t = _as_float_tensor(force, self.device)
-        positions = config_t[:, :3]
+        positions = _as_float_tensor(positions, self.device).contiguous()
+        force_t = _as_float_tensor(force, self.device).contiguous()
 
         # If nearfield not provided, compute them here first
         if near_t_idx is None:
@@ -410,13 +412,15 @@ def check_against_ref_gpu(mob, path, print_stuff=False):
                         header=0, index_col=False)
 
     numParticles = df.shape[0]    
-    config = df[["x","y","z","q_x","q_y","q_z","q_w"]].values
+    positions = df[["x","y","z"]].values
+    orientations = df[["q_x","q_y","q_z","q_w"]].values
     forces = df[["f_x","f_y","f_z","t_x","t_y","t_z"]].values
     velocity = df[["v_x","v_y","v_z","w_x","w_y","w_z"]].values
 
-    config_t = _as_float_tensor(config, dev)
+    positions_t = _as_float_tensor(positions, dev)
+    orientations_t = _as_float_tensor(orientations, dev)
     force_t = _as_float_tensor(forces, dev)
-    v = mob.apply(config_t, force_t, viscosity).cpu().numpy()
+    v = mob.apply(positions_t, orientations_t, force_t, viscosity).cpu().numpy()
     
     np.set_printoptions(precision=5, suppress=True)
 
@@ -440,7 +444,7 @@ def check_against_ref_gpu(mob, path, print_stuff=False):
 
     err_2b = np.linalg.norm(velocity - v, axis=1).mean()
     print(f"Avg 2-norm error: {err_2b:.4f}")
-    return config
+    return positions
 
 def accuracy_test():
     shape = "sphere"
@@ -480,12 +484,14 @@ def profile_apply(
     os.makedirs(trace_dir, exist_ok=True)
 
     df = pd.read_csv(path, float_precision="high")
-    expected_cols = ["x", "y", "z", "q_x", "q_y", "q_z", "q_w"]
-    config = df[expected_cols].to_numpy(dtype=np.float32, copy=True)
-    config = np.ascontiguousarray(config)
-    force = np.random.RandomState(2024).randn(config.shape[0], 6).astype(np.float32)
+    positions = df[["x", "y", "z"]].to_numpy(dtype=np.float32, copy=True)
+    orientations = df[["q_x", "q_y", "q_z", "q_w"]].to_numpy(dtype=np.float32, copy=True)
+    positions = np.ascontiguousarray(positions)
+    orientations = np.ascontiguousarray(orientations)
+    force = np.random.RandomState(2024).randn(positions.shape[0], 6).astype(np.float32)
 
-    config = torch.as_tensor(config, dtype=torch.float32, device="cuda")
+    positions = torch.as_tensor(positions, dtype=torch.float32, device="cuda")
+    orientations = torch.as_tensor(orientations, dtype=torch.float32, device="cuda")
     force = torch.as_tensor(force, dtype=torch.float32, device="cuda")
 
     shape = "sphere"
@@ -496,7 +502,7 @@ def profile_apply(
 
     # Warm-up outside profiler to stabilize kernels
     for _ in range(3):
-        _ = mob_gpu.apply(config, force, viscosity=1.0)
+        _ = mob_gpu.apply(positions, orientations, force, viscosity=1.0)
     torch.cuda.synchronize()
 
     activities = [profiler.ProfilerActivity.CPU]
@@ -517,7 +523,7 @@ def profile_apply(
         on_trace_ready=trace_handler,
     ) as prof:
         for _ in range(total_steps):
-            _ = mob_gpu.apply(config, force, viscosity=1.0)
+            _ = mob_gpu.apply(positions, orientations, force, viscosity=1.0)
             torch.cuda.synchronize()
             prof.step()
 
@@ -533,12 +539,14 @@ def profile_apply(
 def perftest():
     path = "tmp/uniform_sphere_0.1_1600.csv"
     df = pd.read_csv(path, float_precision="high")
-    expected_cols = ["x", "y", "z", "q_x", "q_y", "q_z", "q_w"]
-    config = df[expected_cols].to_numpy(dtype=np.float32, copy=True)
-    config = np.ascontiguousarray(config)
-    force = np.random.RandomState(2024).randn(config.shape[0], 6).astype(np.float32)
+    positions = df[["x", "y", "z"]].to_numpy(dtype=np.float32, copy=True)
+    orientations = df[["q_x", "q_y", "q_z", "q_w"]].to_numpy(dtype=np.float32, copy=True)
+    positions = np.ascontiguousarray(positions)
+    orientations = np.ascontiguousarray(orientations)
+    force = np.random.RandomState(2024).randn(positions.shape[0], 6).astype(np.float32)
 
-    config = torch.as_tensor(config, dtype=torch.float32, device="cuda")
+    positions = torch.as_tensor(positions, dtype=torch.float32, device="cuda")
+    orientations = torch.as_tensor(orientations, dtype=torch.float32, device="cuda")
     force = torch.as_tensor(force, dtype=torch.float32, device="cuda")
 
 
@@ -553,13 +561,13 @@ def perftest():
 
     dev = torch.device("cuda")
     for i in range(4):
-        v = mob.apply(config, force, viscosity=1.0)
+        v = mob.apply(positions, orientations, force, viscosity=1.0)
     torch.cuda.synchronize()
 
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     start.record()
-    v = mob.apply(config, force, viscosity=1.0)
+    v = mob.apply(positions, orientations, force, viscosity=1.0)
     end.record()
     torch.cuda.synchronize()
     print(f"GPU Time: {start.elapsed_time(end)} ms")

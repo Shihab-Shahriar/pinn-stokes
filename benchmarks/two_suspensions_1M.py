@@ -3,6 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import torch
 
 # For large simulations: disable CUDA graphs to avoid memory fragmentation
 # while still keeping torch.compile for kernel fusion/optimization
@@ -132,6 +133,7 @@ def save_plot(particles, timestamp, output_dir=r"figures/drop_1M/"):
     plt.savefig(os.path.join(output_dir, f"config_{timestamp:.1f}.png"), dpi=300)
     plt.close(fig)
 
+@torch.no_grad()
 def main():
     # --- Simulation Parameters ---
     R_drop = 175.0
@@ -192,23 +194,28 @@ def main():
     warp_solver = WarpFMM(
         near_field_operator=mob_fmm,
         theta=0.3,
-        leaf_size=8,
+        leaf_size=16,
         near_field_cutoff=6.0,
         device="cuda",
         block_dim=256,
     )
 
 
-    # Initial state
-    positions = all_particles.astype(np.float32)
+    device = torch.device("cuda")
+
+    # Initial state (GPU)
+    positions = torch.from_numpy(all_particles.astype(np.float32)).to(device)
+    initial_positions = positions.clone()
     # Orientation: (qx, qy, qz, qw) = (0, 0, 0, 1)
-    orientations = np.zeros((n_particles, 4), dtype=np.float32)
+    orientations = torch.zeros((n_particles, 4), dtype=torch.float32, device=device)
     orientations[:, 3] = 1.0
     
     # Forces: Gravity in -z direction. F = (0, 0, -1)
     # Torques: 0
-    forces = np.zeros((n_particles, 6), dtype=np.float32)
+    forces = torch.zeros((n_particles, 6), dtype=torch.float32, device=device)
     forces[:, 2] = -9.81 # Fz = -9.81
+
+    vis_arr = torch.full((n_particles,), viscosity, dtype=torch.float32, device=device)
 
     current_time = 0.0
     save_interval = 0.1
@@ -217,41 +224,46 @@ def main():
 
     print("Starting simulation...")
 
+    # Warmup: run a few steps to trigger compilation, then reset state
+    warmup_steps = 5
+    with torch.no_grad():
+        for _ in range(warmup_steps):
+            vel = warp_solver.apply(positions, orientations, forces, vis_arr)
+            positions += vel[:, :3] * dt
+
+    positions = initial_positions.clone()
+    current_time = 0.0
+
     start_time = time.perf_counter()
     
-    while current_time <= t_final + save_tol:
-        # Check if we need to save
-        if SAVE_STUFF:
-            for save_t in save_timestamps:
-                if abs(current_time - save_t) < save_tol:
-                    print(f"Saving configuration at t={current_time:.2f}")
-                    save_plot(positions, current_time)
-                    #np.save(os.path.join("figures", f"config_{current_time:.1f}.npy"), positions)
-        
-        if current_time >= t_final - save_tol:
-            break
+    # Perf note: tried sorting data every 10 timesteps. didn't help.
+    with torch.no_grad():
+        while current_time <= t_final + save_tol:
+            # Check if we need to save
+            if SAVE_STUFF:
+                for save_t in save_timestamps:
+                    if abs(current_time - save_t) < save_tol:
+                        print(f"Saving configuration at t={current_time:.2f}")
+                        save_plot(positions.detach().cpu().numpy(), current_time)
+                        #np.save(os.path.join("figures", f"config_{current_time:.1f}.npy"), positions.detach().cpu().numpy())
+            
+            if current_time >= t_final - save_tol:
+                break
 
-        # Prepare config for solver: (x, y, z, qx, qy, qz, qw)
-        config = np.hstack([positions, orientations])
-        
-        # Ensure C-contiguous
-        config = np.ascontiguousarray(config)
-        forces = np.ascontiguousarray(forces)
-        
-        # Compute velocity
-        print(f"Step t={current_time:.2f}")
-        start = time.perf_counter()
-        vel = warp_solver.apply_cpu(config, forces, viscosity=viscosity)
-        end = time.perf_counter()
-        print(f"Velocity computed in {end - start:.3f} seconds.")
-        
-        # Extract linear velocity (first 3 components)
-        v_linear = vel[:, :3]
-        
-        # Explicit Euler update
-        positions += v_linear * dt
-        
-        current_time += dt
+            # Compute velocity on GPU
+            print(f"Step t={current_time:.2f}")
+            start = time.perf_counter()
+            vel = warp_solver.apply(positions, orientations, forces, vis_arr)
+            end = time.perf_counter()
+            print(f"Velocity computed in {end - start:.3f} seconds.")
+            
+            # Extract linear velocity (first 3 components)
+            v_linear = vel[:, :3]
+            
+            # Explicit Euler update
+            positions += v_linear * dt
+            
+            current_time += dt
 
     end_time = time.perf_counter()
     total_time = end_time - start_time

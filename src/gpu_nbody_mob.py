@@ -109,18 +109,19 @@ class Mob_Nbody_Torch(NNMobTorch):
         """Compute top-K neighbors per pair directly from pair edges."""
         device = pos.device
         dtype = pos.dtype
+        index_dtype = t_idx.dtype
         num_particles = pos.shape[0]
         K = self.max_k_neighbors
         max_neighbors = self.MAX_PARTICLE_NEIGHBORS
 
         if t_idx.numel() == 0:
-            empty_idx = torch.zeros(t_idx.shape[0], K, dtype=torch.long, device=device)
+            empty_idx = torch.zeros(t_idx.shape[0], K, dtype=index_dtype, device=device)
             empty_mask = torch.zeros(t_idx.shape[0], K, dtype=torch.bool, device=device)
             return empty_idx, empty_mask
 
         edge_dist = torch.linalg.norm(s_vec, dim=1)
 
-        neighbors = torch.full((num_particles, max_neighbors), -1, dtype=torch.long, device=device)
+        neighbors = torch.full((num_particles, max_neighbors), -1, dtype=index_dtype, device=device)
         neighbor_dists = torch.full((num_particles, max_neighbors), torch.inf, dtype=dtype, device=device)
 
         # Since t_idx, s_idx already contain both directions (undirected graph),
@@ -172,7 +173,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         candidate_mask = candidate_mask & ~duplicate_mask
 
         if candidates.numel() == 0:
-            empty_idx = torch.zeros(t_idx.shape[0], K, dtype=torch.long, device=device)
+            empty_idx = torch.zeros(t_idx.shape[0], K, dtype=index_dtype, device=device)
             empty_mask = torch.zeros(t_idx.shape[0], K, dtype=torch.bool, device=device)
             return empty_idx, empty_mask
 
@@ -333,23 +334,25 @@ class Mob_Nbody_Torch(NNMobTorch):
     @torch.no_grad()
     def apply(
         self,
-        config: torch.Tensor,
+        positions: torch.Tensor,
+        orientations: torch.Tensor,
         force: torch.Tensor,
         viscosity: TensorLike,
         t_idx: torch.Tensor | None = None,
         s_idx: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Override base apply with additional n-body correction."""
-        N = config.shape[0]
-        assert config.shape == (N, 7)
+        _ = orientations  # ignored for spheres
+        N = positions.shape[0]
+        assert positions.shape == (N, 3)
 
         # assert all inputs are on the correct cuda
-        assert config.is_cuda, "config tensor must be on CUDA device"
+        assert positions.is_cuda, "positions tensor must be on CUDA device"
         assert force.is_cuda, "force tensor must be on CUDA device"
         assert t_idx is None or t_idx.is_cuda
         assert s_idx is None or s_idx.is_cuda
 
-        pos = config[:, :3]
+        pos = positions.contiguous()
 
         # if t_idx not provided, compute neighbor pairs
         if t_idx is None or s_idx is None:
@@ -359,7 +362,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         torch.cuda.synchronize()
         base_start = time.perf_counter()
         v_base = super().apply(
-            config, force, viscosity, 
+            pos, orientations, force, viscosity, 
             near_t_idx=t_idx, near_s_idx=s_idx
         )
         torch.cuda.synchronize()
@@ -397,20 +400,24 @@ class Mob_Nbody_Torch(NNMobTorch):
 
     def apply_cpu(
         self,
-        config: np.ndarray,
+        positions: np.ndarray,
+        orientations: np.ndarray,
         force: np.ndarray,
         viscosity: TensorLike,
     ) -> np.ndarray:
         """NumPy convenience wrapper that reuses the GPU-backed apply()."""
 
-        config_t = torch.as_tensor(
-            np.ascontiguousarray(config, dtype=np.float32), device=self.device
+        positions_t = torch.as_tensor(
+            np.ascontiguousarray(positions, dtype=np.float32), device=self.device
+        )
+        orientations_t = torch.as_tensor(
+            np.ascontiguousarray(orientations, dtype=np.float32), device=self.device
         )
         force_t = torch.as_tensor(
             np.ascontiguousarray(force, dtype=np.float32), device=self.device
         )
-        assert config_t.is_cuda, f"config tensor must be on CUDA device (got {config_t.device})"
-        velocities = self.apply(config_t, force_t, viscosity)
+        assert positions_t.is_cuda, f"positions tensor must be on CUDA device (got {positions_t.device})"
+        velocities = self.apply(positions_t, orientations_t, force_t, viscosity)
         return velocities.detach().cpu().numpy()
 
 import numpy as np
@@ -460,12 +467,14 @@ def accuracy_test():
 def perftest():
     path = "tmp/uniform_sphere_0.1_800.csv"
     df = pd.read_csv(path, float_precision="high")
-    expected_cols = ["x", "y", "z", "q_x", "q_y", "q_z", "q_w"]
-    config = df[expected_cols].to_numpy(dtype=np.float32, copy=True)
-    config = np.ascontiguousarray(config)
-    force = np.random.RandomState(2024).randn(config.shape[0], 6).astype(np.float32)
+    positions = df[["x", "y", "z"]].to_numpy(dtype=np.float32, copy=True)
+    orientations = df[["q_x", "q_y", "q_z", "q_w"]].to_numpy(dtype=np.float32, copy=True)
+    positions = np.ascontiguousarray(positions)
+    orientations = np.ascontiguousarray(orientations)
+    force = np.random.RandomState(2024).randn(positions.shape[0], 6).astype(np.float32)
 
-    config = torch.as_tensor(config, dtype=torch.float32, device="cuda")
+    positions = torch.as_tensor(positions, dtype=torch.float32, device="cuda")
+    orientations = torch.as_tensor(orientations, dtype=torch.float32, device="cuda")
     force = torch.as_tensor(force, dtype=torch.float32, device="cuda")
 
     shape = "sphere"
@@ -484,13 +493,13 @@ def perftest():
     # warm-up
     dev = torch.device("cuda")
     for i in range(3):
-        v = mob_gpu.apply(config, force, viscosity=1.0)
+        v = mob_gpu.apply(positions, orientations, force, viscosity=1.0)
     torch.cuda.synchronize()
 
     start = torch.cuda.Event(enable_timing=True)
     end = torch.cuda.Event(enable_timing=True)
     start.record()
-    v = mob_gpu.apply(config, force, viscosity=1.0)
+    v = mob_gpu.apply(positions, orientations, force, viscosity=1.0)
     end.record()
     torch.cuda.synchronize()
     print(f"GPU Time: {start.elapsed_time(end)} ms")
@@ -507,14 +516,16 @@ def profile_get_nbody_velocity(
     os.makedirs(trace_dir, exist_ok=True)
 
     df = pd.read_csv(path, float_precision="high")
-    expected_cols = ["x", "y", "z", "q_x", "q_y", "q_z", "q_w"]
-    config = df[expected_cols].to_numpy(dtype=np.float32, copy=True)
-    config = np.ascontiguousarray(config)
-    force = np.random.RandomState(2024).randn(config.shape[0], 6).astype(np.float32)
+    positions = df[["x", "y", "z"]].to_numpy(dtype=np.float32, copy=True)
+    orientations = df[["q_x", "q_y", "q_z", "q_w"]].to_numpy(dtype=np.float32, copy=True)
+    positions = np.ascontiguousarray(positions)
+    orientations = np.ascontiguousarray(orientations)
+    force = np.random.RandomState(2024).randn(positions.shape[0], 6).astype(np.float32)
 
-    config = torch.as_tensor(config, dtype=torch.float32, device="cuda")
+    positions = torch.as_tensor(positions, dtype=torch.float32, device="cuda")
+    orientations = torch.as_tensor(orientations, dtype=torch.float32, device="cuda")
     force = torch.as_tensor(force, dtype=torch.float32, device="cuda")
-    pos = config[:, :3]
+    pos = positions
 
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"

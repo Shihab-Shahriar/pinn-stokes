@@ -69,12 +69,7 @@ def rpy_far_velocity_multipole(
     for k in range(3):
         rk = rvec[k]
         ek = wp.vec3(0.0, 0.0, 0.0)
-        if k == 0:
-            ek = wp.vec3(1.0, 0.0, 0.0)
-        elif k == 1:
-            ek = wp.vec3(0.0, 1.0, 0.0)
-        else:
-            ek = wp.vec3(0.0, 0.0, 1.0)
+        ek[k] = 1.0
 
         E = wp.outer(ek, rvec) + wp.outer(rvec, ek)
 
@@ -195,6 +190,7 @@ def count_neighbors_kernel(
     positions: wp.array(dtype=wp.vec3),
     no_of_nn: wp.array(dtype=wp.uint8),
     radius: float,
+    radius_sq: float
 ):
     tid = wp.tid()
 
@@ -209,8 +205,8 @@ def count_neighbors_kernel(
         if index != i:
             # compute distance to point
             n = x - positions[index]
-            d = wp.length(n)
-            if d < radius:
+            d = wp.length_sq(n)
+            if d < radius_sq:
                 count += wp.uint8(1)
     no_of_nn[i] = count
 
@@ -222,6 +218,7 @@ def fill_edge_indexes_kernel(
     edge_s: wp.array(dtype=wp.int32),
     idx_start: wp.array(dtype=wp.int32),
     radius: float,
+    radius_sq: float
 ):
     tid = wp.tid()
 
@@ -234,8 +231,8 @@ def fill_edge_indexes_kernel(
 
     for index in neighbors:
         if index != i:
-            d = wp.length(x - positions[index])
-            if d < radius:
+            d = wp.length_sq(x - positions[index])
+            if d < radius_sq:
                 edge_t[idx] = i
                 edge_s[idx] = index
                 idx += 1
@@ -244,10 +241,8 @@ def fill_edge_indexes_kernel(
 
 
 class WarpFMM:
-    """Treecode-like FMM using a modified BVH from Warp.
-    
-    
-    
+    """
+    Treecode-like FMM using a modified BVH from Warp.
     """
 
     def __init__(
@@ -295,7 +290,7 @@ class WarpFMM:
         wp.launch(
             kernel=count_neighbors_kernel,
             dim=N,
-            inputs=(self.grid.id, p, self.no_of_nn, radius),
+            inputs=(self.grid.id, p, self.no_of_nn, radius, radius * radius),
         )
         wp.synchronize()
 
@@ -319,13 +314,13 @@ class WarpFMM:
         wp.launch(
             kernel=fill_edge_indexes_kernel,
             dim=N,
-            inputs=(self.grid.id, p, wp_edges_t, wp_edges_s, wp_idx_start, radius)
+            inputs=(self.grid.id, p, wp_edges_t, wp_edges_s, wp_idx_start, radius, radius * radius),
         )
         wp.synchronize()
         return (self.edge_indexes_t[:total_pairs], self.edge_indexes_s[:total_pairs])
 
 
-    def _gpu_near_field_pass(self, config, forces, vis_arr, viscosity, device_index):
+    def _gpu_near_field_pass(self, positions_t, orientations_t, forces, vis_arr, viscosity, device_index):
         """Run GPU near-field path in a worker thread for CPU/FMM overlap."""
         torch.cuda.synchronize()
         nf_start_evt = torch.cuda.Event(enable_timing=True)
@@ -336,9 +331,8 @@ class WarpFMM:
         gpu_device = torch.device(f"cuda:{device_index}")
         torch.cuda.reset_peak_memory_stats(gpu_device)
 
-        config_t = torch.as_tensor(config, dtype=torch.float32, device=gpu_device)
         forces_t = torch.as_tensor(forces, dtype=torch.float32, device=gpu_device)
-        positions_t = config_t[:, :3]
+        forces_t = forces_t.contiguous()
 
         cutoff = self.near_field_cutoff
         max_neighbors = int((cutoff ** 3) /2)  # Max 50% volume fraction
@@ -368,11 +362,12 @@ class WarpFMM:
         # edge_index_cpu = edge_index.detach().cpu().numpy()
         # self.near_field_operator.near_pair_edge_index = edge_index_cpu
 
-        assert config_t.is_cuda, "config tensor not on GPU"
+        assert positions_t.is_cuda, "positions tensor not on GPU"
         nf_operator_evt_start.record()
 
         v_near = self.near_field_operator.apply(
-            config_t,
+            positions_t,
+            orientations_t,
             forces_t,
             viscosity,
             t_idx=t_idx,
@@ -398,7 +393,7 @@ class WarpFMM:
         nf_elapsed = nf_start_evt.elapsed_time(nf_end_evt)
         print(f"[MobFMM] overall Nearfield time: {nf_elapsed:,.3f} ms")
 
-        particle_updates_per_sec = config.shape[0] / (nf_elapsed * 1e-3)
+        particle_updates_per_sec = positions_t.shape[0] / (nf_elapsed * 1e-3)
         print(f"[MobFMM] near-field particles updates per sec: {particle_updates_per_sec:,.2f}")
 
 
@@ -417,12 +412,15 @@ class WarpFMM:
         end_evt = torch.cuda.Event(enable_timing=True)
         start_evt.record()
 
+        positions = positions.contiguous()
+        forces = forces.contiguous()
+
         N = positions.shape[0]
         num_nodes = 2 * N - 1  # max possible nodes in binary tree
 
         # This buffer caching didn't help at all. Warp must have 
         # pretty good internal memory allocator.
-        if not self.fmm_buffer_allocated_: # WARNING: Assume fixed N after first call
+        if not self.fmm_buffer_allocated_ or self.fmm_lowers_.shape[0] != N: # Reallocate if N changes
             self.fmm_buffer_allocated_ = True
             self.fmm_lowers_ = wp.zeros(N, dtype=wp.vec3, device=self.device)
             self.fmm_uppers_ = wp.zeros(N, dtype=wp.vec3, device=self.device)
@@ -444,6 +442,7 @@ class WarpFMM:
             device=self._wp_device,
         )
 
+        # Attempt to avoid build from scratch using rebuild or refit did not help with perf
         bvh = wp.Bvh(self.fmm_lowers_, self.fmm_uppers_, "lbvh", leaf_size=self.leaf_size)
 
         bvh.update_multipoles(item_forces, self.fmm_subtree_sizes_, 
@@ -479,20 +478,24 @@ class WarpFMM:
     
 
 
-    def apply(self, config, forces, vis_arr):
+    def apply(self, positions, orientations, forces, vis_arr):
         """Apply the FMM mobility to get velocities."""
+        _ = orientations  # ignored for spheres
 
         torch.cuda.synchronize()
         start_evt = torch.cuda.Event(enable_timing=True)
         end_evt = torch.cuda.Event(enable_timing=True)
         start_evt.record()
 
+        positions = positions.contiguous()
+
         force3d = forces[:, :3]
         force3d = force3d.contiguous()
-        far_vel = self.get_far_field_vel(config[:, :3], force3d)
+        far_vel = self.get_far_field_vel(positions, force3d)
 
         near_vel = self._gpu_near_field_pass(
-            config,
+            positions,
+            orientations,
             forces,
             vis_arr,
             viscosity=1.0,
@@ -507,34 +510,31 @@ class WarpFMM:
         elapsed = start_evt.elapsed_time(end_evt)
         print(f"[MobFMM] total GPU time: {elapsed:.3f} ms")
 
-        particle_updates_per_sec = config.shape[0] / (elapsed * 1e-3)
+        particle_updates_per_sec = positions.shape[0] / (elapsed * 1e-3)
         print(f"[MobFMM] total particles updates per sec: {particle_updates_per_sec:,.2f}")
 
         return total_vel
 
 
-    def apply_cpu(self, config, forces, viscosity):
+    def apply_cpu(self, positions, orientations, forces, viscosity):
         """Apply the FMM mobility on CPU (for testing)."""
-        if not isinstance(config, np.ndarray):
-            raise TypeError(f"Expected config to be np.ndarray, got {type(config)}")
-        if not isinstance(forces, np.ndarray):
-            raise TypeError(f"Expected forces to be np.ndarray, got {type(forces)}")
+        assert isinstance(positions, np.ndarray)
+        assert isinstance(orientations, np.ndarray)
+        assert isinstance(forces, np.ndarray)
         
-        vis_arr = np.full((config.shape[0],), viscosity, dtype=np.float32)
+        vis_arr = np.full((positions.shape[0],), viscosity, dtype=np.float32)
 
-        if config.shape[0] != forces.shape[0] or config.shape[0] != vis_arr.shape[0]:
-            raise ValueError(
-                f"Shape mismatch: config {config.shape}, forces {forces.shape}, vis_arr {vis_arr.shape}"
-            )
+        assert positions.shape[0] == forces.shape[0] == vis_arr.shape[0]
 
         # Convert to torch tensors on the device
         device = torch.device(self.device)
-        config_t = torch.from_numpy(config).to(device, dtype=torch.float32)
+        positions_t = torch.from_numpy(positions).to(device, dtype=torch.float32)
+        orientations_t = torch.from_numpy(orientations).to(device, dtype=torch.float32)
         forces_t = torch.from_numpy(forces).to(device, dtype=torch.float32)
         vis_arr_t = torch.from_numpy(vis_arr).to(device, dtype=torch.float32)
 
         # Apply FMM
-        res_t = self.apply(config_t, forces_t, vis_arr_t)
+        res_t = self.apply(positions_t, orientations_t, forces_t, vis_arr_t)
 
         # Convert back to CPU
         return res_t.detach().cpu().numpy()
@@ -594,7 +594,8 @@ def accuracy_test(
 
 
 
-    config_cols = ["x", "y", "z", "q_x", "q_y", "q_z", "q_w"]
+    config_cols = ["x", "y", "z"]
+    orient_cols = ["q_x", "q_y", "q_z", "q_w"]
 
     results = []
     for sep in reference_separations:
@@ -603,9 +604,10 @@ def accuracy_test(
 
 
         df = pd.read_csv(ref_path, float_precision="high")
-        config = df[config_cols].to_numpy(dtype=np.float32, copy=True)
+        positions = df[config_cols].to_numpy(dtype=np.float32, copy=True)
+        orientations = df[orient_cols].to_numpy(dtype=np.float32, copy=True)
 
-        force = np.random.randn(config.shape[0], 6).astype(np.float32)
+        force = np.random.randn(positions.shape[0], 6).astype(np.float32)
         norms = np.linalg.norm(force, axis=1, keepdims=True)
         norms = norms.astype(np.float32, copy=False)
         norms[norms == 0.0] = 1.0
@@ -615,23 +617,24 @@ def accuracy_test(
         force[:, 3:] = 0.0
         
 
-        config = np.ascontiguousarray(config)
+        positions = np.ascontiguousarray(positions)
+        orientations = np.ascontiguousarray(orientations)
         force = np.ascontiguousarray(force)
 
-        fmm_vel = warp_solver.apply_cpu(config, force, viscosity)
+        fmm_vel = warp_solver.apply_cpu(positions, orientations, force, viscosity)
         fmm_vel = np.asarray(fmm_vel, dtype=np.float64)
 
-        baseline_vel = baseline_mob.apply_cpu(config, force, viscosity)
+        baseline_vel = baseline_mob.apply_cpu(positions, orientations, force, viscosity)
         baseline_vel = np.asarray(baseline_vel, dtype=np.float64)
 
         edge_index_attr = getattr(mob_fmm, "near_pair_edge_index", None)
         if edge_index_attr is None:
-            neighbors_per_particle = np.zeros(config.shape[0], dtype=int) - 1.0
+            neighbors_per_particle = np.zeros(positions.shape[0], dtype=int) - 1.0
             total_neighbors = -1
         else:
             assert not isinstance(edge_index_attr, torch.Tensor), "near_pair_edge_index must be on CPU"
             targets = np.asarray(edge_index_attr[0], dtype=np.int64).ravel()
-            neighbors_per_particle = np.bincount(targets, minlength=config.shape[0])
+            neighbors_per_particle = np.bincount(targets, minlength=positions.shape[0])
             total_neighbors = int(targets.size)
 
 
@@ -671,7 +674,7 @@ def accuracy_test(
         print(
             f"l2_per_particle = {l2_per_particle:.6f}\n"
             f"baseline L2 disagreement = {baseline_abs_l2:.6f} ",
-            f"avg neighbors {total_neighbors/len(config):.2f} ", 
+            f"avg neighbors {total_neighbors/len(positions):.2f} ", 
             f"(relative {baseline_rel_l2:.6f})\n",
             f"rel_linear_err = {rel_linear_err:.6f}, rel_angular_err = {rel_angular_err:.6f}\n"
         )
@@ -735,9 +738,8 @@ def perf_test(
     df = pd.read_csv(ref_path, float_precision="high")
     positions = df[config_cols].to_numpy(dtype=np.float32, copy=True)
     n_particles = positions.shape[0]
-    orient = np.zeros((n_particles, 4), dtype=np.float32)
-    orient[:, 3] = 1.0  # identity quaternion per sphere
-    config = np.concatenate((positions, orient), axis=1)
+    orientations = np.zeros((n_particles, 4), dtype=np.float32)
+    orientations[:, 3] = 1.0  # identity quaternion per sphere
     assert n_particles > 1, "Need at least two particles for benchmarking"
 
     force = rng.standard_normal(size=(n_particles, 6), dtype=np.float32)
@@ -747,10 +749,11 @@ def perf_test(
     force = force / norms
     force[:, 3:] = 0.0
 
-    config = np.ascontiguousarray(config)
+    positions = np.ascontiguousarray(positions)
+    orientations = np.ascontiguousarray(orientations)
     force = np.ascontiguousarray(force)
 
-    fmm_fn = lambda: warp_solver.apply_cpu(config, force, viscosity)
+    fmm_fn = lambda: warp_solver.apply_cpu(positions, orientations, force, viscosity)
 
     for _ in range(warmup_runs):
         fmm_fn()
@@ -804,7 +807,6 @@ def perf_test(
             f"({per_particle_us:.2f} us per particle)",
             f"{particle_updates_per_sec:.2f} particles/sec"
         )
-
 
 
 
