@@ -10,9 +10,6 @@ import pandas as pd
 import torch
 import torch.profiler as profiler
 
-from torch_geometric.nn import radius_graph
-from torch_geometric.utils import sort_edge_index, is_undirected
-
 torch.set_float32_matmul_precision('high')
 
 """

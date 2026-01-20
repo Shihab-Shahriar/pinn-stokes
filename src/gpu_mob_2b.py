@@ -20,9 +20,8 @@ import torch
 import torch.profiler as profiler
 from benchmarks.bench_rpy import _two_body_mu_batch, two_body_rpy_batch
 from src.model_archs import TwoBodyCombined
+from src.hashgrid_neighbors import HashGridNeighborSearch
 
-from torch_geometric.nn import radius_graph
-from torch_geometric.utils import sort_edge_index, is_undirected
 
 
 TensorLike = Union[torch.Tensor, float]
@@ -110,6 +109,8 @@ class NNMobTorch:
         self.switch_dist = switch_dist
         self.device = _ensure_device(device)
 
+        self._neighbor_search = HashGridNeighborSearch(device=self.device)
+
         self.contact_distance = torch.tensor(2.0, dtype=torch.float32, device=self.device)
         self.median = torch.tensor(5.01, dtype=torch.float32, device=self.device)
         
@@ -149,25 +150,14 @@ class NNMobTorch:
     @torch.no_grad()
     def get_neighbor_pairs(self, pos):
         assert self.switch_dist == 6.0
-        max_neighbors = int((self.switch_dist ** 3) /2)  # Max 50% volume fraction
-
-        edge_index = radius_graph(
-            pos,
-            r=self.switch_dist,
-            loop=False,
-            max_num_neighbors=max_neighbors,
+        pos = pos.contiguous()
+        t_idx, s_idx = self._neighbor_search.get_edge_indexes(
+            pos, self.switch_dist, verbose=False
         )
-        edge_index = sort_edge_index(edge_index)
-
-        # You want edge_index[0] to be the *target* index:
-        t_idx = edge_index[0]
-        s_idx = edge_index[1]
 
         # Assert targets are nondecreasing (grouped/sorted by target):
-        assert torch.all(t_idx[1:] >= t_idx[:-1]), "radius_graph edge_index[0] (targets) is not sorted"
+        assert torch.all(t_idx[1:] >= t_idx[:-1]), "hashgrid edge_index[0] (targets) is not sorted"
 
-        N = pos.size(0)
-        assert is_undirected(edge_index, num_nodes=N), "Radius graph contains directed edges"
         return t_idx, s_idx
 
     # ------------------------------------------------------------------

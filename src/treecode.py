@@ -18,6 +18,7 @@ np.set_printoptions(suppress=True, formatter={"float_kind": lambda x: f"{x:.12f}
 
 
 from src.gpu_nbody_mob import Mob_Nbody_Torch
+from src.hashgrid_neighbors import HashGridNeighborSearch
 
 # TODO: Different streams, but syncing doesn't
 # seem to impact timing. SO left as is for now.
@@ -197,62 +198,6 @@ def compute_aabb(
 
 
 
-@wp.kernel
-def count_neighbors_kernel(
-    grid: wp.uint64,
-    positions: wp.array(dtype=wp.vec3),
-    no_of_nn: wp.array(dtype=wp.uint8),
-    radius: float,
-    radius_sq: float
-):
-    tid = wp.tid()
-
-    # order threads by cell
-    i = wp.hash_grid_point_id(grid, tid)
-    x = positions[i]
-    count = wp.uint8(0)
-
-    neighbors = wp.hash_grid_query(grid, x, radius)
-
-    for index in neighbors:
-        if index != i:
-            # compute distance to point
-            n = x - positions[index]
-            d = wp.length_sq(n)
-            if d < radius_sq:
-                count += wp.uint8(1)
-    no_of_nn[i] = count
-
-@wp.kernel
-def fill_edge_indexes_kernel(
-    grid: wp.uint64,
-    positions: wp.array(dtype=wp.vec3),
-    edge_t: wp.array(dtype=wp.int32),
-    edge_s: wp.array(dtype=wp.int32),
-    idx_start: wp.array(dtype=wp.int32),
-    radius: float,
-    radius_sq: float
-):
-    tid = wp.tid()
-
-    # order threads by cell
-    i = wp.hash_grid_point_id(grid, tid)
-    x = positions[i]
-    idx = idx_start[i]
-
-    neighbors = wp.hash_grid_query(grid, x, radius)
-
-    for index in neighbors:
-        if index != i:
-            d = wp.length_sq(x - positions[index])
-            if d < radius_sq:
-                edge_t[idx] = i
-                edge_s[idx] = index
-                idx += 1
-
-
-
-
 class WarpFMM:
     """
     Treecode-like FMM using a modified BVH from Warp.
@@ -274,70 +219,22 @@ class WarpFMM:
         self.device = device
         self.block_dim = block_dim
 
-        # Hashgrid stuff
+        # Hashgrid neighbor search
         wp_stream = _get_wp_stream(device=torch.device(device))
         with wp.ScopedStream(wp_stream):
             self._wp_device = wp.get_device(device)
-            self.grid = wp.HashGrid(128, 128, 128, device="cuda")
-        self.no_of_nn = None   # WARNING: wp.uint8 array. max 255.
-
-        MAX_2b_PAIRS = 1_000_000 * 50  # preallocate for 50 million pairs
-        self.edge_indexes_s = torch.empty((MAX_2b_PAIRS,), dtype=torch.int32, device="cuda")
-        self.edge_indexes_t = torch.empty((MAX_2b_PAIRS,), dtype=torch.int32, device="cuda")
+            max_pairs = 1_000_000 * 50  # preallocate for 50 million pairs
+            self._neighbor_search = HashGridNeighborSearch(
+                device=device,
+                max_pairs=max_pairs,
+            )
 
         self.fmm_buffer_allocated_ = False
 
 
 
     def get_edge_indexes(self, positions_t, radius):
-        torch.cuda.synchronize()
-        N = positions_t.size(0)
-        torch_stream = torch.cuda.current_stream(device=positions_t.device)
-        wp_stream = wp.stream_from_torch(torch_stream)
-        with wp.ScopedStream(wp_stream):
-            if self.no_of_nn is None or self.no_of_nn.shape[0] != N: 
-                self.no_of_nn = wp.zeros(shape=[N], dtype=wp.uint8,device="cuda", requires_grad=False)
-            
-            p = wp.from_torch(positions_t, dtype=wp.vec3)
-            print("Building spatial grid for neighbor search...")
-            print("Positions shape:", p.shape)
-            self.grid.build(points=p, radius=radius)
-
-            # First pass: find number of neighbors per particle
-            print("Counting neighbors per particle...")
-            wp.launch(
-                kernel=count_neighbors_kernel,
-                dim=N,
-                inputs=(self.grid.id, p, self.no_of_nn, radius, radius * radius),
-                stream=wp_stream,
-            )
-            wp.synchronize()
-
-            nn_count_torch_uint8 = wp.to_torch(self.no_of_nn)
-            nn_count_torch = torch.cumsum(nn_count_torch_uint8, dim=0, dtype=torch.int32)
-            total_pairs = int(nn_count_torch[-1].item())
-            print(f"Total near-field pairs found: {total_pairs}")
-            
-            assert total_pairs < self.edge_indexes_t.size(0), (
-                "Too many near-field pairs; increase MAX_2b_PAIRS in MobStkFMM"
-            )
-
-            # Inclusive to exclusive scan
-            nn_count_torch = nn_count_torch - nn_count_torch_uint8
-
-            # Second pass: fill in edge indexes
-            print("Collecting neighbor edge indexes...")
-            wp_edges_t = wp.from_torch(self.edge_indexes_t, dtype=wp.int32)
-            wp_edges_s = wp.from_torch(self.edge_indexes_s, dtype=wp.int32)
-            wp_idx_start = wp.from_torch(nn_count_torch, dtype=wp.int32)
-            wp.launch(
-                kernel=fill_edge_indexes_kernel,
-                dim=N,
-                inputs=(self.grid.id, p, wp_edges_t, wp_edges_s, wp_idx_start, radius, radius * radius),
-                stream=wp_stream,
-            )
-            wp.synchronize()
-            return (self.edge_indexes_t[:total_pairs], self.edge_indexes_s[:total_pairs])
+        return self._neighbor_search.get_edge_indexes(positions_t, radius, verbose=True)
 
 
     def _gpu_near_field_pass(self, positions_t, orientations_t, forces, vis_arr, viscosity, device_index):
