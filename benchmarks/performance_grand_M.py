@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import math
 import sys
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,7 +35,11 @@ if str(ROOT) not in sys.path:
 from src.gpu_mob_2b import NNMobTorch
 from src.mob_op_2b_combined import NNMob
 from src.gpu_nbody_mob import Mob_Nbody_Torch
+from src.treecode import WarpFMM
 
+# Setting this env variable below totally messed up timing results
+# torch.compile has so far been an absolute headache for benchmarking
+# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 torch.set_grad_enabled(False)
 
@@ -48,8 +53,8 @@ class BenchmarkConfig:
     """Benchmark configuration parameters."""
 
     viscosity: float = 1.0
-    warmup_runs: int = 10
-    timed_runs: int = 5
+    warmup_runs: int = 6
+    timed_runs: int = 6
 
     def total_runs(self) -> int:
         return self.warmup_runs + self.timed_runs
@@ -96,8 +101,21 @@ def load_configuration(csv_path: Path) -> np.ndarray:
         raise FileNotFoundError(f"Configuration file not found: {csv_path}")
 
     df = pd.read_csv(csv_path, float_precision="high")
-    expected_cols = ["x", "y", "z", "q_x", "q_y", "q_z", "q_w"]
-    config = df[expected_cols].to_numpy(dtype=np.float64, copy=True)
+    required_cols = ["x", "y", "z"]
+    assert all(col in df.columns for col in required_cols), (
+        f"Missing required columns: {[col for col in required_cols if col not in df.columns]}"
+    )
+
+    positions = df[required_cols].to_numpy(dtype=np.float64, copy=True)
+
+    quat_cols = ["q_x", "q_y", "q_z", "q_w"]
+    if all(col in df.columns for col in quat_cols):
+        orientations = df[quat_cols].to_numpy(dtype=np.float64, copy=True)
+    else:
+        orientations = np.zeros((positions.shape[0], 4), dtype=np.float64)
+        orientations[:, 3] = 1.0
+
+    config = np.concatenate([positions, orientations], axis=1)
     return np.ascontiguousarray(config)
 
 
@@ -132,27 +150,52 @@ def benchmark_apply(
     
     device = torch.device("cuda")
     torch.cuda.synchronize(device)
-    config = torch.as_tensor(config, dtype=torch.float32, device=device)
-    forces = torch.as_tensor(forces, dtype=torch.float32, device=device)
+    
+    n_particles = config.shape[0]
+    
+    # Extract positions (first 3 columns) and orientations (last 4 columns)
+    positions = torch.as_tensor(config[:, :3], dtype=torch.float32, device=device)
+    orientations = torch.as_tensor(config[:, 3:], dtype=torch.float32, device=device)
+    forces_t = torch.as_tensor(forces, dtype=torch.float32, device=device)
+    vis_arr = torch.full((n_particles,), bench_cfg.viscosity, dtype=torch.float32, device=device)
+    
+    # Detect if operator is WarpFMM (has different apply signature)
+    is_fmm = isinstance(operator, WarpFMM)
+    
+    def run_apply():
+        if is_fmm:
+            # WarpFMM.apply(positions, orientations, forces, vis_arr)
+            return operator.apply(positions, orientations, forces_t, vis_arr)
+        else:
+            # NNMobTorch/Mob_Nbody_Torch.apply(config, forces, viscosity)
+            config_t = torch.as_tensor(config, dtype=torch.float32, device=device)
+            return operator.apply(config_t, forces_t, bench_cfg.viscosity)
 
     # Warm-up executes without timing to stabilize caches/JIT on both CPU & GPU.
     for _ in range(bench_cfg.warmup_runs):
-        operator.apply(config, forces, bench_cfg.viscosity)
+        run_apply()
         torch.cuda.synchronize(device)
+    print()
 
     timings: List[float] = []
     for _ in range(bench_cfg.timed_runs):
         torch.cuda.synchronize(device)
         start = time.perf_counter()
-        operator.apply(config, forces, bench_cfg.viscosity)
+        run_apply()
         torch.cuda.synchronize(device)
         end = time.perf_counter()
         timings.append(end - start)
-        time.sleep(0.5)  # brief pause to avoid GPU overheating issues
+        time.sleep(0.1)  # brief pause to avoid GPU overheating issues
+
 
     print(f"total time for {bench_cfg.timed_runs} runs:", sum(timings)*1000, "ms", timings)
+    
+    timings = np.array(sorted(timings), dtype=np.float64)
+    timings = timings[1:-2]  # discard anomalies, specially the last timings to avoid recompilation effects
+
+    
     device = resolve_device(operator)
-    return BenchmarkResult(label=label, device=device.type, timings=np.array(timings, dtype=np.float64))
+    return BenchmarkResult(label=label, device=device.type, timings=timings)
 
 
 def format_results(results: Iterable[BenchmarkResult], bench_cfg: BenchmarkConfig, batch_size: int) -> str:
@@ -222,8 +265,91 @@ def build_operators(shape: str) -> List[tuple[str, object]]:
     return operators[::-1]
 
 
+def build_fmm_operators(shape: str, near_field_cutoff: float = 6.0) -> List[tuple[str, object]]:
+    """Instantiate FMM operators with different near-field configurations.
+    
+    Creates three WarpFMM operators:
+    1. 2-body with pure RPY near-field (NNMobTorch with near_field="rpy")
+    2. 2-body with NN near-field (NNMobTorch with near_field="nn")
+    3. N-body with NN near-field (Mob_Nbody_Torch)
+    """
+    self_path = MODELS_DIR / "self_interaction_model.pt"
+    two_body_path = MODELS_DIR / "two_body_combined_model.pt"
+
+    assert self_path.exists(), f"Missing model: {self_path}"
+    assert two_body_path.exists(), f"Missing model: {two_body_path}"
+
+    # Common FMM parameters
+    fmm_theta = 0.3
+    fmm_leaf_size = 16
+    fmm_block_dim = 256
+
+    # 1. 2-body with pure RPY near-field
+    nf_2body_rpy = NNMobTorch(
+        shape=shape,
+        self_nn_path=str(self_path),
+        two_nn_path=str(two_body_path),
+        near_field="rpy",
+        far_field=None,
+        switch_dist=near_field_cutoff,
+    )
+    fmm_2body_rpy = WarpFMM(
+        near_field_operator=nf_2body_rpy,
+        theta=fmm_theta,
+        leaf_size=fmm_leaf_size,
+        near_field_cutoff=near_field_cutoff,
+        device="cuda",
+        block_dim=fmm_block_dim,
+    )
+
+    # 2. 2-body with NN near-field
+    nf_2body_nn = NNMobTorch(
+        shape=shape,
+        self_nn_path=str(self_path),
+        two_nn_path=str(two_body_path),
+        near_field="nn",
+        far_field=None,
+        switch_dist=near_field_cutoff,
+    )
+    fmm_2body_nn = WarpFMM(
+        near_field_operator=nf_2body_nn,
+        theta=fmm_theta,
+        leaf_size=fmm_leaf_size,
+        near_field_cutoff=near_field_cutoff,
+        device="cuda",
+        block_dim=fmm_block_dim,
+    )
+
+    # 3. N-body with NN near-field
+    nf_nbody = Mob_Nbody_Torch(
+        shape=shape,
+        self_nn_path=str(self_path),
+        two_nn_path=str(two_body_path),
+        nbody_nn_path="data/models/nbody_pinn_b1.pt",
+        near_field_2b="nn",
+        far_field_2b=None,
+        near_far_switch=near_field_cutoff,
+    )
+    fmm_nbody = WarpFMM(
+        near_field_operator=nf_nbody,
+        theta=fmm_theta,
+        leaf_size=fmm_leaf_size,
+        near_field_cutoff=near_field_cutoff,
+        device="cuda",
+        block_dim=fmm_block_dim,
+    )
+
+    operators = [
+        ("FMM_2body_RPY", fmm_2body_rpy),
+        ("FMM_2body_NN", fmm_2body_nn),
+        ("FMM_Nbody_NN", fmm_nbody),
+    ]
+
+    return operators[2:]
+
+
 def main() -> None:
-    filename = "uniform_sphere_0.1_1600.csv"
+    filename = "uniform_large_0.1_1000000.csv"
     print(f"Running performance benchmark on configuration: {filename}")
     bench_cfg = BenchmarkConfig()
     #csv_path = DATA_DIR / "n100.csv"
@@ -232,13 +358,15 @@ def main() -> None:
     config = load_configuration(csv_path)
     forces = build_forces(config.shape[0], seed=2024)
 
-    operators = build_operators(shape="sphere")
+    operators = build_fmm_operators(shape="sphere")
 
     results: List[BenchmarkResult] = []
     for label, operator in operators:
         result = benchmark_apply(operator, label, config, forces, bench_cfg)
         results.append(result)
         print(f"Completed benchmark for operator: {label}")
+        time.sleep(2)  # brief pause between benchmarks
+        print("Cooled GPU down a bit\n\n\n")
 
     print(format_results(results, bench_cfg, batch_size=config.shape[0]))
 

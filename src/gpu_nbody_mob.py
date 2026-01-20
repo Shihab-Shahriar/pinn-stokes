@@ -363,7 +363,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         base_start = time.perf_counter()
         v_base = super().apply(
             pos, orientations, force, viscosity, 
-            near_t_idx=t_idx, near_s_idx=s_idx
+            t_idx=t_idx, s_idx=s_idx
         )
         torch.cuda.synchronize()
         base_end = time.perf_counter()

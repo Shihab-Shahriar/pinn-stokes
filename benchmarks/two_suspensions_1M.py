@@ -134,7 +134,7 @@ def save_plot(particles, timestamp, output_dir=r"figures/drop_1M/"):
     plt.close(fig)
 
 @torch.no_grad()
-def main():
+def main(theta, benchmark_mode=True, t_final=0.5):
     # --- Simulation Parameters ---
     R_drop = 175.0
     r_particle = 1.0
@@ -147,9 +147,8 @@ def main():
 
     # --- Simulation Loop ---
     dt = 0.01
-    t_final = 0.5
     viscosity = 1.0
-    SAVE_STUFF = False
+    SAVE_STUFF = False if benchmark_mode else True
     
 
     print("Generating Drop 1...")
@@ -272,4 +271,4 @@ def main():
     print(f"Total simulation time: {total_time:.2f} seconds.")
 
 if __name__ == "__main__":
-    main()
+    main(theta=.3, benchmark_mode=False, t_final=1.0)

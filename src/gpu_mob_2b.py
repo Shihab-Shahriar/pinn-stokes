@@ -287,7 +287,7 @@ class NNMobTorch:
     def apply(self, positions: torch.Tensor,
            orientations: torch.Tensor,
            force: torch.Tensor, viscosity: TensorLike,
-           near_t_idx = None, near_s_idx = None) -> torch.Tensor:
+           t_idx = None, s_idx = None) -> torch.Tensor:
         """Return particle velocities for the supplied configuration.
 
         Parameters
@@ -300,15 +300,15 @@ class NNMobTorch:
             Force and torque vectors per particle.
         viscosity : float or tensor
             Dynamic viscosity of the fluid.
-        near_t_idx : torch.Tensor, optional
+        t_idx : torch.Tensor, optional
             Precomputed target indices for nearfield pair interactions.
-        near_s_idx : torch.Tensor, optional
+        s_idx : torch.Tensor, optional
             Precomputed source indices for nearfield pair interactions.
         """
         _ = orientations  # ignored for spheres
         assert self.shape == "sphere", "Currently only sphere shape is supported."
-        if (near_t_idx is None) ^ (near_s_idx is None):
-            raise ValueError("Both near_t_idx and near_s_idx must be provided together.")
+        if (t_idx is None) ^ (s_idx is None):
+            raise ValueError("Both t_idx and s_idx must be provided together.")
 
         N = positions.shape[0]
         assert N > 1, "Just don't do single particle calls here."
@@ -317,21 +317,21 @@ class NNMobTorch:
         force_t = _as_float_tensor(force, self.device).contiguous()
 
         # If nearfield not provided, compute them here first
-        if near_t_idx is None:
+        if t_idx is None:
             with torch.no_grad():
-                near_t_idx, near_s_idx = self.get_neighbor_pairs(positions)
+                t_idx, s_idx = self.get_neighbor_pairs(positions)
 
         # Now compute edges for far-field interactions
         if self.far_field is not None:
             with torch.no_grad():
                 mask_offdiag = ~torch.eye(N, dtype=torch.bool, device=self.device)
-                mask_offdiag[near_t_idx, near_s_idx] = False
+                mask_offdiag[t_idx, s_idx] = False
                 far_t_idx, far_s_idx = torch.nonzero(mask_offdiag, as_tuple=True)
 
         # Remove before benchmarking
         # Assert no overlap between near and far indices 
         if False:
-            near_set = set((int(t.item()), int(s.item())) for t, s in zip(near_t_idx, near_s_idx))
+            near_set = set((int(t.item()), int(s.item())) for t, s in zip(t_idx, s_idx))
             
             if self.far_field is not None:
                 far_set = set((int(t.item()), int(s.item())) for t, s in zip(far_t_idx, far_s_idx))
@@ -349,11 +349,11 @@ class NNMobTorch:
 
         if self.near_field == "rpy" or self.far_field == "rpy":
             if self.near_field == "rpy" and self.far_field == "rpy":
-                t_idx_rpy = torch.cat([near_t_idx, far_t_idx], dim=0)
-                s_idx_rpy = torch.cat([near_s_idx, far_s_idx], dim=0)
+                t_idx_rpy = torch.cat([t_idx, far_t_idx], dim=0)
+                s_idx_rpy = torch.cat([s_idx, far_s_idx], dim=0)
             elif self.near_field == "rpy":
-                t_idx_rpy = near_t_idx
-                s_idx_rpy = near_s_idx
+                t_idx_rpy = t_idx
+                s_idx_rpy = s_idx
             elif self.far_field == "rpy":
                 t_idx_rpy = far_t_idx
                 s_idx_rpy = far_s_idx
@@ -363,8 +363,8 @@ class NNMobTorch:
         t_idx_nn = None
         s_idx_nn = None
         if self.near_field == "nn":
-            t_idx_nn = near_t_idx
-            s_idx_nn = near_s_idx
+            t_idx_nn = t_idx
+            s_idx_nn = s_idx
 
 
         # IMPORTANT: Order matters for angular terms

@@ -19,6 +19,19 @@ np.set_printoptions(suppress=True, formatter={"float_kind": lambda x: f"{x:.12f}
 
 from src.gpu_nbody_mob import Mob_Nbody_Torch
 
+# TODO: Different streams, but syncing doesn't
+# seem to impact timing. SO left as is for now.
+warp_stream = wp.get_stream("cuda:0")
+torch_from_warp = wp.stream_to_torch(warp_stream)
+
+print("torch current cudaStream_t :", torch.cuda.current_stream().cuda_stream)
+print("warp current cudaStream_t  :", torch_from_warp.cuda_stream)
+
+
+def _get_wp_stream(device=None):
+    torch_stream = torch.cuda.current_stream(device=device)
+    return wp.stream_from_torch(torch_stream)
+
 
 @wp.func
 def rpy_far_velocity_multipole(
@@ -260,10 +273,12 @@ class WarpFMM:
         self.theta = theta
         self.device = device
         self.block_dim = block_dim
-        self._wp_device = wp.get_device(device)
 
         # Hashgrid stuff
-        self.grid = wp.HashGrid(128, 128, 128, device="cuda")
+        wp_stream = _get_wp_stream(device=torch.device(device))
+        with wp.ScopedStream(wp_stream):
+            self._wp_device = wp.get_device(device)
+            self.grid = wp.HashGrid(128, 128, 128, device="cuda")
         self.no_of_nn = None   # WARNING: wp.uint8 array. max 255.
 
         MAX_2b_PAIRS = 1_000_000 * 50  # preallocate for 50 million pairs
@@ -277,47 +292,52 @@ class WarpFMM:
     def get_edge_indexes(self, positions_t, radius):
         torch.cuda.synchronize()
         N = positions_t.size(0)
-        if self.no_of_nn is None or self.no_of_nn.shape[0] != N: 
-            self.no_of_nn = wp.zeros(shape=[N], dtype=wp.uint8,device="cuda", requires_grad=False)
-        
-        p = wp.from_torch(positions_t, dtype=wp.vec3)
-        print("Building spatial grid for neighbor search...")
-        print("Positions shape:", p.shape)
-        self.grid.build(points=p, radius=radius)
+        torch_stream = torch.cuda.current_stream(device=positions_t.device)
+        wp_stream = wp.stream_from_torch(torch_stream)
+        with wp.ScopedStream(wp_stream):
+            if self.no_of_nn is None or self.no_of_nn.shape[0] != N: 
+                self.no_of_nn = wp.zeros(shape=[N], dtype=wp.uint8,device="cuda", requires_grad=False)
+            
+            p = wp.from_torch(positions_t, dtype=wp.vec3)
+            print("Building spatial grid for neighbor search...")
+            print("Positions shape:", p.shape)
+            self.grid.build(points=p, radius=radius)
 
-        # First pass: find number of neighbors per particle
-        print("Counting neighbors per particle...")
-        wp.launch(
-            kernel=count_neighbors_kernel,
-            dim=N,
-            inputs=(self.grid.id, p, self.no_of_nn, radius, radius * radius),
-        )
-        wp.synchronize()
+            # First pass: find number of neighbors per particle
+            print("Counting neighbors per particle...")
+            wp.launch(
+                kernel=count_neighbors_kernel,
+                dim=N,
+                inputs=(self.grid.id, p, self.no_of_nn, radius, radius * radius),
+                stream=wp_stream,
+            )
+            wp.synchronize()
 
-        nn_count_torch_uint8 = wp.to_torch(self.no_of_nn)
-        nn_count_torch = torch.cumsum(nn_count_torch_uint8, dim=0, dtype=torch.int32)
-        total_pairs = int(nn_count_torch[-1].item())
-        print(f"Total near-field pairs found: {total_pairs}")
-        
-        assert total_pairs < self.edge_indexes_t.size(0), (
-            "Too many near-field pairs; increase MAX_2b_PAIRS in MobStkFMM"
-        )
+            nn_count_torch_uint8 = wp.to_torch(self.no_of_nn)
+            nn_count_torch = torch.cumsum(nn_count_torch_uint8, dim=0, dtype=torch.int32)
+            total_pairs = int(nn_count_torch[-1].item())
+            print(f"Total near-field pairs found: {total_pairs}")
+            
+            assert total_pairs < self.edge_indexes_t.size(0), (
+                "Too many near-field pairs; increase MAX_2b_PAIRS in MobStkFMM"
+            )
 
-        # Inclusive to exclusive scan
-        nn_count_torch = nn_count_torch - nn_count_torch_uint8
+            # Inclusive to exclusive scan
+            nn_count_torch = nn_count_torch - nn_count_torch_uint8
 
-        # Second pass: fill in edge indexes
-        print("Collecting neighbor edge indexes...")
-        wp_edges_t = wp.from_torch(self.edge_indexes_t, dtype=wp.int32)
-        wp_edges_s = wp.from_torch(self.edge_indexes_s, dtype=wp.int32)
-        wp_idx_start = wp.from_torch(nn_count_torch, dtype=wp.int32)
-        wp.launch(
-            kernel=fill_edge_indexes_kernel,
-            dim=N,
-            inputs=(self.grid.id, p, wp_edges_t, wp_edges_s, wp_idx_start, radius, radius * radius),
-        )
-        wp.synchronize()
-        return (self.edge_indexes_t[:total_pairs], self.edge_indexes_s[:total_pairs])
+            # Second pass: fill in edge indexes
+            print("Collecting neighbor edge indexes...")
+            wp_edges_t = wp.from_torch(self.edge_indexes_t, dtype=wp.int32)
+            wp_edges_s = wp.from_torch(self.edge_indexes_s, dtype=wp.int32)
+            wp_idx_start = wp.from_torch(nn_count_torch, dtype=wp.int32)
+            wp.launch(
+                kernel=fill_edge_indexes_kernel,
+                dim=N,
+                inputs=(self.grid.id, p, wp_edges_t, wp_edges_s, wp_idx_start, radius, radius * radius),
+                stream=wp_stream,
+            )
+            wp.synchronize()
+            return (self.edge_indexes_t[:total_pairs], self.edge_indexes_s[:total_pairs])
 
 
     def _gpu_near_field_pass(self, positions_t, orientations_t, forces, vis_arr, viscosity, device_index):
@@ -344,8 +364,10 @@ class WarpFMM:
 
 
         rgraph_start_evt.record()
-        with wp.ScopedTimer("Warp::HashGrid", synchronize=True):
-            t_idx, s_idx = self.get_edge_indexes(positions_t, cutoff)
+        wp_stream = _get_wp_stream(device=positions_t.device)
+        with wp.ScopedStream(wp_stream):
+            with wp.ScopedTimer("Warp::HashGrid", synchronize=True):
+                t_idx, s_idx = self.get_edge_indexes(positions_t, cutoff)
 
         #edge_index = sort_edge_index(edge_index)
         rgraph_end_evt.record()
@@ -399,7 +421,7 @@ class WarpFMM:
 
         return v_near
 
-
+    # FIXME: This is fluctuating a lot; need better timing strategy
     def get_far_field_vel(
         self,
         positions: torch.Tensor,
@@ -410,7 +432,6 @@ class WarpFMM:
 
         start_evt = torch.cuda.Event(enable_timing=True)
         end_evt = torch.cuda.Event(enable_timing=True)
-        start_evt.record()
 
         positions = positions.contiguous()
         forces = forces.contiguous()
@@ -418,59 +439,66 @@ class WarpFMM:
         N = positions.shape[0]
         num_nodes = 2 * N - 1  # max possible nodes in binary tree
 
-        # This buffer caching didn't help at all. Warp must have 
-        # pretty good internal memory allocator.
-        if not self.fmm_buffer_allocated_ or self.fmm_lowers_.shape[0] != N: # Reallocate if N changes
-            self.fmm_buffer_allocated_ = True
-            self.fmm_lowers_ = wp.zeros(N, dtype=wp.vec3, device=self.device)
-            self.fmm_uppers_ = wp.zeros(N, dtype=wp.vec3, device=self.device)
-            self.fmm_subtree_sizes_ = wp.zeros(num_nodes, dtype=wp.int32, device=self.device)
-            self.fmm_centroids_ = wp.zeros(num_nodes, dtype=wp.vec3, device=self.device)
-            self.fmm_monopoles_ = wp.zeros(num_nodes, dtype=wp.vec3, device=self.device)
-            self.fmm_dipoles_ = wp.zeros(num_nodes, dtype=wp.mat33, device=self.device)
-            self.fmm_long_range_vel_ = wp.zeros(N, dtype=wp.vec3d, device=self.device)
+        torch_stream = torch.cuda.current_stream(device=positions.device)
+        wp_stream = wp.stream_from_torch(torch_stream)
+        with wp.ScopedStream(wp_stream):
+            start_evt.record(stream=torch_stream)
+            # This buffer caching didn't help at all. Warp must have 
+            # pretty good internal memory allocator.
+            if not self.fmm_buffer_allocated_ or self.fmm_lowers_.shape[0] != N: # Reallocate if N changes
+                self.fmm_buffer_allocated_ = True
+                self.fmm_lowers_ = wp.zeros(N, dtype=wp.vec3, device=self.device)
+                self.fmm_uppers_ = wp.zeros(N, dtype=wp.vec3, device=self.device)
+                self.fmm_subtree_sizes_ = wp.zeros(num_nodes, dtype=wp.int32, device=self.device)
+                self.fmm_centroids_ = wp.zeros(num_nodes, dtype=wp.vec3, device=self.device)
+                self.fmm_monopoles_ = wp.zeros(num_nodes, dtype=wp.vec3, device=self.device)
+                self.fmm_dipoles_ = wp.zeros(num_nodes, dtype=wp.mat33, device=self.device)
+                self.fmm_long_range_vel_ = wp.zeros(N, dtype=wp.vec3d, device=self.device)
 
 
-        points = wp.from_torch(positions, dtype=wp.vec3)
-        item_forces = wp.from_torch(forces, dtype=wp.vec3, )
+            points = wp.from_torch(positions, dtype=wp.vec3)
+            item_forces = wp.from_torch(forces, dtype=wp.vec3, )
 
 
-        wp.launch(
-            compute_aabb,
-            dim=N,
-            inputs=[points, self.fmm_lowers_, self.fmm_uppers_],
-            device=self._wp_device,
-        )
+            wp.launch(
+                compute_aabb,
+                dim=N,
+                inputs=[points, self.fmm_lowers_, self.fmm_uppers_],
+                device=self._wp_device,
+                stream=wp_stream,
+            )
 
-        # Attempt to avoid build from scratch using rebuild or refit did not help with perf
-        bvh = wp.Bvh(self.fmm_lowers_, self.fmm_uppers_, "lbvh", leaf_size=self.leaf_size)
+            # Attempt to avoid build from scratch using rebuild or refit did not help with perf
+            bvh = wp.Bvh(self.fmm_lowers_, self.fmm_uppers_, "lbvh", leaf_size=self.leaf_size)
 
-        bvh.update_multipoles(item_forces, self.fmm_subtree_sizes_, 
-                              self.fmm_centroids_, self.fmm_monopoles_, self.fmm_dipoles_)
+            bvh.update_multipoles(item_forces, self.fmm_subtree_sizes_, 
+                                  self.fmm_centroids_, self.fmm_monopoles_, self.fmm_dipoles_)
 
-        near_cutoff2 = float(self.near_field_cutoff * self.near_field_cutoff)
-        wp.launch(
-            compute_long_range_velocity,
-            dim=N,
-            inputs=[
-                bvh.id,
-                points,
-                item_forces,
-                self.fmm_centroids_,
-                self.fmm_monopoles_,
-                self.fmm_dipoles_,
-                self.fmm_long_range_vel_,
-                self.theta,
-                near_cutoff2,
-            ],
-            outputs=[],
-            device=self._wp_device,
-            block_dim=self.block_dim,
-        )
-        linear_long_range = wp.to_torch(self.fmm_long_range_vel_)
+            near_cutoff2 = float(self.near_field_cutoff * self.near_field_cutoff)
+            wp.launch(
+                compute_long_range_velocity,
+                dim=N,
+                inputs=[
+                    bvh.id,
+                    points,
+                    item_forces,
+                    self.fmm_centroids_,
+                    self.fmm_monopoles_,
+                    self.fmm_dipoles_,
+                    self.fmm_long_range_vel_,
+                    self.theta,
+                    near_cutoff2,
+                ],
+                outputs=[],
+                device=self._wp_device,
+                block_dim=self.block_dim,
+                stream=wp_stream,
+            )
+            linear_long_range = wp.to_torch(self.fmm_long_range_vel_)
+            wp.synchronize()  # ensure all warp work on this stream is complete before timing ends
+            end_evt.record(stream=torch_stream)
 
-        end_evt.record()
-        torch.cuda.synchronize()
+        end_evt.synchronize()
         elapsed = start_evt.elapsed_time(end_evt)
         print(f"[MobFMM] far-field FMM GPU time: {elapsed:.3f} ms")
         assert linear_long_range.shape == (N, 3)
@@ -511,7 +539,7 @@ class WarpFMM:
         print(f"[MobFMM] total GPU time: {elapsed:.3f} ms")
 
         particle_updates_per_sec = positions.shape[0] / (elapsed * 1e-3)
-        print(f"[MobFMM] total particles updates per sec: {particle_updates_per_sec:,.2f}")
+        print(f"[MobFMM] total particles updates per sec: {particle_updates_per_sec:,.2f}\n\n")
 
         return total_vel
 
