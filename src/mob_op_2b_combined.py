@@ -20,7 +20,7 @@ from src.mfs_utils import min_distance_two_ellipsoids
 import sys 
 sys.path.append("/home/shihab/repo/utils")
 
-from benchmarks.cluster import reference_data_generation, uniform_data_generation
+from benchmarks.cluster import reference_data_generation
 
 
 # NOTE orientation[i] is always the rotation needed to convert z-axis to the 
@@ -480,11 +480,11 @@ def check_against_ref(mob, path, print_stuff=False):
 
     lin_avg_rmse /= numParticles
     ang_avg_rmse /= numParticles
-    print(f"Avg linear RMSE: {lin_avg_rmse:.4f}")
-    print(f"Avg angular RMSE: {ang_avg_rmse:.4f}")
+    print(f"Avg linear RMSE: {lin_avg_rmse:.5f}")
+    print(f"Avg angular RMSE: {ang_avg_rmse:.5f}")
 
     err_2b = np.linalg.norm(velocity - v, axis=1).mean()
-    print(f"Avg 2-norm error: {err_2b:.4f}")
+    print(f"Avg 2-norm error: {err_2b:.5f}")
     return config
 
 def helens_3body_sphere():

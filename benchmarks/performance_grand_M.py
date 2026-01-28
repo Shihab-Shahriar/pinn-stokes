@@ -345,11 +345,11 @@ def build_fmm_operators(shape: str, near_field_cutoff: float = 6.0) -> List[tupl
         ("FMM_Nbody_NN", fmm_nbody),
     ]
 
-    return operators[2:]
+    return operators
 
 
-def main() -> None:
-    filename = "uniform_large_0.1_1000000.csv"
+def main(n) -> None:
+    filename = "uniform_large_0.1_{}.csv".format(n)
     print(f"Running performance benchmark on configuration: {filename}")
     bench_cfg = BenchmarkConfig()
     #csv_path = DATA_DIR / "n100.csv"
@@ -372,7 +372,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    n = int(sys.argv[1]) 
+    main(n)
+    
     if torch.cuda.is_available():
         max_vram_gb = torch.cuda.max_memory_allocated() / (1024**3)
         print(f"\nTotal Peak VRAM Usage: {max_vram_gb:.2f} GB")
