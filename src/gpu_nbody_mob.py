@@ -46,6 +46,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         neighbor_cutoff: float = DEFAULT_NEIGHBOR_CUTOFF,
         max_k_neighbors: int = DEFAULT_MAX_K_NEIGHBORS,
         mean_dist_s: float = DEFAULT_MEAN_DIST_S,
+        pair_chunk_size: int = 8_000_000,
     ) -> None:
         super().__init__(
             shape=shape,
@@ -70,6 +71,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         self.max_k_neighbors = int(max_k_neighbors)
         self.neighbor_cutoff = float(neighbor_cutoff)
         self.mean_dist_s = float(mean_dist_s)
+        self.pair_chunk_size = int(pair_chunk_size)
 
         # Build and (optionally) compile a wrapper module so we can JIT/Inductor
         # optimize the n-body correction path and reuse it inside apply().
@@ -200,90 +202,62 @@ class Mob_Nbody_Torch(NNMobTorch):
 
 
     @torch.no_grad()
-    def get_nbody_velocity(
+    def _process_nbody_chunk(
         self,
-        pos: torch.Tensor,     # shape (N, 3)
-        force: torch.Tensor,   # shape (N, 6)
-        t_idx: torch.Tensor,   # shape (num_pairs,)
-        s_idx: torch.Tensor,   # shape (num_pairs,)
-        #viscosity: float,      # scalar
-        #print_dim: bool = False,
-    ) -> torch.Tensor:
-        """Compute the learned n-body correction for each particle using PyTorch."""
-        # Viscous scaling is absorbed by the learned model.
-        #_ = viscosity
-
-        N = pos.shape[0]
+        pos: torch.Tensor,
+        force: torch.Tensor,
+        t_idx_chunk: torch.Tensor,
+        s_idx_chunk: torch.Tensor,
+        velocities: torch.Tensor,
+    ) -> None:
+        """Process a chunk of pairs and accumulate n-body corrections into velocities."""
         K = self.max_k_neighbors
-
         dtype = pos.dtype
 
-        # Gather positions for each pair
-        pos_t = pos[t_idx]                  # (num_pairs, 3)
-        pos_s = pos[s_idx]                  # (num_pairs, 3)
-        s_vec = pos_s - pos_t               # (num_pairs, 3)
+        pos_t = pos[t_idx_chunk]
+        pos_s = pos[s_idx_chunk]
+        s_vec = pos_s - pos_t
 
         with torch.profiler.record_function("get_k_per_pair"):
             top_k_indices, neighbor_mask = self.get_k_per_pair(
-                pos, pos_t, t_idx, pos_s, s_idx, s_vec
+                pos, pos_t, t_idx_chunk, pos_s, s_idx_chunk, s_vec
             )
 
-        assert top_k_indices.shape[0] == t_idx.shape[0]
-        assert top_k_indices.shape[1] == K
-
-        # 5. Build feature vector with fixed shapes
         P = top_k_indices.shape[0]
-        neighbor_vectors = pos[top_k_indices] - pos[t_idx].unsqueeze(1)  # (NP,K,3)
+        neighbor_vectors = pos[top_k_indices] - pos_t.unsqueeze(1)  # (P,K,3)
 
-        # if print_dim:
-        #     print("neighbor_vectors shape:", neighbor_vectors.shape)
-
-        # Zero out invalid neighbors and invalid pairs
         neighbor_vectors = torch.where(
             neighbor_mask.unsqueeze(-1), neighbor_vectors, torch.zeros_like(neighbor_vectors)
-        )  # (NP,K,3)
+        )
 
-        # Positional features (NP, 3 + 3K)
-        idx_pos_feat_end = 3 + K * 3
-        # pos_feats_padded = torch.zeros(P, idx_pos_feat_end, device=self.device, dtype=dtype)  # (NP,3+3K)
-        # pos_feats_padded[:, :3] = s_vec  # (NP,3)
-
-        # flat_neighbors = neighbor_vectors.reshape(P, K * 3)  # (NP,3K)
-        # pos_feats_padded[:, 3:3 + K * 3] = flat_neighbors  # (NP,3K)
-
-        # if print_dim:
-        #     print("pos_feats_padded shape:", pos_feats_padded.shape)
-
-        # Pair distance scalars (NP, 4)
-        dist_raw = torch.linalg.norm(s_vec, dim=1)  # (NP,)
-        dist_centered = dist_raw - self.mean_dist_s  # (NP,)
-        dist_sq = dist_centered * dist_centered  # (NP,)
-        dist_sqsq = dist_sq * dist_sq  # (NP,)
-        dist_feats = torch.stack([dist_centered, dist_raw - 2.0, dist_sq, dist_sqsq], dim=1)  # (NP,4)
-        # if print_dim:
-        #     print("dist_feats shape:", dist_feats.shape)
+        # Pair distance scalars
+        dist_raw = torch.linalg.norm(s_vec, dim=1)
+        dist_centered = dist_raw - self.mean_dist_s
+        dist_sq = dist_centered * dist_centered
+        dist_sqsq = dist_sq * dist_sq
+        dist_feats = torch.stack([dist_centered, dist_raw - 2.0, dist_sq, dist_sqsq], dim=1)
 
         # Symmetric neighbor features
-        ell = dist_raw.unsqueeze(1).clamp_min(self._EPS)  # (NP,1)
-        zhat = s_vec / ell  # (NP,3)
-        midpoint = 0.5 * s_vec  # (NP,3)
+        ell = dist_raw.unsqueeze(1).clamp_min(self._EPS)
+        zhat = s_vec / ell
+        midpoint = 0.5 * s_vec
 
-        r_sk_vec = neighbor_vectors - s_vec.unsqueeze(1)  # (NP,K,3)
-        r_sk = torch.linalg.norm(r_sk_vec, dim=2)  # (NP,K)
-        r_kt = torch.linalg.norm(neighbor_vectors, dim=2)  # (NP,K)
-        r_sk_c = r_sk.clamp_min(self._EPS); r_kt_c = r_kt.clamp_min(self._EPS)  # (NP,K) each
+        r_sk_vec = neighbor_vectors - s_vec.unsqueeze(1)
+        r_sk = torch.linalg.norm(r_sk_vec, dim=2)
+        r_kt = torch.linalg.norm(neighbor_vectors, dim=2)
+        r_sk_c = r_sk.clamp_min(self._EPS); r_kt_c = r_kt.clamp_min(self._EPS)
 
-        v = neighbor_vectors - midpoint.unsqueeze(1)  # (NP,K,3)
-        u = torch.einsum('bki,bi->bk', v, zhat)  # (NP,K)
-        rho = torch.linalg.norm(v - u.unsqueeze(-1) * zhat.unsqueeze(1), dim=2)  # (NP,K)
+        v = neighbor_vectors - midpoint.unsqueeze(1)
+        u = torch.einsum('bki,bi->bk', v, zhat)
+        rho = torch.linalg.norm(v - u.unsqueeze(-1) * zhat.unsqueeze(1), dim=2)
 
-        a = s_vec.unsqueeze(1) - neighbor_vectors  # (NP,K,3)
-        b = -neighbor_vectors  # (NP,K,3)
-        num = torch.einsum('bki,bki->bk', a, b)  # (NP,K)
-        den = r_sk_c * r_kt_c  # (NP,K)
-        cos_k = (num / den.clamp_min(self._EPS)).clamp(-1.0, 1.0)  # (NP,K)
+        a = s_vec.unsqueeze(1) - neighbor_vectors
+        b = -neighbor_vectors
+        num = torch.einsum('bki,bki->bk', a, b)
+        den = r_sk_c * r_kt_c
+        cos_k = (num / den.clamp_min(self._EPS)).clamp(-1.0, 1.0)
 
-        neighbor_mask_f = neighbor_mask.to(dtype) 
+        neighbor_mask_f = neighbor_mask.to(dtype)
         sym_feats_stacked = torch.stack([
             r_sk + r_kt,
             torch.abs(r_sk - r_kt),
@@ -295,37 +269,44 @@ class Mob_Nbody_Torch(NNMobTorch):
             1.0 / (r_sk_c * r_kt_c),
             torch.abs((1.0 / r_sk_c) - (1.0 / r_kt_c)),
             cos_k,
-        ], dim=2) * neighbor_mask_f.unsqueeze(-1)  # (NP,K,10)
-        sym_feats = sym_feats_stacked.reshape(P, -1)  # (NP,10K)
-        # if print_dim:
-        #     print("sym_feats shape:", sym_feats.shape)
+        ], dim=2) * neighbor_mask_f.unsqueeze(-1)
+        sym_feats = sym_feats_stacked.reshape(P, -1)
 
-        # Assemble final feature tensor X with fixed width
-        X = torch.cat([s_vec, dist_feats, sym_feats, neighbor_mask_f], dim=1)  # (NP,7+14K)
-        # if print_dim:
-        #     print("Final feature tensor X shape:", X.shape)
+        X = torch.cat([s_vec, dist_feats, sym_feats, neighbor_mask_f], dim=1)
 
-        # 6. Predict velocities for all pairs, zeroing invalid pairs
-        Fs = force[s_idx]  # (NP,6)
-        with torch.no_grad():
-            with torch.profiler.record_function("nbody_neural_net"):
-                start = torch.cuda.Event(enable_timing=True)
-                end = torch.cuda.Event(enable_timing=True)
-                torch.cuda.synchronize()
-                start.record()
-                pred = self.nbody_nn.predict_velocity(X, Fs)
-                end.record()
-                torch.cuda.synchronize()
-                #print(f"nbody_neural_net: {start.elapsed_time(end):.3f} ms")
+        Fs = force[s_idx_chunk]
+        with torch.profiler.record_function("nbody_neural_net"):
+            pred = self.nbody_nn.predict_velocity(X, Fs)
 
-            # if print_dim:
-            #     print("Predicted velocities shape:", pred.shape)
+        velocities.index_add_(0, t_idx_chunk, pred)
 
-        # 7. Sum velocities for each target particle (fixed size N x 6)
-        velocities = torch.zeros(N, 6, device=self.device, dtype=dtype)  # (N,6)
-        velocities.index_add_(0, t_idx, pred)  # (N,6)
+    @torch.no_grad()
+    def get_nbody_velocity(
+        self,
+        pos: torch.Tensor,     # shape (N, 3)
+        force: torch.Tensor,   # shape (N, 6)
+        t_idx: torch.Tensor,   # shape (num_pairs,)
+        s_idx: torch.Tensor,   # shape (num_pairs,)
+    ) -> torch.Tensor:
+        """Compute the learned n-body correction for each particle using PyTorch.
 
-        return velocities  # (N,6)
+        Processes pairs in chunks of self.pair_chunk_size to bound peak VRAM.
+        """
+        N = pos.shape[0]
+        dtype = pos.dtype
+        num_pairs = t_idx.shape[0]
+
+        velocities = torch.zeros(N, 6, device=self.device, dtype=dtype)
+
+        for start in range(0, num_pairs, self.pair_chunk_size):
+            end = min(start + self.pair_chunk_size, num_pairs)
+            self._process_nbody_chunk(
+                pos, force,
+                t_idx[start:end], s_idx[start:end],
+                velocities,
+            )
+
+        return velocities
 
 
     @torch.no_grad()
@@ -359,7 +340,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         torch.cuda.synchronize()
         base_start = time.perf_counter()
         v_base = super().apply(
-            pos, orientations, force, viscosity, 
+            pos, orientations, force, viscosity,
             t_idx=t_idx, s_idx=s_idx
         )
         torch.cuda.synchronize()
@@ -370,12 +351,6 @@ class Mob_Nbody_Torch(NNMobTorch):
         torch.cuda.synchronize()
 
         if t_idx.numel() == 0:
-            print("No valid pairs within neighbor cutoff; returning base velocities.")
-            print("Press any key to continue...")
-            input()
-            torch.cuda.synchronize()
-            rest_end = time.perf_counter()
-            print(f"[Mob_Nbody] No near-field pairs; returning base velocities. Post-base path time: {(rest_end - rest_start) * 1000:.3f} ms")
             return v_base
 
         rest_start = time.perf_counter()
@@ -541,7 +516,7 @@ def profile_get_nbody_velocity(
 
     # Warm-up outside profiler to stabilize kernels
     for _ in range(3):
-        mob_gpu.get_nbody_velocity(pos, force, t_idx, s_idx, viscosity=1.0)
+        mob_gpu.get_nbody_velocity(pos, force, t_idx, s_idx)
     torch.cuda.synchronize()
 
     activities = [profiler.ProfilerActivity.CPU]
@@ -562,7 +537,7 @@ def profile_get_nbody_velocity(
         on_trace_ready=trace_handler,
     ) as prof:
         for _ in range(total_steps):
-            mob_gpu.get_nbody_velocity(pos, force, t_idx, s_idx, viscosity=1.0)
+            mob_gpu.get_nbody_velocity(pos, force, t_idx, s_idx)
             torch.cuda.synchronize()
             prof.step()
 
