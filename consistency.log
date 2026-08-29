@@ -1,0 +1,177 @@
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+cluster created
+Computing neighbor pairs for n-body correction...
+Module src.hashgrid_neighbors b882eb1 load on device 'cuda:0' took 6.67 ms  (cached)
+no of RPY interactions: 88218
+no of NN interactions: 1482
+[Mob_Nbody] Base velocity compute time: 138.408 ms
+[Mob_Nbody] Post-base path time: 88.726 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 88252
+no of NN interactions: 1448
+[Mob_Nbody] Base velocity compute time: 3.990 ms
+[Mob_Nbody] Post-base path time: 2.633 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 88254
+no of NN interactions: 1446
+[Mob_Nbody] Base velocity compute time: 3.623 ms
+[Mob_Nbody] Post-base path time: 2.513 ms
+vf=0.025  CPU-vs-GPU n-body rel diff =   0.51%  (seeds [123, 124, 125])
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 86840
+no of NN interactions: 2860
+[Mob_Nbody] Base velocity compute time: 4.172 ms
+[Mob_Nbody] Post-base path time: 2.528 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 86808
+no of NN interactions: 2892
+[Mob_Nbody] Base velocity compute time: 3.654 ms
+[Mob_Nbody] Post-base path time: 2.598 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 86820
+no of NN interactions: 2880
+[Mob_Nbody] Base velocity compute time: 3.200 ms
+[Mob_Nbody] Post-base path time: 2.247 ms
+vf=0.05   CPU-vs-GPU n-body rel diff =   0.93%  (seeds [123, 124, 125])
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 85308
+no of NN interactions: 4392
+[Mob_Nbody] Base velocity compute time: 4.882 ms
+[Mob_Nbody] Post-base path time: 3.436 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 85536
+no of NN interactions: 4164
+[Mob_Nbody] Base velocity compute time: 3.824 ms
+[Mob_Nbody] Post-base path time: 2.742 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 85550
+no of NN interactions: 4150
+[Mob_Nbody] Base velocity compute time: 4.849 ms
+[Mob_Nbody] Post-base path time: 3.414 ms
+vf=0.075  CPU-vs-GPU n-body rel diff =   1.21%  (seeds [123, 124, 125])
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 83986
+no of NN interactions: 5714
+[Mob_Nbody] Base velocity compute time: 3.762 ms
+[Mob_Nbody] Post-base path time: 2.675 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 84208
+no of NN interactions: 5492
+[Mob_Nbody] Base velocity compute time: 3.738 ms
+[Mob_Nbody] Post-base path time: 2.595 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 84256
+no of NN interactions: 5444
+[Mob_Nbody] Base velocity compute time: 3.671 ms
+[Mob_Nbody] Post-base path time: 2.676 ms
+vf=0.1    CPU-vs-GPU n-body rel diff =   1.67%  (seeds [123, 124, 125])
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 82854
+no of NN interactions: 6846
+[Mob_Nbody] Base velocity compute time: 3.677 ms
+[Mob_Nbody] Post-base path time: 2.630 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 82986
+no of NN interactions: 6714
+[Mob_Nbody] Base velocity compute time: 3.606 ms
+[Mob_Nbody] Post-base path time: 2.579 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 82966
+no of NN interactions: 6734
+[Mob_Nbody] Base velocity compute time: 3.398 ms
+[Mob_Nbody] Post-base path time: 2.395 ms
+vf=0.125  CPU-vs-GPU n-body rel diff =   2.23%  (seeds [123, 124, 125])
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 81876
+no of NN interactions: 7824
+[Mob_Nbody] Base velocity compute time: 3.509 ms
+[Mob_Nbody] Post-base path time: 2.903 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 81840
+no of NN interactions: 7860
+[Mob_Nbody] Base velocity compute time: 3.657 ms
+[Mob_Nbody] Post-base path time: 2.551 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 81856
+no of NN interactions: 7844
+[Mob_Nbody] Base velocity compute time: 3.281 ms
+[Mob_Nbody] Post-base path time: 2.308 ms
+vf=0.15   CPU-vs-GPU n-body rel diff =   2.43%  (seeds [123, 124, 125])
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 80780
+no of NN interactions: 8920
+[Mob_Nbody] Base velocity compute time: 3.680 ms
+[Mob_Nbody] Post-base path time: 2.608 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 80950
+no of NN interactions: 8750
+[Mob_Nbody] Base velocity compute time: 3.208 ms
+[Mob_Nbody] Post-base path time: 2.208 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 80822
+no of NN interactions: 8878
+[Mob_Nbody] Base velocity compute time: 3.337 ms
+[Mob_Nbody] Post-base path time: 2.404 ms
+vf=0.175  CPU-vs-GPU n-body rel diff =   3.12%  (seeds [123, 124, 125])
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79722
+no of NN interactions: 9978
+[Mob_Nbody] Base velocity compute time: 3.466 ms
+[Mob_Nbody] Post-base path time: 2.537 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79740
+no of NN interactions: 9960
+[Mob_Nbody] Base velocity compute time: 3.232 ms
+[Mob_Nbody] Post-base path time: 2.296 ms
+cluster created
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79578
+no of NN interactions: 10122
+[Mob_Nbody] Base velocity compute time: 3.307 ms
+[Mob_Nbody] Post-base path time: 2.321 ms
+vf=0.2    CPU-vs-GPU n-body rel diff =   3.71%  (seeds [123, 124, 125])
+
+Mean operator disagreement across all vf: 1.98%  (max 3.71% at vf=0.2)
+
+Saved figures/consistency_fig3_fig4_nbody.png
+
+Trend continuity (n-body rel_rmse):
+vf       Fig4 N=200  Fig3 N=300    delta
+0.025         2.253       2.287    0.034
+0.05          4.752       4.302   -0.450
+0.075         5.415       6.198    0.783
+0.1           7.528       7.936    0.408
+0.125         8.798       9.755    0.957
+0.15         12.094      12.173    0.079
+0.175        13.917      14.634    0.717
+0.2          18.644      18.102   -0.542
+
+Done.

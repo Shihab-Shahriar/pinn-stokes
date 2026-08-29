@@ -1,0 +1,6 @@
+backend,n,total_ms,std_ms,min_ms,far_ms,near_ms,updates_per_sec,peak_vram_gb,mac,theta,pdeg,order,max_leaf,gpu,git_sha
+widebvh,50000,32.88,,,14.29,18.59,1520000,1.01,0.8,nan,7,,1024,NVIDIA GeForce RTX 5090,
+widebvh,100000,44.80,,,16.99,27.81,2232000,1.94,0.8,nan,7,,1024,NVIDIA GeForce RTX 5090,
+widebvh,200000,70.79,,,23.55,47.24,2825000,2.20,0.8,nan,7,,1024,NVIDIA GeForce RTX 5090,
+widebvh,500000,148.03,,,35.82,112.21,3378000,2.30,0.8,nan,7,,1024,NVIDIA GeForce RTX 5090,
+widebvh,750000,211.12,0.17,,45.38,165.74,3552000,2.39,0.8,nan,7,,1024,NVIDIA GeForce RTX 5090,

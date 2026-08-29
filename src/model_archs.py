@@ -453,7 +453,7 @@ if __name__ == "__main__":
         "two_body_combined": True,
         "two_body_combined_all": False
     }
-    r = "/home/shihab/repo/experiments/"
+    r = "experiments/"
 
     if do_models["self_interaction"]:
         self_model = SelfInteraction(9).to(device)

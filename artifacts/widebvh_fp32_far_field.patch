@@ -1,0 +1,1022 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 06609f6..785b24d 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -208,12 +208,36 @@ to the historical behaviour, so every pre-existing target is bit-identical:
+   the bare Stokeslet to the Rotne-Prager-Yamakawa mobility of radius-`a` spheres,
+   `+ (2a^2/3) f/r^3 - 2a^2 R(R.f)/r^5`. `a = 0` (default) is the plain Stokeslet.
+ 
+-Note the kernel physics is duplicated in five places, since `BaryStokes`'s M2P
++- `WIDEBVH_FP32_LEVEL=<0..3>` (`src/stokes_kernel.cuh`) is the fp32 fast path
++  for consumer GPUs (GeForce Ada/Ampere run fp64 at 1/64 the fp32 rate, and
++  both hot kernels -- `BaryStokes::m2pWarp` and the near-field `p2p` -- are
++  fp64 in the inner loop). A ladder, in order of fp64 cost: 1 = fp32 M2P (fp32
++  geometry, `bary::c_chebf4` float4 offset table, `rsqrtf`, fp32 lane and
++  per-target accumulation -- `FarAcc`/`MP::FarVec` in `treecode.cuh`, one
++  widening per target), 2 = + fp32 P2P on the split-warpspec-atomic path
++  (`p2pAtomicKernel32`, `stokes::p2p32`, an fp32 `force32_` copy, per-apply
++  scratch `velNear32_` folded into the fp64 output by
++  `scatterCompToInputOrderFoldKernel`; every other path keeps its fp64 P2P),
++  3 = + fp32 upward pass (`BaryStokesWarpAggregate::Acc`, `bary::lagrange1d_f`
++  in centred coordinates, `c_chebf`/`c_barywf`; halves the refit's per-warp
++  shared footprint). Level 0 (default) is byte-identical to the pre-fp32 code: every change
++  is under `#if WIDEBVH_FP32_LEVEL >= n` or a type alias that resolves to the
++  old type. MAC / acceptance arithmetic is untouched at every level, so the
++  interaction lists are the same and only the evaluation precision changes.
++  Built as separate `.so`s by `WIDEBVH_NEMO_FP32_LEVELS`
++  (`libwidebvh_nemo[_p<N>]_f32l<L>.so`), reported by `wbnemo_fp32_level()`
++  (ABI 4); validated by `two_ball_rpy_f32l{1,2}` and, end to end, by
++  pinn-stokes' `benchmarks/mac_calibration.py --fp32-levels`.
++  `WIDEBVH_FP32_M2P_NR=1` adds one fp32 Newton step to the level>=1 M2P `1/r`
++  (measurement knob; not needed at NeMO's tolerance).
++
++Note the kernel physics is duplicated in seven places, since `BaryStokes`'s M2P
+ hand-inlines it rather than calling `stokes::p2p`. They now share
+-`stokes::accumStokesFactored` (`p2p` x2, `m2pWarp`, and the fp64 direct-sum
+-reference) except `BaryStokes::m2p`, which uses the expanded `ir3` form and
+-carries its own `if constexpr` branch. Changing the kernel means touching all of
+-them or the far field silently stays Stokeslet.
++`stokes::accumStokesFactored` (`p2p` x2, `p2p32`, both `m2pWarp` bodies, and
++the fp64 direct-sum reference; the fp32 twin overload of `accumStokesFactored`
++serves the fp32 bodies) except `BaryStokes::m2p`, which uses the expanded `ir3`
++form and carries its own `if constexpr` branch. Changing the kernel means
++touching all of them or the far field silently stays Stokeslet.
+ 
+ `TC_QUIET=1` suppresses the per-apply `[treecode] ...` banners -- necessary for
+ any caller that applies the operator once per timestep.
+@@ -231,8 +255,18 @@ cmake -S . -B build-nemo -G Ninja -DCMAKE_BUILD_TYPE=Release \
+       -DWIDEBVH_NEMO_PDEG="3;5;7"
+ cmake --build build-nemo -j --target widebvh_nemo widebvh_nemo_p5 widebvh_nemo_p3 \
+       widebvh_nemo_cart
++# consumer GPU (e.g. an sm_89 GeForce): also the fp32 fast-path variants
++cmake -S . -B build-4060 -G Ninja -DCMAKE_BUILD_TYPE=Release \
++      -DCMAKE_CUDA_ARCHITECTURES=89 -DWIDEBVH_NEMO_PDEG="5;7" \
++      -DWIDEBVH_NEMO_FP32_LEVELS="1;2"
++cmake --build build-4060 -j --target widebvh_nemo widebvh_nemo_p5 \
++      widebvh_nemo_f32l1 widebvh_nemo_f32l2 widebvh_nemo_p5_f32l1 widebvh_nemo_p5_f32l2
+ ```
+ 
++`wbnemo_abi_version()` is 4: 3 was the fp64-only engine; 4 added
++`wbnemo_fp32_level()` and is otherwise call-compatible (a v4 caller treats a v3
++library as level 0).
++
+ `widebvh_nemo_cart` is the same C ABI over `Treecode<mp::CartesianStokes>`
+ (`-DNEMO_CARTESIAN=1`). It has no PDEG -- its accuracy ladder is the RUNTIME
+ `Config::order` (1..4), which is why `wbnemo_create` takes an `order` argument
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 4e93670..a9bc049 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -83,6 +83,16 @@ target_compile_definitions(two_ball_cart PRIVATE TWO_BALL_CARTESIAN=1)
+ add_treecode_driver(two_ball_rpy src/two_ball.cu)
+ target_compile_definitions(two_ball_rpy PRIVATE WIDEBVH_RPY_A=1.0)
+ 
++# The RPY driver at the fp32 fast-path levels the NeMO fp32 libraries ship
++# (stokes_kernel.cuh WIDEBVH_FP32_LEVEL). The directSum64 reference stays fp64,
++# so relL2err here = truncation + fp32 arithmetic; against two_ball_rpy at the
++# same mac it isolates the arithmetic part. Level 2 exercises p2pAtomicKernel32
++# only under TC_PATH=split-warpspec-atomic.
++add_treecode_driver(two_ball_rpy_f32l1 src/two_ball.cu)
++target_compile_definitions(two_ball_rpy_f32l1 PRIVATE WIDEBVH_RPY_A=1.0 WIDEBVH_FP32_LEVEL=1)
++add_treecode_driver(two_ball_rpy_f32l2 src/two_ball.cu)
++target_compile_definitions(two_ball_rpy_f32l2 PRIVATE WIDEBVH_RPY_A=1.0 WIDEBVH_FP32_LEVEL=2)
++
+ # Both at once: the gate for the Cartesian policy's RPY term (the -c d_i d_j(1/r)
+ # branch in cartesian_stokes.cuh::m2p). Same self-consistency argument as
+ # two_ball_rpy -- reference and M2P switch kernel together -- so relL2err here is
+@@ -156,6 +166,14 @@ add_executable(gen_distributions src/gen_distributions.cu)
+ set(WIDEBVH_NEMO_PDEG "7" CACHE STRING
+     "Chebyshev degree(s) to build the NeMO far-field library for (list, e.g. 3;5;7)")
+ 
++# WIDEBVH_NEMO_FP32_LEVELS adds fp32 fast-path variants of every degree above
++# (stokes_kernel.cuh WIDEBVH_FP32_LEVEL: 1 fp32 M2P, 2 + fp32 P2P, 3 + fp32
++# upward pass), for GPUs whose fp64 rate is 1/64 of fp32 (GeForce Ada/Ampere).
++# Empty by default: the H200 production build is level 0 only and unchanged.
++# Each level is a separate .so, named libwidebvh_nemo[_p<PDEG>]_f32l<L>.so.
++set(WIDEBVH_NEMO_FP32_LEVELS "" CACHE STRING
++    "fp32 fast-path level(s) to ALSO build the NeMO library for (list, e.g. 1;2); empty = fp64 only")
++
+ # Shared body for every NeMO C-ABI variant. Only the multipole policy and its
+ # compile-time parameters differ between them, and those arrive through ARGN --
+ # everything else (sources, RPY radius, visibility, link hardening) must stay
+@@ -193,11 +211,18 @@ endfunction()
+ 
+ function(add_widebvh_nemo_library PDEG)
+   if (PDEG STREQUAL "7")
+-    set(TARGET widebvh_nemo)              # default degree keeps the plain name
++    set(BASE widebvh_nemo)                # default degree keeps the plain name
+   else()
+-    set(TARGET widebvh_nemo_p${PDEG})
++    set(BASE widebvh_nemo_p${PDEG})
+   endif()
+-  add_widebvh_nemo_target(${TARGET} WIDEBVH_PDEG=${PDEG})
++  add_widebvh_nemo_target(${BASE} WIDEBVH_PDEG=${PDEG})   # level 0, unchanged name
++  foreach(_lvl IN LISTS WIDEBVH_NEMO_FP32_LEVELS)
++    if (_lvl STREQUAL "" OR _lvl STREQUAL "0")
++      continue()
++    endif()
++    add_widebvh_nemo_target(${BASE}_f32l${_lvl}
++      WIDEBVH_PDEG=${PDEG} WIDEBVH_FP32_LEVEL=${_lvl})
++  endforeach()
+ endfunction()
+ 
+ foreach(_pdeg IN LISTS WIDEBVH_NEMO_PDEG)
+diff --git a/src/bary_stokes.cuh b/src/bary_stokes.cuh
+index a48edf7..df7a359 100644
+--- a/src/bary_stokes.cuh
++++ b/src/bary_stokes.cuh
+@@ -39,12 +39,14 @@
+ #include <cstdint>
+ #include <stdexcept>
+ #include <string>
++#include <type_traits>
+ 
+ #include <cuda_runtime.h>
+ 
+ #include "cuBQL/bvh.h"
+ #include "cuBQL/builder/cuda/refit_aggregate.h"
+ #include "refit_aggregate_warp.cuh"
++#include "stokes_kernel.cuh"     // stokes::FP32_LEVEL, accumStokesFactored
+ #include "struct_recon.cuh"
+ 
+ // Defer to the includer's CUDA_CHECK (treecode.cu has a richer file:line one);
+@@ -96,8 +98,11 @@ constexpr int NP3  = NP * NP * NP;        // proxy points per cluster
+ 
+ // Chebyshev-2nd-kind nodes in [-1,1] and barycentric weights; set by setup().
+ __constant__ double c_cheb[NP];
+-__constant__ float  c_chebf[NP];   // fp32 copy for the fp32 M2P evaluation
++__constant__ float  c_chebf[NP];   // fp32 copy (used by the fp32 upward pass)
+ __constant__ double c_baryw[NP];
++#if WIDEBVH_FP32_LEVEL >= 3
++__constant__ float  c_barywf[NP];  // fp32 copy for the fp32 upward pass
++#endif
+ 
+ // Precomputed (k1,k2,k3) index tables for flat proxy index s = (k1*NP+k2)*NP+k3.
+ // Avoids integer % and / by NP (=7, non-power-of-2) in the hot M2P warp loop.
+@@ -119,6 +124,14 @@ __device__ unsigned char c_k3[NP3];
+ __device__ double2 c_chebxy[NP3];
+ __device__ double  c_chebz[NP3];
+ 
++#if WIDEBVH_FP32_LEVEL >= 1
++// fp32 twin of (c_chebxy, c_chebz) for the fp32 M2P: one float4 per proxy
++// point (x, y, z, 0), i.e. a single LDG.128 and no F2F converts. (The float4
++// experiment noted above lost 1-2% on the fp64 path because of the widening
++// converts; on the fp32 path there is nothing to widen.)
++__device__ float4 c_chebf4[NP3];
++#endif
++
+ // Scene globals smuggled into combine() during the upward pass (combine()'s
+ // signature is fixed by refit_aggregate). Renamed vs. cartesian_stokes.cuh's
+ // d_pos_g/... to avoid duplicate-symbol clashes when both headers are included.
+@@ -196,6 +209,50 @@ lagrange1d(double y, double c_d, double h_d, double L[NP])
+   }
+ }
+ 
++#if WIDEBVH_FP32_LEVEL >= 3
++// fp32 twin of lagrange1d for the WIDEBVH_FP32_LEVEL >= 3 upward pass, in
++// CENTRED coordinates: the caller passes d = y - c_d (the fp32 difference of
++// two fp32 coordinates a box apart is exact by Sterbenz), so the node offsets
++// d - h_d*s_k carry ~ulp(h_d) instead of ~ulp(|c_d|) of error -- the same
++// reason m2pWarp's fp32 body forms Tp - center first. Same two guards.
++__device__ __forceinline__ void
++lagrange1d_f(float d, float h_d, float L[NP])
++{
++  if (!(h_d > 1e-20f)) {                // collapsed axis
++    L[0] = 1.f;
++#pragma unroll
++    for (int k = 1; k < NP; ++k) L[k] = 0.f;
++    return;
++  }
++  const float tol = 1e-6f * h_d;
++  float ds[NP];
++  int hit = -1;
++#pragma unroll
++  for (int k = 0; k < NP; ++k) {
++    ds[k] = fmaf(-h_d, c_chebf[k], d);   // y - s_k
++    if (fabsf(ds[k]) <= tol) hit = k;
++  }
++  if (hit >= 0) {
++#pragma unroll
++    for (int k = 0; k < NP; ++k) L[k] = (k == hit) ? 1.f : 0.f;
++    return;
++  }
++  float sum = 0.f;
++  float dL[NP];
++#pragma unroll
++  for (int k = 0; k < NP; ++k) {
++    const float ck = c_barywf[k] / ds[k];
++    dL[k] = ck;
++    sum += ck;
++  }
++  const float inv = 1.f / sum;
++#pragma unroll
++  for (int k = 0; k < NP; ++k) {
++    L[k] = dL[k] * inv;
++  }
++}
++#endif  // WIDEBVH_FP32_LEVEL >= 3
++
+ } // namespace bary
+ 
+ // ===========================================================================
+@@ -209,6 +266,13 @@ struct BaryStokes {
+   // Keeps the fp32 target path (only SphericalStokes uses fp64-geometry M2P).
+   static constexpr bool WANTS_FP64_TARGET = false;
+ 
++  // Type of one node's far-field contribution as returned by m2pWarp: fp64 for
++  // the production kernels, fp32 on the WIDEBVH_FP32_LEVEL >= 1 path where the
++  // whole evaluation and the per-target accumulation stay in fp32 (see
++  // stokes_kernel.cuh). The engine's traversal kernels declare their per-node
++  // temporaries with this alias.
++  using FarVec = std::conditional_t<(stokes::FP32_LEVEL >= 1), vec3f, vec3d>;
++
+   // SoA node types. Traversal loads only NodeMAC (16 bytes) per node visit;
+   // NodeM2P (box half-extents + proxy weights) is loaded only when MAC accepts.
+   struct __align__(16) NodeMAC {
+@@ -252,10 +316,10 @@ struct BaryStokes {
+                                      vec3f center, vec3f Tp);
+ 
+   template<int ORDER>
+-  static __device__ inline vec3d m2pWarp(const NodeM2P &m2p_data,
+-                                         vec3f center,
+-                                         vec3f Tp, int lane,
+-                                         unsigned int mask);
++  static __device__ inline FarVec m2pWarp(const NodeM2P &m2p_data,
++                                          vec3f center,
++                                          vec3f Tp, int lane,
++                                          unsigned int mask);
+ 
+   // Traction far field from the SAME Stokeslet proxy moments (KAFMM-style
+   // kernel aggregation): the fhat are kernel-independent equivalent strengths,
+@@ -312,6 +376,11 @@ inline void BaryStokes::setup(int /*order*/)
+   CUDA_CHECK(cudaMemcpyToSymbol(bary::c_cheb,  cheb,  sizeof(cheb)));
+   CUDA_CHECK(cudaMemcpyToSymbol(bary::c_chebf, chebf, sizeof(chebf)));
+   CUDA_CHECK(cudaMemcpyToSymbol(bary::c_baryw, w,     sizeof(w)));
++#if WIDEBVH_FP32_LEVEL >= 3
++  float wf[bary::NP];
++  for (int k = 0; k < bary::NP; ++k) wf[k] = (float)w[k];
++  CUDA_CHECK(cudaMemcpyToSymbol(bary::c_barywf, wf, sizeof(wf)));
++#endif
+ 
+   unsigned char k1tab[bary::NP3], k2tab[bary::NP3], k3tab[bary::NP3];
+   for (int s = 0; s < bary::NP3; ++s) {
+@@ -332,6 +401,13 @@ inline void BaryStokes::setup(int /*order*/)
+   }
+   CUDA_CHECK(cudaMemcpyToSymbol(bary::c_chebxy, chebxy, sizeof(chebxy)));
+   CUDA_CHECK(cudaMemcpyToSymbol(bary::c_chebz,  chebz,  sizeof(chebz)));
++
++#if WIDEBVH_FP32_LEVEL >= 1
++  float4 chebf4[bary::NP3];
++  for (int s = 0; s < bary::NP3; ++s)
++    chebf4[s] = make_float4(chebf[k1tab[s]], chebf[k2tab[s]], chebf[k3tab[s]], 0.f);
++  CUDA_CHECK(cudaMemcpyToSymbol(bary::c_chebf4, chebf4, sizeof(chebf4)));
++#endif
+ }
+ 
+ // Stokeslet far field: u = sum_k ( f_hat_k / r + R (R . f_hat_k) / r^3 ),
+@@ -394,13 +470,56 @@ BaryStokes::m2p(const NodeM2P &m2p_data, vec3f center, vec3f Tp)
+ }
+ 
+ template<int ORDER>
+-__device__ inline vec3d
++__device__ inline BaryStokes::FarVec
+ BaryStokes::m2pWarp(const NodeM2P &m2p_data, vec3f center, vec3f Tp,
+                     int lane, unsigned int mask)
+ {
+   (void)ORDER;
+   using namespace bary;
+ 
++#if WIDEBVH_FP32_LEVEL >= 1
++  // ALL-fp32 evaluation (WIDEBVH_FP32_LEVEL >= 1, see stokes_kernel.cuh).
++  // Geometry: the target and the node centre are fp32 already, so the fp32
++  // difference carries only their own quantization (~ulp of the box extent);
++  // an accepted node sits at r > halfDiag/mac >> that, so the relative error in
++  // R is ~1e-6 at NeMO's operating point. 1/r from rsqrtf alone (~2 ulp): a
++  // Newton step would only be worth it if the fp32 arithmetic error were
++  // visible against the expansion's truncation error, and it is not
++  // (WIDEBVH_FP32_M2P_NR=1 adds one fp32 NR step for measurement).
++  // Accumulation: fp32 per lane over its ~NP3/32 proxies, fp32 shuffle
++  // reduce; the caller keeps accumulating in fp32 per target and widens once.
++  const float dx = Tp.x - center.x;
++  const float dy = Tp.y - center.y;
++  const float dz = Tp.z - center.z;
++  const float hx = m2p_data.hx, hy = m2p_data.hy, hz = m2p_data.hz;
++
++  float u0 = 0.f, u1 = 0.f, u2 = 0.f;
++  for (int s = lane; s < NP3; s += 32) {
++    const float4 c = __ldg(&c_chebf4[s]);
++    const float Rx = fmaf(-hx, c.x, dx);
++    const float Ry = fmaf(-hy, c.y, dy);
++    const float Rz = fmaf(-hz, c.z, dz);
++    const float r2 = fmaf(Rx, Rx, fmaf(Ry, Ry, Rz * Rz));
++    if (r2 == 0.f) continue;
++    float ir = rsqrtf(r2);
++#if defined(WIDEBVH_FP32_M2P_NR) && WIDEBVH_FP32_M2P_NR
++    ir = ir * fmaf(-0.5f * r2, ir * ir, 1.5f);
++#endif
++    const float fx = m2p_data.fhat[s][0];
++    const float fy = m2p_data.fhat[s][1];
++    const float fz = m2p_data.fhat[s][2];
++    const float rdf = fmaf(Rx, fx, fmaf(Ry, fy, Rz * fz));
++    const float q   = rdf * (ir * ir);
++    stokes::accumStokesFactored(ir, q, Rx, Ry, Rz, fx, fy, fz, u0, u1, u2);
++  }
++
++  for (int offset = 16; offset > 0; offset >>= 1) {
++    u0 += __shfl_down_sync(mask, u0, offset);
++    u1 += __shfl_down_sync(mask, u1, offset);
++    u2 += __shfl_down_sync(mask, u2, offset);
++  }
++  return (lane == 0) ? vec3f(u0, u1, u2) : vec3f(0.f, 0.f, 0.f);
++#else
+   // fp64 geometry + rsqrtf-seeded fp64 Newton (see m2p()): no fp64
+   // rsqrt/sqrt/div software chains; moments stay fp32, widened on load.
+   const double dx = (double)Tp.x - (double)center.x;   // exact: fp32 inputs
+@@ -437,6 +556,7 @@ BaryStokes::m2pWarp(const NodeM2P &m2p_data, vec3f center, vec3f Tp,
+     u2 += __shfl_down_sync(mask, u2, offset);
+   }
+   return (lane == 0) ? vec3d(u0, u1, u2) : vec3d(0.0, 0.0, 0.0);
++#endif  // WIDEBVH_FP32_LEVEL >= 1
+ }
+ 
+ // Line-for-line sibling of m2pWarp with the Oseen accumulation replaced by the
+@@ -665,15 +785,23 @@ struct BaryStokesWarpAggregate {
+   using NodeMAC = BaryStokes::NodeMAC;
+   using NodeM2P = BaryStokes::NodeM2P;
+ 
++  // Accumulator / basis-weight type of the upward pass: fp64, or fp32 on the
++  // WIDEBVH_FP32_LEVEL >= 3 path (see stokes_kernel.cuh). The moments are
++  // stored fp32 either way; fp32 here trades the fp64 P2M/M2M arithmetic
++  // (~5 fp64 ops per proxy per source, plus fp64 divides in lagrange1d) for
++  // ~1e-6 relative error in the moments, and halves the per-warp shared
++  // footprint (17 KB -> 8.5 KB at PDEG 7).
++  using Acc = std::conditional_t<(stokes::FP32_LEVEL >= 3), float, double>;
++
+   struct __align__(16) Shared {
+-    double fhat[bary::NP3][3];
+-    double slab_a[bary::NP * bary::NP][3];
+-    double slab_b[bary::NP * bary::NP][3];
+-    double Lmx[bary::NP][bary::NP];
+-    double Lmy[bary::NP][bary::NP];
+-    double Lmz[bary::NP][bary::NP];
+-    double Lx[bary::NP], Ly[bary::NP], Lz[bary::NP];
+-    double fx, fy, fz;
++    Acc fhat[bary::NP3][3];
++    Acc slab_a[bary::NP * bary::NP][3];
++    Acc slab_b[bary::NP * bary::NP][3];
++    Acc Lmx[bary::NP][bary::NP];
++    Acc Lmy[bary::NP][bary::NP];
++    Acc Lmz[bary::NP][bary::NP];
++    Acc Lx[bary::NP], Ly[bary::NP], Lz[bary::NP];
++    Acc fx, fy, fz;
+   };
+ 
+   __device__ void operator()(bvh3f bvh, NodeMAC mac[], int nodeID,
+@@ -702,9 +830,9 @@ struct BaryStokesWarpAggregate {
+     }
+ 
+     for (int s = lane; s < NP3; s += 32) {
+-      sh.fhat[s][0] = 0.0;
+-      sh.fhat[s][1] = 0.0;
+-      sh.fhat[s][2] = 0.0;
++      sh.fhat[s][0] = Acc(0);
++      sh.fhat[s][1] = Acc(0);
++      sh.fhat[s][2] = Acc(0);
+     }
+     if (ownerMask && isLeaf) {
+       for (int w = lane; w < d_owner_mask_words_gb; w += 32) {
+@@ -744,12 +872,18 @@ struct BaryStokesWarpAggregate {
+               ownerMax = max(ownerMax, owner);
+               if (ownerMask) ownerMask[owner >> 5] |= (1u << (owner & 31));
+             }
++#if WIDEBVH_FP32_LEVEL >= 3
++            lagrange1d_f(y.x - c.x, hx, sh.Lx);
++            lagrange1d_f(y.y - c.y, hy, sh.Ly);
++            lagrange1d_f(y.z - c.z, hz, sh.Lz);
++#else
+             lagrange1d(y.x, c.x, hx, sh.Lx);
+             lagrange1d(y.y, c.y, hy, sh.Ly);
+             lagrange1d(y.z, c.z, hz, sh.Lz);
+-            sh.fx = (double)f.x;
+-            sh.fy = (double)f.y;
+-            sh.fz = (double)f.z;
++#endif
++            sh.fx = (Acc)f.x;
++            sh.fy = (Acc)f.y;
++            sh.fz = (Acc)f.z;
+           }
+           __syncwarp(mask);
+ 
+@@ -758,8 +892,8 @@ struct BaryStokesWarpAggregate {
+             const int k3 = tmp % NP; tmp /= NP;
+             const int k2 = tmp % NP; tmp /= NP;
+             const int k1 = tmp;
+-            const double w = (double)sh.Lx[k1] * (double)sh.Ly[k2]
+-                           * (double)sh.Lz[k3];
++            const Acc w = (Acc)sh.Lx[k1] * (Acc)sh.Ly[k2]
++                        * (Acc)sh.Lz[k3];
+             sh.fhat[s][0] += w * sh.fx;
+             sh.fhat[s][1] += w * sh.fy;
+             sh.fhat[s][2] += w * sh.fz;
+@@ -797,9 +931,17 @@ struct BaryStokesWarpAggregate {
+         const NodeM2P &cm2p = d_m2p_gb[cid];
+ 
+         for (int q = lane; q < NP; q += 32) {
++#if WIDEBVH_FP32_LEVEL >= 3
++          // child proxy q relative to THIS node's centre: (child centre - centre)
++          // is an fp32 difference of nearby coordinates, then the child offset.
++          lagrange1d_f(fmaf(cm2p.hx, c_chebf[q], cmac.cx - c.x), hx, sh.Lmx[q]);
++          lagrange1d_f(fmaf(cm2p.hy, c_chebf[q], cmac.cy - c.y), hy, sh.Lmy[q]);
++          lagrange1d_f(fmaf(cm2p.hz, c_chebf[q], cmac.cz - c.z), hz, sh.Lmz[q]);
++#else
+           lagrange1d(cmac.cx + cm2p.hx * c_cheb[q], c.x, hx, sh.Lmx[q]);
+           lagrange1d(cmac.cy + cm2p.hy * c_cheb[q], c.y, hy, sh.Lmy[q]);
+           lagrange1d(cmac.cz + cm2p.hz * c_cheb[q], c.z, hz, sh.Lmz[q]);
++#endif
+         }
+         __syncwarp(mask);
+ 
+@@ -808,9 +950,9 @@ struct BaryStokesWarpAggregate {
+           for (int s = lane; s < NP * NP; s += 32) {
+             const int k3 = s % NP;
+             const int q2 = s / NP;
+-            double sx = 0.0, sy = 0.0, szc = 0.0;
++            Acc sx = Acc(0), sy = Acc(0), szc = Acc(0);
+             for (int q3 = 0; q3 < NP; ++q3) {
+-              const double w = (double)sh.Lmz[q3][k3];
++              const Acc w = (Acc)sh.Lmz[q3][k3];
+               const int qs = proxyIdx(q1, q2, q3);
+               sx += w * cm2p.fhat[qs][0];
+               sy += w * cm2p.fhat[qs][1];
+@@ -826,9 +968,9 @@ struct BaryStokesWarpAggregate {
+           for (int s = lane; s < NP * NP; s += 32) {
+             const int k3 = s % NP;
+             const int k2 = s / NP;
+-            double sx = 0.0, sy = 0.0, szc = 0.0;
++            Acc sx = Acc(0), sy = Acc(0), szc = Acc(0);
+             for (int q2 = 0; q2 < NP; ++q2) {
+-              const double w = (double)sh.Lmy[q2][k2];
++              const Acc w = (Acc)sh.Lmy[q2][k2];
+               sx += w * sh.slab_a[q2 * NP + k3][0];
+               sy += w * sh.slab_a[q2 * NP + k3][1];
+               szc += w * sh.slab_a[q2 * NP + k3][2];
+@@ -844,7 +986,7 @@ struct BaryStokesWarpAggregate {
+             const int k3 = s % NP;
+             const int k2 = (s / NP) % NP;
+             const int k1 = s / (NP * NP);
+-            const double w = (double)sh.Lmx[q1][k1];
++            const Acc w = (Acc)sh.Lmx[q1][k1];
+             sh.fhat[s][0] += w * sh.slab_b[k2 * NP + k3][0];
+             sh.fhat[s][1] += w * sh.slab_b[k2 * NP + k3][1];
+             sh.fhat[s][2] += w * sh.slab_b[k2 * NP + k3][2];
+diff --git a/src/cartesian_stokes.cuh b/src/cartesian_stokes.cuh
+index 29d7a42..f510451 100644
+--- a/src/cartesian_stokes.cuh
++++ b/src/cartesian_stokes.cuh
+@@ -115,6 +115,9 @@ struct CartesianStokes {
+   static constexpr bool LANE_BATCH_M2P = true;
+   // Keeps the fp32 target path (only SphericalStokes uses fp64-geometry M2P).
+   static constexpr bool WANTS_FP64_TARGET = false;
++  // Per-node far-field contribution type (fp64 here; only BaryStokes has the
++  // fp32 fast path, see WIDEBVH_FP32_LEVEL in stokes_kernel.cuh).
++  using FarVec = vec3d;
+ 
+   // How far above the moment order the 1/r derivative table has to reach. The
+   // Oseen part of the kernel costs exactly one extra derivative (see m2p: the
+diff --git a/src/nemo_capi.cu b/src/nemo_capi.cu
+index 7fd4f20..ce099cd 100644
+--- a/src/nemo_capi.cu
++++ b/src/nemo_capi.cu
+@@ -57,6 +57,9 @@ namespace {
+ #ifdef NEMO_CARTESIAN
+ using NemoTreecode = Treecode<mp::CartesianStokes>;
+ constexpr int NEMO_POLICY_ID = 1;
++#if WIDEBVH_FP32_LEVEL > 0
++#error "WIDEBVH_FP32_LEVEL is a BaryStokes fast path; the Cartesian library has none"
++#endif
+ #else
+ using NemoTreecode = Treecode<mp::BaryStokes>;
+ constexpr int NEMO_POLICY_ID = 0;
+@@ -98,7 +101,11 @@ struct wbnemo_tc {
+ extern "C" {
+ 
+ // Bump whenever any signature below changes; the Python wrapper checks it.
+-WBNEMO_API int wbnemo_abi_version(void) { return 3; }
++//   3  the original fp64-only engine
++//   4  + wbnemo_fp32_level() (call-compatible with 3 otherwise; a v3 caller
++//      that only knows the v3 entry points still works, and a v4 caller treats
++//      a v3 library as fp32_level 0)
++WBNEMO_API int wbnemo_abi_version(void) { return 4; }
+ 
+ // Compile-time build identity, so a caller can log/verify which .so it loaded.
+ // The degree variants and the Cartesian variant export identical symbol names,
+@@ -116,6 +123,11 @@ WBNEMO_API int    wbnemo_pdeg(void)
+ }
+ WBNEMO_API int    wbnemo_max_order(void) { return NemoTreecode::MAX_ORDER; }
+ WBNEMO_API double wbnemo_radius(void) { return stokes::RPY_A; }   // 0 => plain Stokeslet
++// fp32 fast-path level this .so was compiled with (WIDEBVH_FP32_LEVEL, see
++// stokes_kernel.cuh): 0 fp64 production, 1 fp32 M2P, 2 + fp32 P2P, 3 + fp32
++// upward pass. Same identity role as wbnemo_pdeg(): the levels export the same
++// symbol names, so a caller loading more than one must check it after dlopen.
++WBNEMO_API int    wbnemo_fp32_level(void) { return stokes::FP32_LEVEL; }
+ 
+ WBNEMO_API const char *wbnemo_last_error(void) { return g_lastError; }
+ 
+diff --git a/src/spherical_stokes.cuh b/src/spherical_stokes.cuh
+index 7cd499c..b74dbe7 100644
+--- a/src/spherical_stokes.cuh
++++ b/src/spherical_stokes.cuh
+@@ -406,6 +406,9 @@ struct SphericalStokes {
+ #else
+   static constexpr bool WANTS_FP64_TARGET = true;
+ #endif
++  // Per-node far-field contribution type (fp64 here; only BaryStokes has the
++  // fp32 fast path, see WIDEBVH_FP32_LEVEL in stokes_kernel.cuh).
++  using FarVec = vec3d;
+ 
+   // SoA node types. Traversal loads only NodeMAC (16 bytes) per node visit.
+   struct __align__(16) NodeMAC {
+diff --git a/src/stokes_kernel.cuh b/src/stokes_kernel.cuh
+index 60039f3..ec04baf 100644
+--- a/src/stokes_kernel.cuh
++++ b/src/stokes_kernel.cuh
+@@ -53,6 +53,43 @@ static constexpr double RPY_A  = (double)(WIDEBVH_RPY_A);
+ static constexpr double RPY_C  = 2.0 * RPY_A * RPY_A / 3.0;   // 2a^2/3
+ static constexpr bool   RPY_ON = (RPY_A > 0.0);
+ 
++// ---------------------------------------------------------------------------
++// fp32 fast-path level for consumer GPUs (COMPILE-TIME, like WIDEBVH_RPY_A).
++//
++// The two hot kernels -- BaryStokes::m2pWarp and the near-field p2p -- run their
++// inner loops in fp64 on fp32 inputs. On an H200 (fp64 at 1/2 the fp32 rate)
++// that is nearly free; on Ada/Ampere GeForce parts fp64 issues at 1/64 the fp32
++// rate and the far field becomes ~60x slower than the H200's for the same
++// work. This ladder swaps those loops for all-fp32 evaluation, level by level,
++// in order of expected fp64 cost:
++//
++//   0  (default) production: fp64 M2P / P2P / upward pass. Every #if below is
++//      off and the compiled code is byte-identical to the pre-fp32 engine.
++//   1  fp32 M2P: barycentric far-field evaluation in fp32 (fp32 geometry from
++//      the fp32 target/center/half-extents, fp32 Chebyshev offset table, fp32
++//      rsqrtf, fp32 lane accumulators, fp32 per-target accumulation in the
++//      warp-specialized traversal), converted to fp64 once per target.
++//   2  + fp32 P2P on the split-warpspec-atomic path: fp32 bucket coordinates,
++//      fp32 forces, fp32 lane accumulators and warp reduce, fp32 global atomics
++//      into a per-apply scratch that is folded into the fp64 output at scatter.
++//   3  + fp32 upward pass (P2M / M2M shared-memory accumulators and the
++//      Lagrange basis).
++//
++// Accuracy: the truncation error of the expansion (mac, PDEG) dominates by
++// orders of magnitude at NeMO's operating point; the fp32 arithmetic adds
++// ~1e-6..1e-5 relative (measured in
++// pinn-stokes/artifacts/consumer_gpu_far_field_report.md). MAC / acceptance
++// arithmetic is untouched at every level -- the interaction lists are the same,
++// only the evaluation precision changes.
++//
++// One .so per level (see add_widebvh_nemo_library in CMakeLists.txt);
++// wbnemo_fp32_level() reports it through the C ABI.
++// ---------------------------------------------------------------------------
++#ifndef WIDEBVH_FP32_LEVEL
++#define WIDEBVH_FP32_LEVEL 0
++#endif
++static constexpr int FP32_LEVEL = WIDEBVH_FP32_LEVEL;
++
+ // ---------------------------------------------------------------------------
+ // Near-field exclusion radius (squared), in device constant memory.
+ //
+@@ -104,6 +141,30 @@ accumStokesFactored(double ir, double q,
+   }
+ }
+ 
++// fp32 twin of accumStokesFactored, used by the WIDEBVH_FP32_LEVEL >= 1 M2P and
++// the level >= 2 P2P. Same algebra, fmaf for fma, the RPY constant rounded to
++// fp32 once. Overload resolution is unambiguous: every fp64 call site passes
++// all-double arguments.
++__device__ __forceinline__ void
++accumStokesFactored(float ir, float q,
++                    float Rx, float Ry, float Rz,
++                    float fx, float fy, float fz,
++                    float &u0, float &u1, float &u2)
++{
++  if constexpr (!RPY_ON) {
++    u0 = fmaf(ir, fmaf(Rx, q, fx), u0);
++    u1 = fmaf(ir, fmaf(Ry, q, fy), u1);
++    u2 = fmaf(ir, fmaf(Rz, q, fz), u2);
++  } else {
++    const float ir3 = ir * (ir * ir);
++    const float A   = fmaf((float)RPY_C, ir3, ir);               // 1/r + c/r^3
++    const float Bq  = fmaf(-3.0f * (float)RPY_C, ir3, ir) * q;   // (1/r - 3c/r^3) q
++    u0 = fmaf(A, fx, fmaf(Bq, Rx, u0));
++    u1 = fmaf(A, fy, fmaf(Bq, Ry, u1));
++    u2 = fmaf(A, fz, fmaf(Bq, Rz, u2));
++  }
++}
++
+ // Direct Oseen pair contribution: u += f/r + R (R.f)/r^3, R = T - src. UNSCALED:
+ // the 1/(8*pi*mu) prefactor is applied ONCE by the caller after the warp reduce
+ // (same convention as the M2P far field, e.g. bary_stokes.cuh::m2pWarp), so it is
+@@ -167,6 +228,31 @@ __device__ inline void p2p(vec3d T, vec3d src, ForceVec f, double u[3])
+   accumStokesFactored(ir, q, Rx, Ry, Rz, fx, fy, fz, u[0], u[1], u[2]);
+ }
+ 
++// ALL-fp32 pair kernel for the WIDEBVH_FP32_LEVEL >= 2 near field
++// (treecode.cuh::p2pAtomicKernel32): fp32 bucket coordinates
++// (Treecode::points()/targetPoints()), fp32 forces, fp32 rsqrtf (no Newton
++// step: ~2 ulp), fp32 accumulation. Same self / near-cutoff skips as the two
++// overloads above, using the fp32 cutoff constant.
++//
++// On the near/far boundary: r^2 here carries the fp32 quantization of the
++// bucket coordinates (~1e-5 relative at r = 6 in a ~1000-wide box), so a pair
++// within that band of rc can land on the other side of the split than the fp64
++// overload puts it. That is the same band in which the caller's own fp32
++// neighbour search (NeMO's Warp hash grid) already disagrees with the fp64
++// test, so the level-2 partition is no less consistent with the near-field
++// operator than level 0's -- see the report cited at WIDEBVH_FP32_LEVEL.
++__device__ __forceinline__ void p2p32(vec3f T, vec3f src, vec3f f, float u[3])
++{
++  const vec3f R = T - src;
++  const float r2 = cuBQL::dot(R, R);
++  if (r2 == 0.f) return;                    // skip self / coincident
++  if (r2 < c_nearCut2f) return;             // owned by the near-field operator
++  const float ir  = rsqrtf(r2);
++  const float rdf = fmaf(R.x, f.x, fmaf(R.y, f.y, R.z * f.z));
++  const float q   = rdf * (ir * ir);        // (R.f)/r^2, shared across components
++  accumStokesFactored(ir, q, R.x, R.y, R.z, f.x, f.y, f.z, u[0], u[1], u[2]);
++}
++
+ // Target-normal-contracted traction pair (single-layer traction / stresslet
+ // with the normal at the TARGET): t_i += R_i * (R.q) * (R.n) / r^5, R = T-src,
+ // n = outward normal at the target. UNSCALED: the caller multiplies by
+diff --git a/src/treecode.cuh b/src/treecode.cuh
+index f909d08..63a7290 100644
+--- a/src/treecode.cuh
++++ b/src/treecode.cuh
+@@ -104,6 +104,12 @@ using cuBQL::bvh3f;
+ #include "bary_stokes.cuh"
+ #include "spherical_stokes.cuh"
+ 
++// Per-target far-field accumulator of the warp-specialized traversal
++// (traverseSplitWarpSpecBody's s_results): fp32 on the WIDEBVH_FP32_LEVEL >= 1
++// path so that no per-node fp64 operation survives between m2pWarp and the
++// once-per-target widening to the fp64 output; double otherwise (unchanged).
++using FarAcc = std::conditional_t<(stokes::FP32_LEVEL >= 1), float, double>;
++
+ // Target-skeleton ID build for the TC_PATH=skel path (host-side, one-time per
+ // apply; needs HostClock/elapsed_ms, so it is included after them below).
+ 
+@@ -402,7 +408,7 @@ __global__ void traverseM2PKernel_Warp(bvh3f bvh,
+         (xoverThresh <= 0 || __ldg(&nodeCount[nid]) >= xoverThresh);
+     if (doM2P) {
+       const vec3f c(nm.cx, nm.cy, nm.cz);
+-      vec3d du;
++      typename MP::FarVec du;
+       if constexpr (MP::WANTS_FP64_TARGET)
+         du = MP::template m2pWarp<ORDER>(
+             m2pArr[nid], c, mp::sph::d_tgt64_gs[tid], lane, mask);
+@@ -510,7 +516,7 @@ __global__ void traverseM2POnlyKernel_Warp(
+         (xoverThresh <= 0 || __ldg(&nodeCount[nid]) >= xoverThresh);
+     if (doM2P) {
+       const vec3f c(nm.cx, nm.cy, nm.cz);
+-      vec3d du;
++      typename MP::FarVec du;
+       if constexpr (MP::WANTS_FP64_TARGET)
+         du = MP::template m2pWarp<ORDER>(
+             m2pArr[nid], c, mp::sph::d_tgt64_gs[tid], lane, mask);
+@@ -840,7 +846,7 @@ __global__ void traverseWarpSpecKernel(
+       if (kind == TC_INTERACTION_M2P) {
+         const auto &nm = macArr[nid];
+         const vec3f c(nm.cx, nm.cy, nm.cz);
+-        vec3d du;
++        typename MP::FarVec du;
+         if constexpr (MP::WANTS_FP64_TARGET)
+           du = MP::template m2pWarp<ORDER>(m2pArr[nid], c,
+               mp::sph::d_tgt64_gs[blockIdx.x * TARGETS_PER_BLOCK + tgtLocal],
+@@ -974,7 +980,9 @@ traverseSplitWarpSpecBody(
+ 
+   __shared__ vec3f  s_targetPos[TARGETS_PER_BLOCK];
+   __shared__ int    s_targetOwner[TARGETS_PER_BLOCK];
+-  __shared__ double s_results[TARGETS_PER_BLOCK][3];
++  // FarAcc: fp64, or fp32 on the WIDEBVH_FP32_LEVEL >= 1 path (native shared
++  // fp32 atomics instead of the CAS+DADD loop an fp64 shared atomicAdd is).
++  __shared__ FarAcc s_results[TARGETS_PER_BLOCK][3];
+   __shared__ int    s_qTarget[QUEUE_CAP];
+   __shared__ int    s_qNode[QUEUE_CAP];
+   __shared__ int    s_qTail;
+@@ -996,9 +1004,9 @@ traverseSplitWarpSpecBody(
+       s_targetPos[threadIdx.x]   = vec3f(0.f, 0.f, 0.f);
+       s_targetOwner[threadIdx.x] = -1;
+     }
+-    s_results[threadIdx.x][0] = 0.0;
+-    s_results[threadIdx.x][1] = 0.0;
+-    s_results[threadIdx.x][2] = 0.0;
++    s_results[threadIdx.x][0] = FarAcc(0);
++    s_results[threadIdx.x][1] = FarAcc(0);
++    s_results[threadIdx.x][2] = FarAcc(0);
+   }
+   if (threadIdx.x == 0) {
+     s_qTail        = 0;
+@@ -1178,9 +1186,9 @@ traverseSplitWarpSpecBody(
+         const vec3f c(nm.cx, nm.cy, nm.cz);
+         const vec3d du = MP::template m2p<ORDER>(m2pArr[nid], c,
+                                                  s_targetPos[myT]);
+-        atomicAdd(&s_results[myT][0], (double)pref * du.x);
+-        atomicAdd(&s_results[myT][1], (double)pref * du.y);
+-        atomicAdd(&s_results[myT][2], (double)pref * du.z);
++        atomicAdd(&s_results[myT][0], (FarAcc)((double)pref * du.x));
++        atomicAdd(&s_results[myT][1], (FarAcc)((double)pref * du.y));
++        atomicAdd(&s_results[myT][2], (FarAcc)((double)pref * du.z));
+       }
+     }
+   } else {
+@@ -1214,7 +1222,7 @@ traverseSplitWarpSpecBody(
+       const uint32_t nid = (uint32_t)nidEnc;
+       const auto &nm     = macArr[nid];
+       const vec3f c(nm.cx, nm.cy, nm.cz);
+-      vec3d du;
++      typename MP::FarVec du;
+       if constexpr (MP::WANTS_FP64_TARGET)
+         du = MP::template m2pWarp<ORDER>(m2pArr[nid], c,
+             mp::sph::d_tgt64_gs[blockIdx.x * TARGETS_PER_BLOCK + tgtLocal],
+@@ -1223,9 +1231,12 @@ traverseSplitWarpSpecBody(
+         du = MP::template m2pWarp<ORDER>(m2pArr[nid], c, s_targetPos[tgtLocal],
+             lane, 0xffffffffu);
+       if (lane == 0) {
+-        atomicAdd(&s_results[tgtLocal][0], (double)pref * (double)du.x);
+-        atomicAdd(&s_results[tgtLocal][1], (double)pref * (double)du.y);
+-        atomicAdd(&s_results[tgtLocal][2], (double)pref * (double)du.z);
++        // Level 0: (double)pref * (double)du -- unchanged. Level >= 1: FarVec
++        // and FarAcc are both float, so this is one FMUL and a native shared
++        // fp32 atomic per component.
++        atomicAdd(&s_results[tgtLocal][0], (FarAcc)pref * (FarAcc)du.x);
++        atomicAdd(&s_results[tgtLocal][1], (FarAcc)pref * (FarAcc)du.y);
++        atomicAdd(&s_results[tgtLocal][2], (FarAcc)pref * (FarAcc)du.z);
+       }
+     }
+   }
+@@ -1236,9 +1247,10 @@ traverseSplitWarpSpecBody(
+   if (threadIdx.x < TARGETS_PER_BLOCK) {
+     const int gid = blockIdx.x * TARGETS_PER_BLOCK + threadIdx.x;
+     if (gid < N) {
+-      potential[(size_t)0 * (size_t)N + (size_t)gid] = s_results[threadIdx.x][0];
+-      potential[(size_t)1 * (size_t)N + (size_t)gid] = s_results[threadIdx.x][1];
+-      potential[(size_t)2 * (size_t)N + (size_t)gid] = s_results[threadIdx.x][2];
++      // The one fp32 -> fp64 widening per target on the fp32 path.
++      potential[(size_t)0 * (size_t)N + (size_t)gid] = (double)s_results[threadIdx.x][0];
++      potential[(size_t)1 * (size_t)N + (size_t)gid] = (double)s_results[threadIdx.x][1];
++      potential[(size_t)2 * (size_t)N + (size_t)gid] = (double)s_results[threadIdx.x][2];
+     }
+   }
+ }
+@@ -1525,7 +1537,7 @@ __global__ void skelM2PEvalKernel(
+     const int nid = nodeList[k];
+     const auto &nm = macArr[nid];
+     const vec3f c(nm.cx, nm.cy, nm.cz);
+-    const vec3d du =
++    const auto du =
+         MP::template m2pWarp<ORDER>(m2pArr[nid], c, T, lane, mask);
+     if (lane == 0) { u0 += du.x; u1 += du.y; u2 += du.z; }
+   }
+@@ -1564,7 +1576,7 @@ __global__ void skelFullEvalKernel(
+     const int nid = nodeList[k];
+     const auto &nm = macArr[nid];
+     const vec3f c(nm.cx, nm.cy, nm.cz);
+-    const vec3d du =
++    const auto du =
+         MP::template m2pWarp<ORDER>(m2pArr[nid], c, T, lane, mask);
+     if (lane == 0) { u0 += du.x; u1 += du.y; u2 += du.z; }
+   }
+@@ -1923,6 +1935,79 @@ __global__ void p2pAtomicKernel(bvh3f bvh,
+   }
+ }
+ 
++#if WIDEBVH_FP32_LEVEL >= 2
++// ALL-fp32 twin of p2pAtomicKernel (WIDEBVH_FP32_LEVEL >= 2, see
++// stokes_kernel.cuh): fp32 bucket coordinates for sources and targets, an fp32
++// copy of the gathered forces, stokes::p2p32 per interaction, fp32 lane
++// accumulators, cub::WarpReduce<float>, and native fp32 global atomics into a
++// per-apply zeroed scratch `near32` (component-major [3*N]) that
++// scatterCompToInputOrderFoldKernel adds onto the fp64 far field. Same pair
++// list, same leaf -> bucket lookup, same skips as the fp64 kernel above.
++__global__ void p2pAtomicKernel32(bvh3f bvh,
++                                  const int *bucketBegin, const int *bucketEnd,
++                                  const vec3f *srcPos, const vec3f *srcForce,
++                                  const vec3f *tgtPos,
++                                  const int *srcOwner, const int *targetOwner,
++                                  const int *pairTarget, const int *pairLeaf,
++                                  const int *nodeDfsFirst, const int *nodeBucketCount,
++                                  const int *dfsBuckets,
++                                  int nPairs, float pref, int skipSameGroup,
++                                  int N, float *near32)
++{
++  typedef cub::WarpReduce<float> WarpReduce;
++  __shared__ typename WarpReduce::TempStorage temp[P2P_WARPS][3];
++
++  const int lane      = threadIdx.x & 31;
++  const int warpInBlk = threadIdx.x >> 5;
++  const long long w   =
++      (((long long)blockIdx.x * (long long)blockDim.x) + threadIdx.x) >> 5;
++  if (w >= nPairs) return;
++
++  const int target = pairTarget[(size_t)w];
++  const int node   = pairLeaf[(size_t)w];
++  const vec3f T   = tgtPos[target];
++  const int tgtOwner = (skipSameGroup && targetOwner) ? targetOwner[target] : -1;
++
++  float u[3] = {0.f, 0.f, 0.f};
++  if (dfsBuckets) {
++    const int first = nodeDfsFirst[node];
++    const int nb    = nodeBucketCount[node];
++    for (int b = 0; b < nb; ++b) {
++      const int bid   = dfsBuckets[first + b];
++      const int begin = bucketBegin[bid];
++      const int end   = bucketEnd[bid];
++      for (int src = begin + lane; src < end; src += 32) {
++        if (skipSameGroup && srcOwner && tgtOwner >= 0 &&
++            srcOwner[src] == tgtOwner)
++          continue;
++        stokes::p2p32(T, srcPos[src], srcForce[src], u);
++      }
++    }
++  } else {
++    const auto nd = bvh.nodes[(uint32_t)node];
++    assert(nd.admin.count == 1);
++    const uint32_t bid = bvh.primIDs[nd.admin.offset];
++    const int begin = bucketBegin[bid];
++    const int cnt   = bucketEnd[bid] - begin;
++    for (int j = lane; j < cnt; j += 32) {
++      const int src = begin + j;
++      if (skipSameGroup && srcOwner && tgtOwner >= 0 && srcOwner[src] == tgtOwner)
++        continue;
++      stokes::p2p32(T, srcPos[src], srcForce[src], u);
++    }
++  }
++
++  const float s0 = WarpReduce(temp[warpInBlk][0]).Sum(u[0]);
++  const float s1 = WarpReduce(temp[warpInBlk][1]).Sum(u[1]);
++  const float s2 = WarpReduce(temp[warpInBlk][2]).Sum(u[2]);
++  if (lane == 0) {
++    atomicAdd(&near32[(size_t)0 * (size_t)N + (size_t)target], pref * s0);
++    atomicAdd(&near32[(size_t)1 * (size_t)N + (size_t)target], pref * s1);
++    atomicAdd(&near32[(size_t)2 * (size_t)N + (size_t)target], pref * s2);
++  }
++}
++#endif  // WIDEBVH_FP32_LEVEL >= 2
++
+ 
+ // ---- structured leaf-centric near field (TC_SRC_TEMPLATE, atomic path) --------
+ // Group the emitted (target, leaf) pairs by object id via a counting sort. In
+@@ -2039,6 +2124,15 @@ struct SourceForceGatherF {
+   }
+ };
+ 
++// fp64 -> fp32 force narrowing for the WIDEBVH_FP32_LEVEL >= 2 near field when
++// the caller supplied fp64 forces (the drivers; NeMO passes fp32).
++struct NarrowForceD2F {
++  __host__ __device__ vec3f operator()(const vec3d &f) const
++  {
++    return vec3f((float)f.x, (float)f.y, (float)f.z);
++  }
++};
++
+ struct SourceForceGatherD {
+   const vec3d *force;
+   __host__ __device__ vec3d operator()(uint32_t originalIndex) const
+@@ -2104,6 +2198,26 @@ __global__ void scatterCompToInputOrderKernel(const double *bucketVel,
+       bucketVel[(size_t)2 * (size_t)nTargets + (size_t)i];
+ }
+ 
++#if WIDEBVH_FP32_LEVEL >= 2
++// Same permutation, plus the fp32 near-field scratch of p2pAtomicKernel32
++// folded onto the fp64 far field on the way out (one widening per component
++// per target).
++__global__ void scatterCompToInputOrderFoldKernel(const double *bucketVel,
++                                                  const float *near32,
++                                                  const uint32_t *targetPerm,
++                                                  int nTargets,
++                                                  double *outVel)
++{
++  const int i = blockIdx.x * blockDim.x + threadIdx.x;
++  if (i >= nTargets) return;
++  const size_t original = (size_t)targetPerm[i];
++  const size_t nT = (size_t)nTargets;
++  outVel[0 * nT + original] = bucketVel[0 * nT + (size_t)i] + (double)near32[0 * nT + (size_t)i];
++  outVel[1 * nT + original] = bucketVel[1 * nT + (size_t)i] + (double)near32[1 * nT + (size_t)i];
++  outVel[2 * nT + original] = bucketVel[2 * nT + (size_t)i] + (double)near32[2 * nT + (size_t)i];
++}
++#endif  // WIDEBVH_FP32_LEVEL >= 2
++
+ // ======================================================================
+ //  Node-range crossover: build-time DFS bucket ordering (engine-owned).
+ //
+@@ -2862,6 +2976,12 @@ private:
+   util::GridBuckets            buckets_;
+   util::GridBuckets            targetBuckets_;
+   thrust::device_vector<vec3d> force_;
++  // WIDEBVH_FP32_LEVEL >= 2 only (empty otherwise): fp32 copy of the gathered
++  // forces for p2pAtomicKernel32, and its per-apply fp32 near-field scratch
++  // (component-major [3*nTarget], zeroed in evaluateCurrent, folded into the
++  // fp64 output by scatterToInputOrder).
++  thrust::device_vector<vec3f> force32_;
++  thrust::device_vector<float> velNear32_;
+   thrust::device_vector<int>   sourceOwner_;
+   thrust::device_vector<int>   targetOwner_;
+   thrust::device_vector<double> velBucket_;
+@@ -3225,6 +3345,8 @@ void Treecode<MP>::freeBuild()
+   buckets_ = util::GridBuckets{};
+   targetBuckets_ = util::GridBuckets{};
+   releaseDeviceVector(force_);
++  releaseDeviceVector(force32_);
++  releaseDeviceVector(velNear32_);
+   releaseDeviceVector(sourceOwner_);
+   releaseDeviceVector(targetOwner_);
+   releaseDeviceVector(velBucket_);
+@@ -3619,6 +3741,11 @@ void Treecode<MP>::upwardPass(const vec3f *d_force)
+   auto t0 = HostClock::now();
+   thrust::transform(buckets_.perm.begin(), buckets_.perm.end(),
+                     force_.begin(), SourceForceGatherF{d_force});
++#if WIDEBVH_FP32_LEVEL >= 2
++  force32_.resize(nSource_);
++  thrust::gather(buckets_.perm.begin(), buckets_.perm.end(),
++                 thrust::device_pointer_cast(d_force), force32_.begin());
++#endif
+   // Stream-scoped sync (NOT cudaDeviceSynchronize): this wait exists only to
+   // host-clock the phase, and all engine work runs on the legacy default
+   // stream, so syncing stream 0 times exactly the same work. A device-wide
+@@ -3666,6 +3793,11 @@ void Treecode<MP>::upwardPass(const vec3d *d_force)
+   auto t0 = HostClock::now();
+   thrust::transform(buckets_.perm.begin(), buckets_.perm.end(),
+                     force_.begin(), SourceForceGatherD{d_force});
++#if WIDEBVH_FP32_LEVEL >= 2
++  force32_.resize(nSource_);
++  thrust::transform(force_.begin(), force_.end(), force32_.begin(),
++                    NarrowForceD2F{});
++#endif
+   // Stream-scoped sync (NOT cudaDeviceSynchronize): this wait exists only to
+   // host-clock the phase, and all engine work runs on the legacy default
+   // stream, so syncing stream 0 times exactly the same work. A device-wide
+@@ -4517,6 +4649,21 @@ void Treecode<MP>::runP2PAtomic(double *d_velBucket)
+   const int nT = (int)nTarget_;
+ 
+   const long long grid2 = ((long long)nPairs_ + P2P_WARPS - 1) / P2P_WARPS;
++#if WIDEBVH_FP32_LEVEL >= 2
++  // fp32 near field into the per-apply scratch (zeroed in evaluateCurrent);
++  // d_velBucket keeps only the far field until scatterToInputOrder folds them.
++  (void)d_velBucket;
++  assert(velNear32_.size() == (size_t)3 * nTarget_);
++  assert(force32_.size() == nSource_);
++  p2pAtomicKernel32<<<(unsigned)grid2, P2P_BLOCK>>>(
++      bvh_, util::devicePtr(buckets_.begin), util::devicePtr(buckets_.end),
++      points(), util::devicePtr(force32_),
++      targetPoints(), sourceOwnerPtr(), targetOwnerPtr(),
++      util::devicePtr(sortedTarget_), util::devicePtr(sortedLeaf_),
++      nodeDfsFirstPtr(), nodeBucketCountPtr(), dfsBucketsPtr(),
++      nPairs_, stokes::prefactor(), skipSameGroupFlag(), nT,
++      util::devicePtr(velNear32_));
++#else
+   p2pAtomicKernel<<<(unsigned)grid2, P2P_BLOCK>>>(
+       bvh_, util::devicePtr(buckets_.begin), util::devicePtr(buckets_.end),
+       points64(), util::devicePtr(force_),
+@@ -4524,6 +4671,7 @@ void Treecode<MP>::runP2PAtomic(double *d_velBucket)
+       util::devicePtr(sortedTarget_), util::devicePtr(sortedLeaf_),
+       nodeDfsFirstPtr(), nodeBucketCountPtr(), dfsBucketsPtr(),
+       nPairs_, stokes::prefactor(), skipSameGroupFlag(), nT, d_velBucket);
++#endif
+   CUDA_CHECK(cudaGetLastError());
+ }
+ 
+@@ -5024,9 +5172,20 @@ void Treecode<MP>::scatterToInputOrder(double *d_outInputOrder)
+   const int block = ELEMENTWISE_BLOCK;
+   const int nT = (int)nTarget_;
+   const int grid = (nT + block - 1) / block;
++#if WIDEBVH_FP32_LEVEL >= 2
++  // The fp32 near-field scratch exists (zeroed) on every evaluateCurrent, and
++  // is non-zero only after p2pAtomicKernel32 ran; paths that still evaluate
++  // their P2P in fp64 straight into velBucket_ (split-warp, split-warpspec,
++  // double-traverse, direct-warpspec, structured, skel) fold zeros.
++  assert(velNear32_.size() == (size_t)3 * nTarget_);
++  scatterCompToInputOrderFoldKernel<<<grid, block>>>(
++      util::devicePtr(velBucket_), util::devicePtr(velNear32_),
++      util::devicePtr(targetPermVector()), nT, d_outInputOrder);
++#else
+   scatterCompToInputOrderKernel<<<grid, block>>>(
+       util::devicePtr(velBucket_), util::devicePtr(targetPermVector()),
+       nT, d_outInputOrder);
++#endif
+   CUDA_CHECK(cudaGetLastError());
+ }
+ 
+@@ -5052,6 +5211,14 @@ void Treecode<MP>::evaluateCurrent(bool rebuildP2P, double *d_velOut)
+ 
+   velBucket_.resize((size_t)3 * nTarget_);
+   double *d_velBucket = util::devicePtr(velBucket_);
++#if WIDEBVH_FP32_LEVEL >= 2
++  // fp32 near-field scratch for p2pAtomicKernel32: zeroed ONCE per evaluation
++  // (apply and reapply alike), before any traversal or tile, so the tiled
++  // fallback's per-tile runP2PAtomic calls accumulate into it correctly.
++  velNear32_.resize((size_t)3 * nTarget_);
++  CUDA_CHECK(cudaMemsetAsync(util::devicePtr(velNear32_), 0,
++                             sizeof(float) * (size_t)3 * nTarget_, 0));
++#endif
+ 
+   thrust::device_vector<int> pairTarget;
+   thrust::device_vector<int> pairLeaf;

@@ -1,0 +1,48 @@
+{
+  "ttonly": {
+    "blocks": {
+      "N": 150,
+      "fro_total": 1.4220176158188609,
+      "fro_TT": 1.4148954005227357,
+      "fro_RT": 0.10018004373651028,
+      "fro_TR": 0.10018004373651028,
+      "fro_RR": 0.011533557676013202,
+      "sym_check": 2.3319798875109357e-17,
+      "frac_dropped": 0.09995984692989936
+    },
+    "loadings": [
+      {
+        "config": "tmp/uniform_sphere_0.1_800.csv",
+        "N": 800,
+        "rel_err_U": 0.003250196984336637,
+        "rel_err_Omega": 1.0,
+        "far_Omega_norm": 2.012197692665165,
+        "far_U_norm": 79.15770117263975,
+        "omega_from_force_norm": 2.011718524791373,
+        "omega_from_torque_norm": 0.029003215858658355,
+        "u_from_torque_norm": 0.25727812163833436,
+        "u_from_force_norm": 79.16383048477155,
+        "u_near_norm": 14.628464637202727,
+        "omega_near_norm": 1.7156008638169604,
+        "omega_far_over_near": 1.1728821867041497,
+        "u_far_over_near": 5.4112104814696655
+      },
+      {
+        "config": "tmp/uniform_large_0.1_10000.csv",
+        "N": 10000,
+        "rel_err_U": 0.0008005153932722749,
+        "rel_err_Omega": 1.0,
+        "far_Omega_norm": 11.327715208037889,
+        "far_U_norm": 1349.1501707730088,
+        "omega_from_force_norm": 11.326890056934577,
+        "omega_from_torque_norm": 0.09945200690176499,
+        "u_from_torque_norm": 1.080015479539712,
+        "u_from_force_norm": 1349.1194691043827,
+        "u_near_norm": 29.81903260251707,
+        "omega_near_norm": 6.512716255407085,
+        "omega_far_over_near": 1.7393226979040002,
+        "u_far_over_near": 45.244598936423074
+      }
+    ]
+  }
+}

@@ -245,8 +245,8 @@ def generate_dataset_spheroid(shape, N_data, a, b, c,
       force_on_two: If True, force is applied on spheroid #2, else on #1.
     """
     acc = "fine"
-    boundary1 = np.loadtxt(f'/home/shihab/src/mfs/points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
-    source1 = np.loadtxt(f'/home/shihab/src/mfs/points/s_{shape}_{acc}.txt', dtype=np.float64)  # source points
+    boundary1 = np.loadtxt(f'data/points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
+    source1 = np.loadtxt(f'data/points/s_{shape}_{acc}.txt', dtype=np.float64)  # source points
     print(f"N={boundary1.shape[0]} boundary nodes, M={source1.shape[0]} source points")
 
     B_orig = build_B(boundary1, source1, np.zeros(3))

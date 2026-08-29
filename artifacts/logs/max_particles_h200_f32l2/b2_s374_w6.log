@@ -1,0 +1,114 @@
+Warp 1.12.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /workspace/.cache/warp
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 197479440
+n_side=374  N=52,313,624  phi=0.1  a=3.472931  fp32_level=2  expandable_segments=True
+gpu=NVIDIA H200  total=139.80 GiB
+lattice built in 0.09 s, extent -647.9 .. 647.9
+[MobFMM] far-field FMM GPU time: 3928.184 ms
+Building spatial grid for neighbor search...
+Positions shape: (52313624,)
+Counting neighbors per particle...
+    Module src.hashgrid_neighbors 86a8751 load on device 'cuda:0' took 1.18 ms  (cached)
+Total near-field pairs found: 1123427638
+Collecting neighbor edge indexes...
+Warp::HashGrid took 239.61 ms
+no of NN interactions: 1123427638
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_mob_2b.py", line 104, in forward
+    contribution = torch.zeros_like(force)
+[Mob_Nbody] Base velocity compute time: 7366.957 ms
+W0822 21:16:09.641000 15380 torch/_logging/_internal.py:1154] [1/0] Profiler function <class 'torch.autograd.profiler.record_function'> will be ignored
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 125, in forward
+    return self.parent._nbody_chunk_velocity(
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 279, in _nbody_chunk_velocity
+    top_k_indices, neighbor_mask = self.get_k_per_pair(
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 220, in get_k_per_pair
+    candidate_mask = torch.cat([topk_mask[t_idx], topk_mask[s_idx]], dim=1)
+[Mob_Nbody] Post-base path time: 14632.173 ms
+[MobFMM] peak GPU memory: allocated 112227.90 MB, reserved 125782.00 MB
+[MobFMM] near-field construction: 240.202 ms
+[MobFMM] near-field operator time: 21999.504 ms
+[MobFMM] overall Nearfield time: 22,259.711 ms
+[MobFMM] near-field particles updates per sec: 2,350,148.40
+[MobFMM] total GPU time: 26200.852 ms
+[MobFMM] total particles updates per sec: 1,996,638.31
+COLD apply: 26.20 s
+[MobFMM] far-field FMM GPU time: 3915.565 ms
+Building spatial grid for neighbor search...
+Positions shape: (52313624,)
+Counting neighbors per particle...
+Total near-field pairs found: 1123427638
+Collecting neighbor edge indexes...
+Warp::HashGrid took 176.34 ms
+no of NN interactions: 1123427638
+[Mob_Nbody] Base velocity compute time: 1862.539 ms
+[Mob_Nbody] Post-base path time: 8391.146 ms
+[MobFMM] peak GPU memory: allocated 113425.26 MB, reserved 126982.00 MB
+[MobFMM] near-field construction: 176.624 ms
+[MobFMM] near-field operator time: 10253.930 ms
+[MobFMM] overall Nearfield time: 10,432.728 ms
+[MobFMM] near-field particles updates per sec: 5,014,376.52
+[MobFMM] total GPU time: 14351.103 ms
+[MobFMM] total particles updates per sec: 3,645,268.64
+WARM apply 1/6: 14.35 s
+[MobFMM] far-field FMM GPU time: 3914.953 ms
+Building spatial grid for neighbor search...
+Positions shape: (52313624,)
+Counting neighbors per particle...
+Total near-field pairs found: 1123427638
+Collecting neighbor edge indexes...
+Warp::HashGrid took 176.14 ms
+no of NN interactions: 1123427638
+[Mob_Nbody] Base velocity compute time: 1861.348 ms
+[Mob_Nbody] Post-base path time: 8392.093 ms
+[MobFMM] peak GPU memory: allocated 113425.26 MB, reserved 128182.00 MB
+[MobFMM] near-field construction: 176.402 ms
+[MobFMM] near-field operator time: 10253.623 ms
+[MobFMM] overall Nearfield time: 10,432.150 ms
+[MobFMM] near-field particles updates per sec: 5,014,653.93
+[MobFMM] total GPU time: 14349.600 ms
+[MobFMM] total particles updates per sec: 3,645,650.43
+WARM apply 2/6: 14.35 s
+[MobFMM] far-field FMM GPU time: 3914.500 ms
+Building spatial grid for neighbor search...
+Positions shape: (52313624,)
+Counting neighbors per particle...
+Total near-field pairs found: 1123427638
+Collecting neighbor edge indexes...
+Warp::HashGrid took 176.23 ms
+no of NN interactions: 1123427638
+[Mob_Nbody] Base velocity compute time: 1858.487 ms
+[Mob_Nbody] Post-base path time: 8389.856 ms
+[MobFMM] peak GPU memory: allocated 113425.26 MB, reserved 134162.00 MB
+[MobFMM] near-field construction: 176.490 ms
+[MobFMM] near-field operator time: 10248.533 ms
+[MobFMM] overall Nearfield time: 10,427.153 ms
+[MobFMM] near-field particles updates per sec: 5,017,057.14
+[MobFMM] total GPU time: 14345.304 ms
+[MobFMM] total particles updates per sec: 3,646,742.17
+WARM apply 3/6: 14.35 s
+Traceback (most recent call last):
+  File "/workspace/pinn-stokes/benchmarks/max_particles.py", line 162, in main
+    vel = op.apply(positions, orientations, forces, vis)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/pinn-stokes/src/treecode.py", line 504, in apply
+    far_vel = self.get_far_field_vel(positions, force3d)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/pinn-stokes/src/treecode_widebvh.py", line 506, in get_far_field_vel
+    self._check(self._lib.wbnemo_apply(
+  File "/workspace/pinn-stokes/src/treecode_widebvh.py", line 441, in _check
+    raise RuntimeError(
+RuntimeError: widebvh error (rc=1): std::bad_alloc: cudaErrorMemoryAllocation: out of memory
+FAILED after cold_ok=True warm_ok=3: RuntimeError: widebvh error (rc=1): std::bad_alloc: cudaErrorMemoryAllocation: out of memory
+RESULT n_side=374 N=52313624 cold=ok warm_ok=3/6 warm_s=14.35,14.35,14.35 torch_alloc_gib=110.77 torch_reserved_gib=131.02 proc_mb=142556.0 gpu_used_mb_now=142565.0 fp32_level=2 finite=1 transverse/axial=1.22e-08 fail="RuntimeError: widebvh error (rc=1): std::bad_alloc: cudaErrorMemoryAllocation: out of memory"
+exit=2
+peak_gpu_used_mb=141965

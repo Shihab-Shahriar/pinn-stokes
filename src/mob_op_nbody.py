@@ -9,6 +9,7 @@ from typing import List, Sequence, Tuple
 import numpy as np
 import torch
 
+from src.model_archs import MultiBodyCorrection
 
 EPS = 1e-12
 
@@ -82,10 +83,32 @@ class Mob_Op_Nbody(TwoBodyNNMob):
 			switch_dist=switch_dist,
 		)
 
-		self.nbody_nn = torch.jit.load(nbody_nn_path, map_location=self.device).eval()
+		self.nbody_nn = self._load_nbody_model(nbody_nn_path, mean_dist_s)
 		self.max_neighbors = int(max_neighbors)
 		self.neighbor_cutoff = float(neighbor_cutoff)
 		self.mean_dist_s = float(mean_dist_s)
+
+	def _load_nbody_model(
+		self,
+		model_path: str,
+		mean_dist_s: float,
+	):
+		if model_path.endswith(".pt"):
+			return torch.jit.load(model_path, map_location=self.device).eval()
+
+		if model_path.endswith(".wt"):
+			median_2b = 5.008307682776568
+			state_dict = torch.load(model_path, map_location=self.device, weights_only=True)
+			two_nn_keys = [k for k in state_dict if k.startswith("two_nn.")]
+			for key in two_nn_keys:
+				del state_dict[key]
+			model = MultiBodyCorrection(114, median_2b, float(mean_dist_s), 33).to(self.device)
+			model.load_state_dict(state_dict)
+			return model.eval()
+
+		raise ValueError(
+			f"Unsupported n-body model format for '{model_path}'. Expected '.pt' or '.wt'."
+		)
 
 	# ------------------------------------------------------------------
 	# Feature construction helpers

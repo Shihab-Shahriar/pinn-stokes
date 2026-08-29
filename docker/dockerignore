@@ -1,0 +1,28 @@
+# Copied to the build-context root as .dockerignore by docker/pack_context.sh.
+# That script already filters, so this is belt and braces — it mainly keeps a
+# stray local build or cache from silently inflating the context.
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.ipynb_checkpoints
+**/.git
+**/.gitignore
+**/.pytest_cache
+widebvh/build-*
+widebvh/data
+widebvh/distros
+widebvh/results
+widebvh/profiles
+widebvh/archive
+warp/_build
+warp/warp/bin/*.so
+pinn-stokes/figures
+pinn-stokes/experiments
+pinn-stokes/artifacts
+pinn-stokes/nemo.pdf
+pinn-stokes/data/multibody*
+pinn-stokes/data/simulations
+pinn-stokes/data/archive
+pinn-stokes/.matplotlib_cache
+pinn-stokes/.cache
+pinn-stokes/.tmp

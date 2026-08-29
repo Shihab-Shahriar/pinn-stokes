@@ -1,0 +1,61 @@
+Warp 1.12.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /workspace/.cache/warp
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 302904416
+n_side=385  N=57,066,625  phi=0.1  a=3.472931  fp32_level=2  expandable_segments=True
+gpu=NVIDIA H200  total=139.80 GiB
+lattice built in 0.09 s, extent -667.0 .. 667.0
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=243665695, budget/tile=225164820 pairs)
+[MobFMM] far-field FMM GPU time: 11557.368 ms
+Building spatial grid for neighbor search...
+Positions shape: (57066625,)
+Counting neighbors per particle...
+    Module src.hashgrid_neighbors 86a8751 load on device 'cuda:0' took 0.88 ms  (cached)
+Total near-field pairs found: 1225660910
+Collecting neighbor edge indexes...
+Warp::HashGrid took 272.33 ms
+no of NN interactions: 1225660910
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_mob_2b.py", line 104, in forward
+    contribution = torch.zeros_like(force)
+[Mob_Nbody] Base velocity compute time: 7412.036 ms
+W0822 21:18:29.799000 15969 torch/_logging/_internal.py:1154] [1/0] Profiler function <class 'torch.autograd.profiler.record_function'> will be ignored
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 125, in forward
+    return self.parent._nbody_chunk_velocity(
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 279, in _nbody_chunk_velocity
+    top_k_indices, neighbor_mask = self.get_k_per_pair(
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 220, in get_k_per_pair
+    candidate_mask = torch.cat([topk_mask[t_idx], topk_mask[s_idx]], dim=1)
+[Mob_Nbody] Post-base path time: 15326.899 ms
+[MobFMM] peak GPU memory: allocated 122427.57 MB, reserved 137222.00 MB
+[MobFMM] near-field construction: 272.695 ms
+[MobFMM] near-field operator time: 22739.248 ms
+[MobFMM] overall Nearfield time: 23,032.000 ms
+[MobFMM] near-field particles updates per sec: 2,477,710.36
+[MobFMM] total GPU time: 34600.305 ms
+[MobFMM] total particles updates per sec: 1,649,309.90
+COLD apply: 34.60 s
+Traceback (most recent call last):
+  File "/workspace/pinn-stokes/benchmarks/max_particles.py", line 162, in main
+    vel = op.apply(positions, orientations, forces, vis)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/pinn-stokes/src/treecode.py", line 504, in apply
+    far_vel = self.get_far_field_vel(positions, force3d)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/pinn-stokes/src/treecode_widebvh.py", line 506, in get_far_field_vel
+    self._check(self._lib.wbnemo_apply(
+  File "/workspace/pinn-stokes/src/treecode_widebvh.py", line 441, in _check
+    raise RuntimeError(
+RuntimeError: widebvh error (rc=1): std::bad_alloc: cudaErrorMemoryAllocation: out of memory
+FAILED after cold_ok=True warm_ok=0: RuntimeError: widebvh error (rc=1): std::bad_alloc: cudaErrorMemoryAllocation: out of memory
+RESULT n_side=385 N=57066625 cold=ok warm_ok=0/4 warm_s=- torch_alloc_gib=119.56 torch_reserved_gib=134.01 proc_mb=139244.0 gpu_used_mb_now=139253.0 fp32_level=2 finite=1 transverse/axial=4.73e-09 fail="RuntimeError: widebvh error (rc=1): std::bad_alloc: cudaErrorMemoryAllocation: out of memory"
+exit=2
+peak_gpu_used_mb=139253

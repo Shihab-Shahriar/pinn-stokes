@@ -1,0 +1,106 @@
+spec=403|3||--empty-cache
+Warp 1.12.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /workspace/.cache/warp
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 965914192
+n_side=403  N=65,450,827  phi=0.1  a=3.472931  fp32_level=2  mem_fraction=None  expandable_segments=True
+gpu=NVIDIA H200  total=139.80 GiB
+lattice built in 0.09 s, extent -698.2 .. 698.2
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=271872984, budget/tile=225164820 pairs)
+[MobFMM] far-field FMM GPU time: 13356.797 ms
+Building spatial grid for neighbor search...
+Positions shape: (65450827,)
+Counting neighbors per particle...
+    Module src.hashgrid_neighbors 86a8751 load on device 'cuda:0' took 0.92 ms  (cached)
+Total near-field pairs found: 1406066368
+Collecting neighbor edge indexes...
+Warp::HashGrid took 317.78 ms
+no of NN interactions: 1406066368
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_mob_2b.py", line 104, in forward
+    contribution = torch.zeros_like(force)
+[Mob_Nbody] Base velocity compute time: 7671.178 ms
+W0822 21:34:07.898000 19064 torch/_logging/_internal.py:1154] [1/0] Profiler function <class 'torch.autograd.profiler.record_function'> will be ignored
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 125, in forward
+    return self.parent._nbody_chunk_velocity(
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 279, in _nbody_chunk_velocity
+    top_k_indices, neighbor_mask = self.get_k_per_pair(
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 220, in get_k_per_pair
+    candidate_mask = torch.cat([topk_mask[t_idx], topk_mask[s_idx]], dim=1)
+[Mob_Nbody] Post-base path time: 16669.385 ms
+[MobFMM] peak GPU memory: allocated 140420.88 MB, reserved 140522.00 MB
+[MobFMM] near-field construction: 318.223 ms
+[MobFMM] near-field operator time: 24340.863 ms
+[MobFMM] overall Nearfield time: 24,679.852 ms
+[MobFMM] near-field particles updates per sec: 2,651,994.35
+[MobFMM] total GPU time: 38051.996 ms
+[MobFMM] total particles updates per sec: 1,720,036.63
+COLD apply: 38.05 s
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=271872984, budget/tile=225164820 pairs)
+[MobFMM] far-field FMM GPU time: 13343.500 ms
+Building spatial grid for neighbor search...
+Positions shape: (65450827,)
+Counting neighbors per particle...
+Total near-field pairs found: 1406066368
+Collecting neighbor edge indexes...
+Warp::HashGrid took 247.88 ms
+no of NN interactions: 1406066368
+[Mob_Nbody] Base velocity compute time: 2453.287 ms
+[Mob_Nbody] Post-base path time: 10995.179 ms
+[MobFMM] peak GPU memory: allocated 140420.88 MB, reserved 140522.00 MB
+[MobFMM] near-field construction: 248.180 ms
+[MobFMM] near-field operator time: 13448.688 ms
+[MobFMM] overall Nearfield time: 13,703.908 ms
+[MobFMM] near-field particles updates per sec: 4,776,070.16
+[MobFMM] total GPU time: 27053.475 ms
+[MobFMM] total particles updates per sec: 2,419,313.15
+WARM apply 1/3: 27.05 s
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=271872984, budget/tile=225164820 pairs)
+[MobFMM] far-field FMM GPU time: 13342.627 ms
+Building spatial grid for neighbor search...
+Positions shape: (65450827,)
+Counting neighbors per particle...
+Total near-field pairs found: 1406066368
+Collecting neighbor edge indexes...
+Warp::HashGrid took 247.69 ms
+no of NN interactions: 1406066368
+[Mob_Nbody] Base velocity compute time: 2453.157 ms
+[Mob_Nbody] Post-base path time: 11299.006 ms
+[MobFMM] peak GPU memory: allocated 140420.88 MB, reserved 140522.00 MB
+[MobFMM] near-field construction: 247.961 ms
+[MobFMM] near-field operator time: 13752.313 ms
+[MobFMM] overall Nearfield time: 14,007.311 ms
+[MobFMM] near-field particles updates per sec: 4,672,619.11
+[MobFMM] total GPU time: 27355.693 ms
+[MobFMM] total particles updates per sec: 2,392,585.20
+WARM apply 2/3: 27.36 s
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=271872984, budget/tile=225164820 pairs)
+[MobFMM] far-field FMM GPU time: 13342.749 ms
+Building spatial grid for neighbor search...
+Positions shape: (65450827,)
+Counting neighbors per particle...
+Total near-field pairs found: 1406066368
+Collecting neighbor edge indexes...
+Warp::HashGrid took 247.47 ms
+no of NN interactions: 1406066368
+[Mob_Nbody] Base velocity compute time: 2452.882 ms
+[Mob_Nbody] Post-base path time: 10989.771 ms
+[MobFMM] peak GPU memory: allocated 140420.88 MB, reserved 140522.00 MB
+[MobFMM] near-field construction: 247.706 ms
+[MobFMM] near-field operator time: 13442.775 ms
+[MobFMM] overall Nearfield time: 13,697.427 ms
+[MobFMM] near-field particles updates per sec: 4,778,330.13
+[MobFMM] total GPU time: 27046.846 ms
+[MobFMM] total particles updates per sec: 2,419,906.10
+WARM apply 3/3: 27.05 s
+RESULT n_side=403 N=65450827 cold=ok warm_ok=3/3 warm_s=27.05,27.36,27.05 torch_alloc_gib=137.13 torch_reserved_gib=137.23 proc_mb=142768.0 gpu_used_mb_now=142777.0 fp32_level=2 mem_fraction=None empty_cache=1 finite=1 transverse/axial=9.90e-10 fail=""
+exit=0
+peak_gpu_used_mb=142777

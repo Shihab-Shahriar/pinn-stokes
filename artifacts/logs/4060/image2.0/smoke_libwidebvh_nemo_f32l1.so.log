@@ -1,0 +1,66 @@
+
+[1m=== 1/3  widebvh C ABI + GPU (no torch) ===[0m
+    abi=4  policy=0 (0=bary)  pdeg=7  max_order=7  RPY_A=1.0  fp32_level=1
+[treecode] apply path=split-warpspec (split: warp-specialized producer/consumer M2P (ring) + cached P2P)
+[treecode] bucketizer=grid-hilbert (auto cellEdge=9.92089 (q=10.0794 auto), within-cell Hilbert, maxLeaf=1024; cellEdge cfg ignored)
+[treecode] bvh_builder=sah
+    wbnemo_smoke(n=50000, mac=0.8, maxLeaf=1024) -> checksum -2.450400915e+07   (H200 reference -2.450400935e+07, PDEG 7 / fp32_level 0)
+
+[1m=== 2/3  Warp ===[0m
+Warp 1.12.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA GeForce RTX 4060 Laptop GPU" (8 GiB, sm_89, mempool enabled)
+   Kernel cache:
+     /workspace/.cache/warp
+    warp 1.12.0   FMM-patched build: False
+    (expected: stock warp-lang. `--backend warp` is unavailable; the widebvh path does not use it.)
+
+[1m=== 3/3  WidebvhFMM end to end, N=50,000 ===[0m
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 1091689072
+    torch 2.8.0+cu128  cuda 12.8  gpu NVIDIA GeForce RTX 4060 Laptop GPU sm_89  7.6 GB
+    NEMO_GIT_SHA=ac78eb4-dirty
+    policy=bary mac=0.8 pdeg=7 max_leaf=1024 pair_budget=1.0 GB
+[MobFMM] far-field FMM GPU time: 397.641 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+    Module src.hashgrid_neighbors 86a8751 load on device 'cuda:0' took 356.59 ms  (compiled)
+Total near-field pairs found: 1034974
+Collecting neighbor edge indexes...
+Warp::HashGrid took 374.95 ms
+no of NN interactions: 1034974
+W0822 18:15:39.940000 1 torch/_inductor/utils.py:1436] [0/0_1] Not enough SMs to use max_autotune_gemm mode
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_mob_2b.py", line 104, in forward
+    contribution = torch.zeros_like(force)
+
+
+[Mob_Nbody] Base velocity compute time: 30200.514 ms
+W0822 18:16:06.227000 1 torch/_logging/_internal.py:1154] [1/0] Profiler function <class 'torch.autograd.profiler.record_function'> will be ignored
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 125, in forward
+    return self.parent._nbody_chunk_velocity(
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 279, in _nbody_chunk_velocity
+    top_k_indices, neighbor_mask = self.get_k_per_pair(
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 220, in get_k_per_pair
+    candidate_mask = torch.cat([topk_mask[t_idx], topk_mask[s_idx]], dim=1)
+
+
+[Mob_Nbody] Post-base path time: 47649.398 ms
+[MobFMM] peak GPU memory: allocated 1232.08 MB, reserved 2042.00 MB
+[MobFMM] near-field construction: 375.101 ms
+[MobFMM] near-field operator time: 77851.977 ms
+[MobFMM] overall Nearfield time: 78,235.016 ms
+[MobFMM] near-field particles updates per sec: 639.10
+[MobFMM] total GPU time: 78638.906 ms
+[MobFMM] total particles updates per sec: 635.82
+
+
+    |U|  mean 0.294469  max 0.796676   peak VRAM 1.20 GB
+
+[32mall stages passed[0m — the image is ready to measure with.

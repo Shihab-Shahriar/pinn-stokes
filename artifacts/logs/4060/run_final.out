@@ -1,0 +1,8 @@
+### headline timing (fp32 level 3, pdeg 7, mac 0.8, leaf 512)
+exit=0
+### memcheck (fp32 level 3)
+exit=0
+### figure run (fp32 level 3), 100 steps + snapshots
+exit=0
+### figure run (fp64 baseline), 100 steps + snapshots
+exit=0

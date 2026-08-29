@@ -510,14 +510,14 @@ def accuracy_test(
 
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"
-    two_body = "data/models/two_body_combined_model.pt"
+    two_body = "data/models/combined_2body.wt"
 
 
     mob_fmm = Mob_Nbody_Torch(
         shape=shape,
         self_nn_path=self_path,
         two_nn_path=two_body,
-        nbody_nn_path="data/models/nbody_pinn_b1.pt",
+        nbody_nn_path="data/models/nbody_cross_tmp.wt",
         near_field_2b="nn",
         far_field_2b=None,
         near_far_switch=6.0,
@@ -527,7 +527,7 @@ def accuracy_test(
         shape=shape,
         self_nn_path=self_path,
         two_nn_path=two_body,
-        nbody_nn_path="data/models/nbody_pinn_b1.pt",
+        nbody_nn_path="data/models/nbody_cross_tmp.wt",
         near_field_2b="nn",
         far_field_2b="rpy",
         near_far_switch=6.0,
@@ -653,8 +653,8 @@ def perf_test(
     viscosity = 1.0
 
     self_model = "data/models/self_interaction_model.pt"
-    two_body_model = "data/models/two_body_combined_model.pt"
-    nbody_path = "data/models/nbody_pinn_b1.pt"
+    two_body_model = "data/models/combined_2body.wt"
+    nbody_path = "data/models/nbody_cross_tmp.wt"
 
     mob_fmm = Mob_Nbody_Torch(
         shape=shape,

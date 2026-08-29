@@ -7,10 +7,12 @@ any of the existing spheres.
 
 import numpy as np
 import pandas as pd
+import torch
 from scipy.spatial.distance import cdist
 from src.mfs_utils import (build_B, createNewEllipsoid, get_QM_QN,
                             min_distance_two_ellipsoids)
-from src.mfs import G_vec, imp_mfs_mobility_vec
+from src.mfs import G_vec
+from src.triton_mfs import imp_mfs_mobility_sphere_triton
 from scipy.spatial.transform import Rotation
 from scipy.optimize import minimize
 
@@ -396,9 +398,9 @@ def reference_data_generation(shape, delta, numParticles, tol=1e-7, seed=42):
             assert dd >= delta-1e-4, f"Separation violation: {dd} < {delta}"
 
             my_min = min(my_min, dd)
-        print(f"Min distance for ellipsoid {i}: {my_min}")
+        #print(f"Min distance for ellipsoid {i}: {my_min}")
 
-    print("cluster created")
+    #print("cluster created")
 
     # write_vtk(centers, "cluster.vtk")
     # print("Wrote cluster.vtk with sphere centers.")
@@ -493,24 +495,30 @@ def reference_data_generation(shape, delta, numParticles, tol=1e-7, seed=42):
     return df
 
 
-def uniform_sphere_cluster(volume_fraction, numParticles, radius=1.0, max_attempts=10000):
-    """Generate a random non-overlapping cluster of spheres."""
+def uniform_sphere_cluster(volume_fraction, numParticles, radius=1.0,
+                           max_attempts=10000, seed=42):
+    """Generate a random non-overlapping cluster of spheres.
+
+    seed can be an int or None.
+    """
+    rng = np.random.default_rng(seed)
+
     # Calculate bounding box size from desired volume fraction
     sphere_volume = (4 / 3) * np.pi * radius ** 3
     total_sphere_volume = numParticles * sphere_volume
     bbox_volume = total_sphere_volume / volume_fraction
     bbox_side = bbox_volume ** (1 / 3)
+    bbox_half = 0.5 * bbox_side
 
-    MIN_SEPARATION = .05
+    MIN_SEPARATION = .1  # minimum surface-to-surface separation
 
     positions = np.zeros((numParticles, 3), dtype=np.float64)
-    for i in range(numParticles):
+    if numParticles > 0:
+        positions[0] = 0.0
+    for i in range(1, numParticles):
         attempts = 0
         while attempts < max_attempts:
-            pos = np.random.uniform(radius, bbox_side - radius, 3)
-            if i == 0:
-                positions[i] = pos
-                break
+            pos = rng.uniform(-bbox_half + radius, bbox_half - radius, 3)
 
             # Check against all existing positions to ensure no overlap
             dd = cdist(positions[:i], pos[None, :])
@@ -532,13 +540,15 @@ def uniform_sphere_cluster(volume_fraction, numParticles, radius=1.0, max_attemp
             dd = np.linalg.norm(centers[i] - centers[j]) - 2*radius
             assert dd >= MIN_SEPARATION, f"Separation violation: {dd} < {MIN_SEPARATION}, between {i} and {j}"
             my_min = min(my_min, dd)
-        print(f"Min distance for ellipsoid {i}: {my_min}")
+        #print(f"Min distance for ellipsoid {i}: {my_min}")
 
     print("cluster created")
     return centers, orients
 
 
-def uniform_data_generation(shape, volume_fraction, numParticles, TOLERANCE=1e-8):
+def generate_uniform_testcase(shape, volume_fraction, numParticles, 
+                              tol=1e-8, seed=None, save_to_file=True,
+                              test_triton=False, random_force_directions=True):
     """
     Generate uniform spheres with radius 1 and specified volume fraction.
     
@@ -547,6 +557,9 @@ def uniform_data_generation(shape, volume_fraction, numParticles, TOLERANCE=1e-8
         volume_fraction: Fraction of bounding box volume occupied by spheres
         numParticles: Number of spheres to generate
     """
+    if seed is not None:
+        np.random.seed(seed)
+        
     assert shape=="sphere", "Currently only 'sphere' shape is supported"
     acc = "Xfine"
     axes_length = {
@@ -556,16 +569,16 @@ def uniform_data_generation(shape, volume_fraction, numParticles, TOLERANCE=1e-8
     }
     a, b, c = axes_length[shape]
 
-    centers, orients = uniform_sphere_cluster(volume_fraction, numParticles)
-    print("centers")
-    print(centers)
+    centers, orients = uniform_sphere_cluster(volume_fraction, numParticles, seed=seed)
+    # print("centers")
+    # print(centers)
 
     # write_vtk(centers, "cluster.vtk")
     # print("Wrote cluster.vtk with sphere centers.")
 
-    root = "/home/shihab/src/mfs/"
-    b_single = np.loadtxt(f'{root}points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
-    s_single = np.loadtxt(f'{root}points/s_{shape}_{acc}.txt', dtype=np.float64)
+    root = "data"
+    b_single = np.loadtxt(f'{root}/points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
+    s_single = np.loadtxt(f'{root}/points/s_{shape}_{acc}.txt', dtype=np.float64)
     
     N = b_single.shape[0]  # number of boundary nodes
     M = s_single.shape[0]  # number of source points
@@ -573,17 +586,15 @@ def uniform_data_generation(shape, volume_fraction, numParticles, TOLERANCE=1e-8
     
     b_list = []
     s_list = []
-    for i in range(numParticles):
-        # boundary_i, source_i = createNewEllipsoid(centers[i], orients[i],
-        #                                         s_single, b_single)
-        boundary_i = b_single + centers[i][None, :]
-        source_i   = s_single + centers[i][None, :]
-
-        b_list.append(boundary_i)
-        s_list.append(source_i)
+    if test_triton:
+        for i in range(numParticles):
+            boundary_i = b_single + centers[i][None, :]
+            source_i = s_single + centers[i][None, :]
+            b_list.append(boundary_i)
+            s_list.append(source_i)
 
     # print xyz coordinates of first pos of p1
-    print("b_list[i][0]:", b_list[1][0], b_list[0].shape)
+    #print("b_list[i][0]:", b_list[1][0], b_list[0].shape)
 
 
 
@@ -593,34 +604,72 @@ def uniform_data_generation(shape, volume_fraction, numParticles, TOLERANCE=1e-8
     T_ext_list = [
         np.random.uniform(-1, 1, 3).astype(np.float64) for _ in centers
     ]
+    # Normalize random vectors to unit magnitude
+    F_ext_list = [f / np.linalg.norm(f) for f in F_ext_list]
+    T_ext_list = [t / np.linalg.norm(t) for t in T_ext_list]
 
-    F_ext_list = [f / np.linalg.norm(f) * f for f in F_ext_list]  # normalize to magnitude F
-    T_ext_list = [t / np.linalg.norm(t) * t for t in T_ext_list]  # normalize to magnitude T
+    if not random_force_directions: # sedimentation-like
+        F_ext_list = [
+            np.array([0.0, 0.0, -9.81], dtype=np.float64) for _ in centers
+        ]
+        T_ext_list = [ # presence of torque doesn't make any difference in error for sedimentation
+            np.array([0.0, 0.0, 0.0], dtype=np.float64) for _ in centers
+        ]
+
+
 
     B = build_B(b_single, s_single, np.zeros(3))
     Bpp_inv = np.linalg.pinv(B)
-    Bpp_inv_list = [Bpp_inv.copy()]
-    for i in range(1, numParticles):
-        if shape!="sphere":
-            QM2, QN2 = get_QM_QN(orients[i], b_single.shape[0], s_single.shape[0])
-            B2_inv = QM2 @ Bpp_inv @ QN2.T
-            Bpp_inv_list.append(B2_inv)
-            #print("QM QN sum:", i, QM2.sum(), QN2.sum())
-            assert QM2.shape == (3*M+6, 3*M+6)
-            assert QN2.shape == (3*N+6, 3*N+6)
-        else:
-            Bpp_inv_list.append(Bpp_inv.copy())
+    Bpp_inv_list = None
+    if test_triton:
+        Bpp_inv_list = [Bpp_inv.copy() for _ in range(numParticles)]
 
 
 
-    # Run the IMP-MFS mobility solver
+    # Run GPU solver (always) and optionally run CPU + compare for testing
     start_time = time.time()
-    V_tilde_list = imp_mfs_multiparticle(
-        b_list, s_list, centers, F_ext_list, T_ext_list, Bpp_inv_list,
-        L_cut=2500.0, max_iter=1000, tol=TOLERANCE, print_interval=50
+    V_tilde_list_gpu = imp_mfs_mobility_sphere_triton(
+        b_single,
+        s_single,
+        centers,
+        F_ext_list,
+        T_ext_list,
+        Bpp_inv,
+        max_iter=1000,
+        tol=tol,
+        print_steps=False,
+        L_cut=25.0,  
+        device=None,
     )
-    end_time = time.time()
-    print(f"Elapsed time: {end_time-start_time:.3f} seconds")
+    mid_time = time.time()
+    print(f"Elapsed time (GPU): {mid_time-start_time:.3f} seconds")
+
+    if test_triton:
+        V_tilde_list_cpu = imp_mfs_multiparticle(
+            b_list,
+            s_list,
+            centers,
+            F_ext_list,
+            T_ext_list,
+            Bpp_inv_list,
+            L_cut=2500.0,
+            max_iter=1000,
+            tol=tol,
+            print_interval=50,
+        )
+        end_time = time.time()
+        print(f"Elapsed time (CPU): {end_time-mid_time:.3f} seconds")
+
+        V_cpu = np.stack(V_tilde_list_cpu, axis=0)
+        V_gpu = torch.stack(V_tilde_list_gpu, dim=0).detach().cpu().numpy()
+        M = s_list[0].shape[0]
+        V_cpu_vel = V_cpu[:, 3 * M:3 * M + 6]
+        V_gpu_vel = V_gpu[:, 3 * M:3 * M + 6]
+        max_abs_diff = np.max(np.abs(V_cpu_vel - V_gpu_vel))
+        print(f"Max abs diff (CPU vs GPU) [vel/omega]: {max_abs_diff:.3e}")
+        assert np.allclose(V_cpu_vel, V_gpu_vel, rtol=1e-5, atol=1e-6)
+
+    V_tilde_list = V_tilde_list_gpu
 
 
     columns = ["x", "y", "z",  
@@ -631,26 +680,26 @@ def uniform_data_generation(shape, volume_fraction, numParticles, TOLERANCE=1e-8
                "w_x", "w_y", "w_z"]
     df = pd.DataFrame(columns=columns)
 
-    M = s_list[i].shape[0]
     for i in range(numParticles):
-        solution_i = V_tilde_list[i]
+        solution_i = V_tilde_list[i].detach().cpu().numpy()
         velocity_i = solution_i[3*M : 3*M + 3]
         omega_i    = solution_i[3*M + 3 : 3*M + 6]
         df.loc[i] = np.concatenate([centers[i], orients[i].as_quat(scalar_first=False),
                                     F_ext_list[i], T_ext_list[i], velocity_i, omega_i])
-        print(f"p {i}")
-        print("Lin velocity:", velocity_i)
-        print("Ang velocity:", omega_i)
+        # print(f"p {i}")
+        # print("Lin velocity:", velocity_i)
+        # print("Ang velocity:", omega_i)
 
     #save to csv
-    df.to_csv(f"tmp/uniform_{volume_fraction}_{numParticles}.csv", index=False, header=True, float_format="%.16g")
+    if save_to_file:
+        df.to_csv(f"tmp/uniform_{volume_fraction}_{numParticles}.csv", index=False, header=True, float_format="%.16g")
     return df
 
 
-def uniform_data_generation_large(volume_fraction, numParticles,
+def uniform_cluster_generation_large(volume_fraction, numParticles,
                                   min_separation=0.02, seed=None,
                                   verify=False):
-    """Generate up to ~1e5 unit spheres quickly; returns their centers only."""
+    """Generate up to ~1e5 unit spheres quickly; returns their centers only, no MFS velocities."""
     assert 0 < volume_fraction < 1, "Volume fraction must be in (0, 1)."
     assert numParticles > 0, "Number of particles must be positive."
 
@@ -753,12 +802,13 @@ if __name__ == '__main__':
     shape = "sphere"
     P = 20
     
-    delta = .5
-    # df = reference_data_generation(shape, delta=delta, 
-    #                                numParticles=P, tol=1e-8, seed=123)
-    # df.to_csv(f"tmp/reference_{delta}_{P}.csv", index=False, header=True, float_format="%.16g")
-    
-    
+    for P in [40]:
+        for vol_frac in [0.05]:
+            df = generate_uniform_testcase(shape, vol_frac, 
+                                        numParticles=P, tol=1e-8, seed=123, test_triton=True)
+            #df.to_csv(f"tmp/testcase_uniform_{vol_frac}_{P}.csv", index=False, header=True, float_format="%.16g")
+            print(f"Generated uniform testcase with {P} particles at volume fraction {vol_frac}.")
+
     #uniform_data_generation("sphere", volume_fraction=0.22, numParticles=P)
 
     # volume_frac = 0.10
@@ -773,5 +823,5 @@ if __name__ == '__main__':
     # df.to_csv(f"tmp/uniform_sphere_{volume_frac}_{numParticles}.csv", index=False, header=True, float_format="%.16g")
 
 
-    uniform_data_generation_large(volume_fraction=0.1, numParticles=1_000_000,
-                                  min_separation=0.03, seed=42, verify=False)
+    # uniform_cluster_generation_large(volume_fraction=0.1, numParticles=500_000,
+    #                               min_separation=0.03, seed=42, verify=True)

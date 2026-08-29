@@ -22,8 +22,8 @@ def get_mfs_drags(sphere_positions, F_ext_list, T_ext_list):
     acc = "fine"
     shape = "sphere"
     # Load target (particle #1) geometry from files.
-    boundary1 = np.loadtxt(f'/home/shihab/src/mfs/points/b_{shape}_{acc}.txt', dtype=np.float64)
-    source1 = np.loadtxt(f'/home/shihab/src/mfs/points/s_{shape}_{acc}.txt', dtype=np.float64)
+    boundary1 = np.loadtxt(f'data/points/b_{shape}_{acc}.txt', dtype=np.float64)
+    source1 = np.loadtxt(f'data/points/s_{shape}_{acc}.txt', dtype=np.float64)
 
     B_orig = build_B(boundary1, source1, np.zeros(3))
     B1_inv = np.linalg.pinv(B_orig)
@@ -123,14 +123,21 @@ durlofsky_data = [0.5018, 0.5029, 0.5054, 0.5102,
                   0.5183, 0.5321, 0.5559, 0.6170]  # Extracted from the paper
 
 legends = []
-plt.figure(figsize=(14, 8), dpi=150)
+plt.rcParams.update({
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42,
+})
+fig, ax = plt.subplots(figsize=(9.5, 6.0), dpi=300)
 #plt.plot(range(N),townsend_data[N-1:]); legends.append('townsend_data')
-plt.plot(range(N),durlofsky_data,'x'); legends.append('Durlofsky et al.')
+ax.plot(range(N),durlofsky_data,'x'); legends.append('Durlofsky et al.')
 #plt.plot(range(N),mfs_coeffs[N-1:]); legends.append("MFS")
-plt.plot(range(N),mob_coeffs[N-1:]); legends.append("M_nbody")
-plt.tight_layout()
-plt.legend(legends)
-plt.xlabel('Sphere number')
-plt.ylabel('λ', rotation=0, fontsize=16)
-plt.savefig("horizontal_chain_drag.pdf", dpi=600, format="pdf")
+ax.plot(range(N),mob_coeffs[N-1:]); legends.append("NeMO")
+ax.legend(legends, fontsize=13)
+ax.set_xlabel('Sphere number', fontsize=16)
+ax.set_ylabel('λ', rotation=0, fontsize=18)
+ax.tick_params(axis='both', which='major', labelsize=14, width=1.1, length=5)
+for spine in ax.spines.values():
+    spine.set_linewidth(1.1)
+fig.tight_layout()
+fig.savefig("horizontal_chain_drag.pdf", dpi=900, format="pdf")
 plt.show()

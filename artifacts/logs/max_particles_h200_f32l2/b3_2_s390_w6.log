@@ -1,0 +1,27 @@
+spec=390|6|TC_PAIR_BUDGET_GB=10|--mem-fraction 0.935
+Warp 1.12.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /workspace/.cache/warp
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 982100656
+Traceback (most recent call last):
+  File "/workspace/pinn-stokes/benchmarks/max_particles.py", line 205, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/workspace/pinn-stokes/benchmarks/max_particles.py", line 123, in main
+    torch.cuda.set_per_process_memory_fraction(args.mem_fraction, device)
+  File "/opt/venv/lib/python3.12/site-packages/torch/cuda/memory.py", line 187, in set_per_process_memory_fraction
+    device = _get_device_index(device)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/cuda/_utils.py", line 363, in _get_device_index
+    return _torch_get_device_index(device, optional, allow_cpu)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/_utils.py", line 872, in _get_device_index
+    raise ValueError(
+ValueError: Expected a torch.device with a specified index or an integer, but got:cuda
+exit=1
+peak_gpu_used_mb=559

@@ -31,7 +31,7 @@ torch._inductor.config.triton.cudagraph_skip_dynamic_graphs=True
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
-    sys.path.append(str(REPO_ROOT))
+    sys.path.insert(0, str(REPO_ROOT))  # shadowing PYTHONPATH checkout; see two_suspensions_1M.py
 
 from src.gpu_mob_2b import NNMobTorch
 from src.gpu_nbody_mob import Mob_Nbody_Torch

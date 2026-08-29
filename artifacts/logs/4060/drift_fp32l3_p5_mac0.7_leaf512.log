@@ -1,0 +1,143 @@
+### python benchmarks/far_field_drift.py --steps 50 --csv data/far_field_drift_1M_4060.csv --fp32-level 3 --max-leaf 512 --pdeg 5 --mac 0.7 --label fp32l3_p5_mac0.7_leaf512
+Warp 1.12.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA GeForce RTX 4060 Laptop GPU" (8 GiB, sm_89, mempool enabled)
+   Kernel cache:
+     /workspace/.cache/warp
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 1022191472
+Generating Drop 1...
+to drop: 537224
+Generating Drop 2...
+to drop: 537224
+Total particles: 1047968
+Far field: widebvh, policy=bary, mac=0.7, PDEG=5, order=0, maxLeaf=512, fp32_level=3, pair_budget_gb=1.0
+Warmup (5 steps, compilation)...
+[MobFMM] far-field FMM GPU time: 363.167 ms
+Building spatial grid for neighbor search...
+Positions shape: (1047968,)
+Counting neighbors per particle...
+    Module src.hashgrid_neighbors 86a8751 load on device 'cuda:0' took 0.56 ms  (cached)
+Total near-field pairs found: 21166894
+Collecting neighbor edge indexes...
+Warp::HashGrid took 32.53 ms
+no of NN interactions: 21166894
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_mob_2b.py", line 104, in forward
+    contribution = torch.zeros_like(force)
+
+
+[Mob_Nbody] Base velocity compute time: 6529.872 ms
+W0818 06:57:19.363000 419 torch/_logging/_internal.py:1154] [1/0] Profiler function <class 'torch.autograd.profiler.record_function'> will be ignored
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 125, in forward
+    return self.parent._nbody_chunk_velocity(
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 279, in _nbody_chunk_velocity
+    top_k_indices, neighbor_mask = self.get_k_per_pair(
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 220, in get_k_per_pair
+    candidate_mask = torch.cat([topk_mask[t_idx], topk_mask[s_idx]], dim=1)
+
+
+[Mob_Nbody] Post-base path time: 6387.149 ms
+[MobFMM] peak GPU memory: allocated 2394.51 MB, reserved 3322.00 MB
+[MobFMM] near-field construction: 32.673 ms
+[MobFMM] near-field operator time: 12917.202 ms
+[MobFMM] overall Nearfield time: 12,959.482 ms
+[MobFMM] near-field particles updates per sec: 80,864.96
+[MobFMM] total GPU time: 13326.140 ms
+[MobFMM] total particles updates per sec: 78,640.03
+
+
+[MobFMM] far-field FMM GPU time: 369.677 ms
+Building spatial grid for neighbor search...
+Positions shape: (1047968,)
+Counting neighbors per particle...
+Total near-field pairs found: 21469772
+Collecting neighbor edge indexes...
+Warp::HashGrid took 12.02 ms
+no of NN interactions: 21469772
+[Mob_Nbody] Base velocity compute time: 648.659 ms
+[Mob_Nbody] Post-base path time: 1555.400 ms
+[MobFMM] peak GPU memory: allocated 2579.99 MB, reserved 3322.00 MB
+[MobFMM] near-field construction: 12.112 ms
+[MobFMM] near-field operator time: 2204.190 ms
+[MobFMM] overall Nearfield time: 2,216.975 ms
+[MobFMM] near-field particles updates per sec: 472,701.69
+[MobFMM] total GPU time: 2587.636 ms
+[MobFMM] total particles updates per sec: 404,990.54
+
+
+[MobFMM] far-field FMM GPU time: 371.557 ms
+Building spatial grid for neighbor search...
+Positions shape: (1047968,)
+Counting neighbors per particle...
+Total near-field pairs found: 21835224
+Collecting neighbor edge indexes...
+Warp::HashGrid took 11.86 ms
+no of NN interactions: 21835224
+[Mob_Nbody] Base velocity compute time: 660.602 ms
+[Mob_Nbody] Post-base path time: 1588.383 ms
+[MobFMM] peak GPU memory: allocated 2579.99 MB, reserved 3542.00 MB
+[MobFMM] near-field construction: 11.958 ms
+[MobFMM] near-field operator time: 2249.115 ms
+[MobFMM] overall Nearfield time: 2,261.751 ms
+[MobFMM] near-field particles updates per sec: 463,343.72
+[MobFMM] total GPU time: 2634.274 ms
+[MobFMM] total particles updates per sec: 397,820.47
+
+
+[MobFMM] far-field FMM GPU time: 376.151 ms
+Building spatial grid for neighbor search...
+Positions shape: (1047968,)
+Counting neighbors per particle...
+Total near-field pairs found: 22042112
+Collecting neighbor edge indexes...
+Warp::HashGrid took 11.92 ms
+no of NN interactions: 22042112
+[Mob_Nbody] Base velocity compute time: 666.472 ms
+[Mob_Nbody] Post-base path time: 1593.302 ms
+[MobFMM] peak GPU memory: allocated 2579.99 MB, reserved 3542.00 MB
+[MobFMM] near-field construction: 12.007 ms
+[MobFMM] near-field operator time: 2259.912 ms
+[MobFMM] overall Nearfield time: 2,272.601 ms
+[MobFMM] near-field particles updates per sec: 461,131.53
+[MobFMM] total GPU time: 2649.744 ms
+[MobFMM] total particles updates per sec: 395,497.81
+
+
+[MobFMM] far-field FMM GPU time: 375.258 ms
+Building spatial grid for neighbor search...
+Positions shape: (1047968,)
+Counting neighbors per particle...
+Total near-field pairs found: 22085590
+Collecting neighbor edge indexes...
+Warp::HashGrid took 12.02 ms
+no of NN interactions: 22085590
+[Mob_Nbody] Base velocity compute time: 670.188 ms
+[Mob_Nbody] Post-base path time: 1593.137 ms
+[MobFMM] peak GPU memory: allocated 2579.99 MB, reserved 3542.00 MB
+[MobFMM] near-field construction: 12.121 ms
+[MobFMM] near-field operator time: 2263.458 ms
+[MobFMM] overall Nearfield time: 2,276.268 ms
+[MobFMM] near-field particles updates per sec: 460,388.66
+[MobFMM] total GPU time: 2652.503 ms
+[MobFMM] total particles updates per sec: 395,086.46
+
+
+Timing 50 steps...
+  step   0  far 355.288  total 2544.414  pairs 21,166,894
+  step  25  far 395.525  total 2448.645  pairs 19,727,640
+  step  49  far 395.777  total 2509.557  pairs 20,220,480
+Wrote 50 rows for fp32l3_p5_mac0.7_leaf512 -> data/far_field_drift_1M_4060.csv
+
+@@ fp32l3_p5_mac0.7_leaf512  n=1047968  steps=50
+@@ far-field   first 10: 375.631 ms   last 10: 399.449 ms   drift  +6.34%
+@@ near-field  first 10: 2241.954 ms   last 10: 2104.575 ms   drift  -6.13%
+@@ total       first 10: 2618.546 ms   last 10: 2504.995 ms   drift  -4.34%
+@@ mean step 2528.2 ms, far share 0.155, 50 steps in 126.4 s of GPU time
+@@ near pairs  21,166,894 -> 20,220,480 (-4.47%)
+### exit=0

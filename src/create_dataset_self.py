@@ -30,8 +30,8 @@ def get_self_vel(shape, N, M, F_ext, T_ext, B_inv, orientation):
 
 
 def generate_dataset_spheroid(shape, N_samples, a, b, c):
-    boundary = np.loadtxt(f'/home/shihab/src/mfs/points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
-    source = np.loadtxt(f'/home/shihab/src/mfs/points/s_{shape}_{acc}.txt', dtype=np.float64)  # source points
+    boundary = np.loadtxt(f'data/points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
+    source = np.loadtxt(f'data/points/s_{shape}_{acc}.txt', dtype=np.float64)  # source points
     N = boundary.shape[0]
     M = source.shape[0]
     print(f"{N=} boundary nodes, {M=} source points")

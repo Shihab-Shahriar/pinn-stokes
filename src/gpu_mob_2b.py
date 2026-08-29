@@ -26,6 +26,27 @@ from src.hashgrid_neighbors import HashGridNeighborSearch
 
 TensorLike = Union[torch.Tensor, float]
 
+# Pairs per chunk in the two-body NN path. The whole edge list at once is what set
+# peak VRAM at N=1M (10.34 GiB of a 15.4 GiB total); chunking here is what makes
+# the n-body pair_chunk_size matter at all, since below ~10 GiB it was never the
+# binding term.
+#
+# Swept at N=1.05M / 21.2M pairs with pair_chunk_size fixed at 2M. Overhead is
+# ~0.17 ms per chunk, and peak allocation saturates at the n-body chunk's floor:
+#
+#   tb chunk | chunks | self+2b ms | peak alloc
+#   off      |   1    |   27.95    | 10.34 GiB
+#   8M       |   3    |   28.25    |  4.26 GiB
+#   4M       |   6    |   29.16    |  2.51 GiB   <- knee
+#   2M       |  11    |   29.65    |  2.51 GiB
+#   1M       |  22    |   31.62    |  2.51 GiB
+#   500k     |  43    |   35.04    |  2.51 GiB
+#
+# 4M sits exactly at the knee: everything below it pays per-chunk overhead for
+# memory the n-body chunk is already holding. Keep this at or below ~5M, or the
+# two-body path becomes the binding term again (8M does).
+DEFAULT_TWO_BODY_CHUNK = 4_000_000
+
 
 def _ensure_device(device: Union[str, torch.device, None]) -> torch.device:
     return torch.device("cuda:0")
@@ -73,6 +94,9 @@ class PairVelKernel(torch.nn.Module):
         mu_tensor = torch.as_tensor(
             viscosity, dtype=force.dtype, device=force.device
         )
+        # Collapse per-particle viscosity to scalar for pair-level computation.
+        if mu_tensor.ndim >= 1 and mu_tensor.numel() > 1:
+            mu_tensor = mu_tensor[0]
 
         with torch.no_grad():
             vel = self.model.predict_velocity(features, force_target, force_source, mu_tensor)
@@ -94,6 +118,7 @@ class NNMobTorch:
         far_field: str,
         switch_dist: float = 6.0,
         device: Union[str, torch.device, None] = None,
+        two_body_chunk_size: int = DEFAULT_TWO_BODY_CHUNK,
     ) -> None:
         if near_field not in ["nn", "rpy"]:
             raise ValueError(f"Invalid near_field: {near_field}")
@@ -107,14 +132,16 @@ class NNMobTorch:
         self.near_field = near_field
         self.far_field = far_field
         self.switch_dist = switch_dist
+        self.two_body_chunk_size = two_body_chunk_size
         self.device = _ensure_device(device)
 
         self._neighbor_search = HashGridNeighborSearch(device=self.device)
 
         self.contact_distance = torch.tensor(2.0, dtype=torch.float32, device=self.device)
         self.median = torch.tensor(5.01, dtype=torch.float32, device=self.device)
-        
-        state_dict = torch.load("experiments/combined_2body.wt", weights_only=True)
+
+        assert two_nn_path.endswith(".wt"), "Expected .wt weights for two_nn_path; TorchScript .pt is not supported here"
+        state_dict = torch.load(two_nn_path, weights_only=True)
         model = TwoBodyCombined(input_dim=4)
         model.load_state_dict(state_dict)
         model.eval()
@@ -194,7 +221,10 @@ class NNMobTorch:
     ) -> torch.Tensor:
         """Far-field Rotne-Prager-Yamakawa mobility via validated reference."""
         inv_mu = torch.as_tensor(1 / viscosity, dtype=torch.float32, device=rel_vecs.device)
-
+        # Collapse per-particle viscosity to scalar for pair-level computation,
+        # and ensure broadcastable shape (*, 1) for the final multiply.
+        if inv_mu.ndim >= 1 and inv_mu.numel() > 1:
+            inv_mu = inv_mu[0]
 
         dtype = rel_vecs.dtype
         device = rel_vecs.device
@@ -273,6 +303,53 @@ class NNMobTorch:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    @torch.no_grad()
+    def _two_body_velocity(
+        self,
+        positions: torch.Tensor,
+        t_idx: torch.Tensor,
+        s_idx: torch.Tensor,
+        force: torch.Tensor,
+        viscosity: TensorLike,
+    ) -> torch.Tensor:
+        """Two-body NN pair contribution, in chunks of two_body_chunk_size pairs.
+
+        Mirrors Mob_Nbody_Torch.get_nbody_velocity. Two properties are load-bearing
+        and match the constraints documented there:
+
+        The loop stays in Python, outside the compiled region. Its bound is the pair
+        count, which drifts every timestep in a dynamics run; inside torch.compile
+        that is a guard on the exact value, so a recompile per step until
+        recompile_limit trips and dynamo falls back to eager permanently -- ~2.4x
+        slower with no error raised.
+
+        mark_dynamic on the pair dimension keeps the short trailing chunk on the same
+        graph as the full ones instead of specialising a second.
+
+        rel is built per chunk rather than once up front, so the (num_pairs, 3) gather
+        and its two temporaries never exist at full size.
+        """
+        num_pairs = int(t_idx.shape[0])
+        chunk = self.two_body_chunk_size
+
+        if chunk <= 0 or num_pairs <= chunk:
+            rel = positions[s_idx] - positions[t_idx]
+            return self._pair_kernel_compiled(rel, t_idx, s_idx, force, viscosity)
+
+        velocities = torch.zeros_like(force)
+        for start in range(0, num_pairs, chunk):
+            end = min(start + chunk, num_pairs)
+            t_c, s_c = t_idx[start:end], s_idx[start:end]
+            rel_c = positions[s_c] - positions[t_c]
+            torch._dynamo.mark_dynamic(rel_c, 0)
+            torch._dynamo.mark_dynamic(t_c, 0)
+            torch._dynamo.mark_dynamic(s_c, 0)
+            # The kernel index_add_s into its own zeros_like(force), so each chunk
+            # returns a full (N,6) carrying only its own targets.
+            velocities += self._pair_kernel_compiled(
+                rel_c, t_c, s_c, force, viscosity)
+        return velocities
+
     @torch.no_grad()
     def apply(self, positions: torch.Tensor,
            orientations: torch.Tensor,
@@ -380,8 +457,8 @@ class NNMobTorch:
             print("no of NN interactions:", t_idx_nn.numel())
             torch.cuda.synchronize()
             start = time.perf_counter()
-            rel_nn = positions[s_idx_nn] - positions[t_idx_nn]
-            velocities += self._pair_kernel_compiled(rel_nn, t_idx_nn, s_idx_nn, force_t, viscosity)
+            velocities += self._two_body_velocity(
+                positions, t_idx_nn, s_idx_nn, force_t, viscosity)
             torch.cuda.synchronize()
             end = time.perf_counter()
             #print(f"NN kernel execution time: {(end - start)*1000:.6f} ms")
@@ -439,12 +516,12 @@ def check_against_ref_gpu(mob, path, print_stuff=False):
 def accuracy_test():
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"
-    two_body_wt = "experiments/combined_2body.wt"
+    two_body_wt = "data/models/combined_2body.wt"
     two_body_script = "data/models/two_body_combined_model.pt"
 
     just_rpy = False
 
-    mob = NNMobTorch(shape, self_path, two_body_script,
+    mob = NNMobTorch(shape, self_path, two_body_wt,
                      near_field="nn", far_field="rpy")
 
     mob_cpu = NNMob(shape, self_path, two_body_script,
@@ -486,7 +563,7 @@ def profile_apply(
 
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"
-    two_body = "data/models/two_body_combined_model.pt"
+    two_body = "data/models/combined_2body.wt"
     mob_gpu = NNMobTorch(shape, self_path, two_body,
                          near_field="nn", far_field="rpy")
 
@@ -542,7 +619,7 @@ def perftest():
 
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"
-    two_body = "experiments/combined_2body.wt"
+    two_body = "data/models/combined_2body.wt"
 
     just_rpy = False
 

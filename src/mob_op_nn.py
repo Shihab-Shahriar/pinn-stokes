@@ -17,8 +17,12 @@ from analysis_utils import quaternion_to_6d_batch
 from model_archs import SelfInteraction, TwoBodySphere, TwoBodyProlate
 from mfs_utils import min_distance_two_ellipsoids
 
-import sys 
-sys.path.append("/home/shihab/repo/utils")
+import sys
+import os
+
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(os.path.join(_REPO_ROOT, "utils"))
+sys.path.append(os.path.join(_REPO_ROOT, "src"))
 from viz3d import save_multiple_ellipsoids_legacy_vtk 
 
 # NOTE orientation[i] is always the rotation needed to convert z-axis to the 
@@ -156,8 +160,6 @@ class NNMob:
     
     
     def compute_rpy_mobility(self, c2):
-        import sys
-        sys.path.insert(0, '/home/shihab/hignn')
         from grpy_tensors import mu 
     
         c = np.array([[0.0, 0.0, 0.0], list(c2)])
@@ -578,8 +580,8 @@ def helens_3body_sphere(mob, S, shape="sphere", ):
     # MFS
     acc = "fine"
     # Load target (particle #1) geometry from files.
-    boundary1 = np.loadtxt(f'/home/shihab/src/mfs/points/b_{shape}_{acc}.txt', dtype=np.float64)
-    source1 = np.loadtxt(f'/home/shihab/src/mfs/points/s_{shape}_{acc}.txt', dtype=np.float64)
+    boundary1 = np.loadtxt(f'data/points/b_{shape}_{acc}.txt', dtype=np.float64)
+    source1 = np.loadtxt(f'data/points/s_{shape}_{acc}.txt', dtype=np.float64)
     
     from mfs_utils import build_B
     from mfs import imp_mfs_mobility_vec
@@ -630,9 +632,9 @@ def mainnnn():
     mob = NNMob("sphere", self_path, two_body, two_body_F1,
                 nn_only=False, rpy_only=False, switch_dist=6.0)
 
-    #path = "/home/shihab/repo/tmp/reference_sphere_4.0.csv"
-    #path = "/home/shihab/repo/tmp/uniform_sphere_0.05.csv"
-    path = "/home/shihab/repo/data/reference_sphere.csv"
+    #path = "tmp/reference_sphere_4.0.csv"
+    #path = "tmp/uniform_sphere_0.05.csv"
+    path = "data/reference_sphere.csv"
     config = check_against_ref(mob, path)
 
     print("Just RPY...\n")

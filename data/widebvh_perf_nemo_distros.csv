@@ -1,0 +1,3 @@
+case,n,backend,steps,total_s,step_ms,far_ms,far_share
+two_drop_sedimentation,1047968,widebvh,50,14.37,287.4,102.5,0.357
+two_drop_sedimentation,1047968,warp,50,23.26,465.2,278.4,0.598

@@ -1,0 +1,24 @@
+
+=== npy:figures/drop_1M_4060/positions_1.0.npy: N=1,047,968  (positions from positions_1.0.npy) ===
+Warp 1.12.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA GeForce RTX 4060 Laptop GPU" (8 GiB, sm_89, mempool enabled)
+   Kernel cache:
+     /workspace/.cache/warp
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 292655184
+  [gravity] reference: 7.6s  ||u_far||=1.1140e+05  ||u_self+u_far||=1.1142e+05
+    pdeg=7 l=0 leaf=512   mac=0.8   rel_far=9.028e-06  rel_total=9.026e-06  far=18847.68 ms (trav 12998.7 p2p 3154.4 up 402.7 build 146.0)  pairs=10,598,328  asym=7.956e-04
+    pdeg=7 l=0 leaf=1024  mac=0.8   rel_far=8.725e-06  rel_total=8.723e-06  far=18875.87 ms (trav 12828.0 p2p 6586.5 up 406.2 build 138.3)  pairs=10,478,914  asym=5.947e-04
+    pdeg=7 l=3 leaf=512   mac=0.8   rel_far=9.031e-06  rel_total=9.029e-06  far=  913.54 ms (trav 532.8 p2p 129.8 up 46.5 build 146.5)  pairs=10,598,328  asym=7.958e-04
+    pdeg=7 l=3 leaf=1024  mac=0.8   rel_far=8.727e-06  rel_total=8.725e-06  far=  417.52 ms (trav 248.7 p2p 133.6 up 20.0 build 11.7)  pairs=10,478,914  asym=5.946e-04
+  [random] reference: 12.5s  ||u_far||=1.7732e+01  ||u_self+u_far||=1.7865e+01
+    pdeg=7 l=0 leaf=512   mac=0.8   rel_far=3.032e-04  rel_total=3.009e-04  far=20103.18 ms (trav 16343.0 p2p 3154.4 up 402.7 build 146.1)  pairs=10,598,328  asym=7.956e-04
+    pdeg=7 l=0 leaf=1024  mac=0.8   rel_far=2.831e-04  rel_total=2.810e-04  far=19794.68 ms (trav 12987.6 p2p 6100.1 up 474.4 build 140.0)  pairs=10,478,914  asym=5.947e-04
+    pdeg=7 l=3 leaf=512   mac=0.8   rel_far=3.032e-04  rel_total=3.009e-04  far=  919.74 ms (trav 541.0 p2p 125.8 up 46.5 build 146.3)  pairs=10,598,328  asym=7.958e-04
+    pdeg=7 l=3 leaf=1024  mac=0.8   rel_far=2.831e-04  rel_total=2.810e-04  far=  906.62 ms (trav 433.2 p2p 234.4 up 46.7 build 138.6)  pairs=10,478,914  asym=5.946e-04
+
+wrote 8 rows -> data/widebvh_4060_sweep.csv
+exit=0

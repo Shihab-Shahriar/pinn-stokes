@@ -1,22 +1,5 @@
-## Organization
+## Jan 14
 
-data/ (part of git repo)
-    - dataset files 
-    - weight files
-
-src/
-    - All MFS base code
-    - Two body and 3-body dataset generation code (all shapes)
-    - Implementation of different flavors of RPY
-
-experiments/
-    - All training notebooks
-    - Accuracy/ analysis 
-    - ablation study notebooks (SPSD, PINN vs NN)
-
-benchmarks/
-    - Targeted benchmark: RPY vs NN vs MFS for single application of mobility operator using a O(N^2) algorithm.
-    - Full simulation of a real-world problem, with FMM. Demonstrate accuracy advantage of NN vs RPY. Show performance penalty. 
-
-utils/
-    - plotting, timing etc
++ Optimize two_suspens_1M.py. Baseline: for t=0.5 i.e. 50 timesteps
+    + t=.5 => 1.05/1.04. t=.25=>1.004/1.002. Total: 75.22s/75.23
+    + After making `positions` tensors contiguousL 72.75s. t=.25=>.96

@@ -1,0 +1,428 @@
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+module: /mnt/ffs24/home/khanmd/pinn-stokes/benchmarks/accuracy_grand_M.py
+Loaded geometry: 54 boundary nodes, 47 source points
+Initialized MFS coarse mobility operator with Triton backend.
+Uniform config: True
+volume_fraction=0.025, num_particles=300
+cluster created
+Converged after 45 iterations (max diff = 7.334559e-09)
+Elapsed time (GPU): 15.926 seconds
+Converged after 21 iterations (max diff = 9.910529e-09)
+Mobility computation time: 578.76 ms
+cluster created
+Converged after 68 iterations (max diff = 7.337160e-09)
+Elapsed time (GPU): 23.456 seconds
+Converged after 27 iterations (max diff = 5.238362e-09)
+Mobility computation time: 728.46 ms
+cluster created
+Converged after 60 iterations (max diff = 8.076605e-09)
+Elapsed time (GPU): 20.698 seconds
+Converged after 24 iterations (max diff = 3.186144e-09)
+Mobility computation time: 653.93 ms
+cluster created
+Converged after 55 iterations (max diff = 8.768236e-09)
+Elapsed time (GPU): 18.979 seconds
+Converged after 25 iterations (max diff = 4.146780e-09)
+Mobility computation time: 677.87 ms
+cluster created
+Converged after 62 iterations (max diff = 7.357853e-09)
+Elapsed time (GPU): 21.386 seconds
+Converged after 25 iterations (max diff = 3.998615e-09)
+Mobility computation time: 679.95 ms
+cluster created
+Converged after 64 iterations (max diff = 8.846624e-09)
+Elapsed time (GPU): 22.078 seconds
+Converged after 23 iterations (max diff = 3.736096e-09)
+Mobility computation time: 619.31 ms
+cluster created
+Converged after 54 iterations (max diff = 9.785673e-09)
+Elapsed time (GPU): 18.629 seconds
+Converged after 28 iterations (max diff = 4.511588e-09)
+Mobility computation time: 755.92 ms
+cluster created
+Converged after 62 iterations (max diff = 7.291835e-09)
+Elapsed time (GPU): 21.386 seconds
+Converged after 24 iterations (max diff = 4.572597e-09)
+Mobility computation time: 649.84 ms
+cluster created
+Converged after 49 iterations (max diff = 8.271832e-09)
+Elapsed time (GPU): 16.908 seconds
+Converged after 24 iterations (max diff = 4.369423e-09)
+Mobility computation time: 645.45 ms
+cluster created
+Converged after 57 iterations (max diff = 9.051637e-09)
+Elapsed time (GPU): 19.665 seconds
+Converged after 27 iterations (max diff = 4.813615e-09)
+Mobility computation time: 733.00 ms
+errors (MAE) -> 2b: 2.725368e+00, RPY: 4.128849e+00, 3b: 2.389375e+00, nbody: 2.286873e+00 mfs_coarse: 3.001312e-01
+volume_fraction=0.05, num_particles=300
+cluster created
+Converged after 65 iterations (max diff = 8.112595e-09)
+Elapsed time (GPU): 22.423 seconds
+Converged after 27 iterations (max diff = 8.572010e-09)
+Mobility computation time: 730.35 ms
+cluster created
+Converged after 52 iterations (max diff = 9.665932e-09)
+Elapsed time (GPU): 17.942 seconds
+Converged after 26 iterations (max diff = 6.266777e-09)
+Mobility computation time: 710.53 ms
+cluster created
+Converged after 59 iterations (max diff = 8.336486e-09)
+Elapsed time (GPU): 20.358 seconds
+Converged after 28 iterations (max diff = 8.851565e-09)
+Mobility computation time: 763.09 ms
+cluster created
+Converged after 62 iterations (max diff = 9.788623e-09)
+Elapsed time (GPU): 21.392 seconds
+Converged after 24 iterations (max diff = 3.883113e-09)
+Mobility computation time: 650.72 ms
+cluster created
+Converged after 55 iterations (max diff = 7.426780e-09)
+Elapsed time (GPU): 18.979 seconds
+Converged after 25 iterations (max diff = 7.464194e-09)
+Mobility computation time: 682.20 ms
+cluster created
+Converged after 60 iterations (max diff = 8.228993e-09)
+Elapsed time (GPU): 20.702 seconds
+Converged after 31 iterations (max diff = 9.628967e-09)
+Mobility computation time: 842.51 ms
+cluster created
+Converged after 67 iterations (max diff = 9.520991e-09)
+Elapsed time (GPU): 23.117 seconds
+Converged after 27 iterations (max diff = 5.612786e-09)
+Mobility computation time: 738.14 ms
+cluster created
+Converged after 67 iterations (max diff = 7.334538e-09)
+Elapsed time (GPU): 23.116 seconds
+Converged after 28 iterations (max diff = 5.671362e-09)
+Mobility computation time: 766.31 ms
+cluster created
+Converged after 67 iterations (max diff = 7.407165e-09)
+Elapsed time (GPU): 23.117 seconds
+Converged after 26 iterations (max diff = 5.564011e-09)
+Mobility computation time: 708.46 ms
+cluster created
+Converged after 63 iterations (max diff = 7.657680e-09)
+Elapsed time (GPU): 21.737 seconds
+Converged after 27 iterations (max diff = 8.767680e-09)
+Mobility computation time: 740.59 ms
+errors (MAE) -> 2b: 5.505372e+00, RPY: 7.434397e+00, 3b: 4.515986e+00, nbody: 4.301663e+00 mfs_coarse: 4.956000e-01
+volume_fraction=0.075, num_particles=300
+cluster created
+Converged after 64 iterations (max diff = 8.041907e-09)
+Elapsed time (GPU): 22.086 seconds
+Converged after 28 iterations (max diff = 7.110753e-09)
+Mobility computation time: 771.53 ms
+cluster created
+Converged after 68 iterations (max diff = 7.939547e-09)
+Elapsed time (GPU): 23.466 seconds
+Converged after 27 iterations (max diff = 5.015130e-09)
+Mobility computation time: 743.03 ms
+cluster created
+Converged after 58 iterations (max diff = 8.400174e-09)
+Elapsed time (GPU): 20.013 seconds
+Converged after 28 iterations (max diff = 7.869018e-09)
+Mobility computation time: 762.04 ms
+cluster created
+Converged after 68 iterations (max diff = 7.735906e-09)
+Elapsed time (GPU): 23.464 seconds
+Converged after 28 iterations (max diff = 4.634359e-09)
+Mobility computation time: 763.86 ms
+cluster created
+Converged after 65 iterations (max diff = 7.941649e-09)
+Elapsed time (GPU): 22.432 seconds
+Converged after 28 iterations (max diff = 4.884801e-09)
+Mobility computation time: 765.64 ms
+cluster created
+Converged after 66 iterations (max diff = 8.761560e-09)
+Elapsed time (GPU): 22.777 seconds
+Converged after 27 iterations (max diff = 6.212912e-09)
+Mobility computation time: 731.75 ms
+cluster created
+Converged after 66 iterations (max diff = 9.843840e-09)
+Elapsed time (GPU): 22.776 seconds
+Converged after 31 iterations (max diff = 6.939263e-09)
+Mobility computation time: 842.60 ms
+cluster created
+Converged after 66 iterations (max diff = 9.717549e-09)
+Elapsed time (GPU): 22.775 seconds
+Converged after 26 iterations (max diff = 5.209476e-09)
+Mobility computation time: 705.53 ms
+cluster created
+Converged after 67 iterations (max diff = 9.256263e-09)
+Elapsed time (GPU): 23.117 seconds
+Converged after 30 iterations (max diff = 5.536115e-09)
+Mobility computation time: 812.06 ms
+cluster created
+Converged after 68 iterations (max diff = 8.477069e-09)
+Elapsed time (GPU): 23.467 seconds
+Converged after 27 iterations (max diff = 5.827779e-09)
+Mobility computation time: 733.04 ms
+errors (MAE) -> 2b: 8.010809e+00, RPY: 1.012922e+01, 3b: 6.274926e+00, nbody: 6.197603e+00 mfs_coarse: 5.925929e-01
+volume_fraction=0.1, num_particles=300
+cluster created
+Converged after 59 iterations (max diff = 7.970703e-09)
+Elapsed time (GPU): 20.363 seconds
+Converged after 27 iterations (max diff = 8.351306e-09)
+Mobility computation time: 733.97 ms
+cluster created
+Converged after 69 iterations (max diff = 7.641414e-09)
+Elapsed time (GPU): 23.812 seconds
+Converged after 30 iterations (max diff = 7.073544e-09)
+Mobility computation time: 811.63 ms
+cluster created
+Converged after 68 iterations (max diff = 7.545671e-09)
+Elapsed time (GPU): 23.466 seconds
+Converged after 30 iterations (max diff = 8.213621e-09)
+Mobility computation time: 813.33 ms
+cluster created
+Converged after 67 iterations (max diff = 9.348607e-09)
+Elapsed time (GPU): 23.129 seconds
+Converged after 30 iterations (max diff = 8.848524e-09)
+Mobility computation time: 813.38 ms
+cluster created
+Converged after 70 iterations (max diff = 7.175885e-09)
+Elapsed time (GPU): 24.166 seconds
+Converged after 30 iterations (max diff = 6.236658e-09)
+Mobility computation time: 815.32 ms
+cluster created
+Converged after 69 iterations (max diff = 9.041487e-09)
+Elapsed time (GPU): 23.816 seconds
+Converged after 29 iterations (max diff = 6.900851e-09)
+Mobility computation time: 787.31 ms
+cluster created
+Converged after 65 iterations (max diff = 8.312382e-09)
+Elapsed time (GPU): 22.450 seconds
+Converged after 28 iterations (max diff = 4.798513e-09)
+Mobility computation time: 762.11 ms
+cluster created
+Converged after 64 iterations (max diff = 8.095799e-09)
+Elapsed time (GPU): 22.088 seconds
+Converged after 30 iterations (max diff = 8.464799e-09)
+Mobility computation time: 807.85 ms
+cluster created
+Converged after 65 iterations (max diff = 9.981011e-09)
+Elapsed time (GPU): 22.435 seconds
+Converged after 30 iterations (max diff = 8.644444e-09)
+Mobility computation time: 810.38 ms
+cluster created
+Converged after 67 iterations (max diff = 9.811686e-09)
+Elapsed time (GPU): 23.125 seconds
+Converged after 31 iterations (max diff = 5.253526e-09)
+Mobility computation time: 835.87 ms
+errors (MAE) -> 2b: 1.033427e+01, RPY: 1.280657e+01, 3b: 7.850510e+00, nbody: 7.935899e+00 mfs_coarse: 7.382046e-01
+volume_fraction=0.125, num_particles=300
+cluster created
+Converged after 68 iterations (max diff = 8.369007e-09)
+Elapsed time (GPU): 23.470 seconds
+Converged after 33 iterations (max diff = 6.584352e-09)
+Mobility computation time: 888.95 ms
+cluster created
+Converged after 68 iterations (max diff = 8.674958e-09)
+Elapsed time (GPU): 23.469 seconds
+Converged after 31 iterations (max diff = 8.125517e-09)
+Mobility computation time: 835.08 ms
+cluster created
+Converged after 66 iterations (max diff = 7.932348e-09)
+Elapsed time (GPU): 22.803 seconds
+Converged after 29 iterations (max diff = 5.055283e-09)
+Mobility computation time: 783.94 ms
+cluster created
+Converged after 67 iterations (max diff = 8.775224e-09)
+Elapsed time (GPU): 23.142 seconds
+Converged after 30 iterations (max diff = 6.371153e-09)
+Mobility computation time: 810.62 ms
+cluster created
+Converged after 64 iterations (max diff = 7.732849e-09)
+Elapsed time (GPU): 22.089 seconds
+Converged after 28 iterations (max diff = 7.139665e-09)
+Mobility computation time: 757.91 ms
+cluster created
+Converged after 71 iterations (max diff = 9.722893e-09)
+Elapsed time (GPU): 24.504 seconds
+Converged after 33 iterations (max diff = 9.932277e-09)
+Mobility computation time: 891.21 ms
+cluster created
+Converged after 68 iterations (max diff = 8.975464e-09)
+Elapsed time (GPU): 23.470 seconds
+Converged after 31 iterations (max diff = 5.726516e-09)
+Mobility computation time: 833.11 ms
+cluster created
+Converged after 69 iterations (max diff = 8.849101e-09)
+Elapsed time (GPU): 23.828 seconds
+Converged after 34 iterations (max diff = 5.006237e-09)
+Mobility computation time: 914.57 ms
+cluster created
+Converged after 68 iterations (max diff = 9.448683e-09)
+Elapsed time (GPU): 23.469 seconds
+Converged after 33 iterations (max diff = 7.219824e-09)
+Mobility computation time: 892.39 ms
+cluster created
+Converged after 68 iterations (max diff = 7.960387e-09)
+Elapsed time (GPU): 23.471 seconds
+Converged after 33 iterations (max diff = 7.695020e-09)
+Mobility computation time: 894.84 ms
+errors (MAE) -> 2b: 1.288263e+01, RPY: 1.567325e+01, 3b: 9.341796e+00, nbody: 9.754914e+00 mfs_coarse: 8.459624e-01
+volume_fraction=0.15, num_particles=300
+cluster created
+Converged after 69 iterations (max diff = 8.891974e-09)
+Elapsed time (GPU): 23.816 seconds
+Converged after 36 iterations (max diff = 5.823239e-09)
+Mobility computation time: 966.74 ms
+cluster created
+Converged after 69 iterations (max diff = 8.190193e-09)
+Elapsed time (GPU): 23.815 seconds
+Converged after 33 iterations (max diff = 5.485427e-09)
+Mobility computation time: 890.67 ms
+cluster created
+Converged after 70 iterations (max diff = 8.090776e-09)
+Elapsed time (GPU): 24.157 seconds
+Converged after 33 iterations (max diff = 6.462584e-09)
+Mobility computation time: 893.86 ms
+cluster created
+Converged after 70 iterations (max diff = 9.673885e-09)
+Elapsed time (GPU): 24.157 seconds
+Converged after 34 iterations (max diff = 5.254544e-09)
+Mobility computation time: 919.16 ms
+cluster created
+Converged after 70 iterations (max diff = 8.864307e-09)
+Elapsed time (GPU): 24.160 seconds
+Converged after 33 iterations (max diff = 6.807826e-09)
+Mobility computation time: 890.65 ms
+cluster created
+Converged after 71 iterations (max diff = 7.137573e-09)
+Elapsed time (GPU): 24.503 seconds
+Converged after 34 iterations (max diff = 6.505629e-09)
+Mobility computation time: 925.93 ms
+cluster created
+Converged after 69 iterations (max diff = 8.278233e-09)
+Elapsed time (GPU): 23.817 seconds
+Converged after 32 iterations (max diff = 7.735297e-09)
+Mobility computation time: 864.06 ms
+cluster created
+Converged after 72 iterations (max diff = 7.707954e-09)
+Elapsed time (GPU): 24.854 seconds
+Converged after 34 iterations (max diff = 8.638918e-09)
+Mobility computation time: 921.39 ms
+cluster created
+Converged after 69 iterations (max diff = 9.661494e-09)
+Elapsed time (GPU): 23.815 seconds
+Converged after 31 iterations (max diff = 7.749031e-09)
+Mobility computation time: 838.93 ms
+cluster created
+Converged after 70 iterations (max diff = 7.371267e-09)
+Elapsed time (GPU): 24.161 seconds
+Converged after 32 iterations (max diff = 5.424988e-09)
+Mobility computation time: 866.50 ms
+errors (MAE) -> 2b: 1.570797e+01, RPY: 1.860583e+01, 3b: 1.118489e+01, nbody: 1.217345e+01 mfs_coarse: 9.344285e-01
+volume_fraction=0.175, num_particles=300
+cluster created
+Converged after 68 iterations (max diff = 7.859847e-09)
+Elapsed time (GPU): 23.467 seconds
+Converged after 32 iterations (max diff = 7.684446e-09)
+Mobility computation time: 864.04 ms
+cluster created
+Converged after 72 iterations (max diff = 9.256825e-09)
+Elapsed time (GPU): 24.848 seconds
+Converged after 34 iterations (max diff = 9.230954e-09)
+Mobility computation time: 919.48 ms
+cluster created
+Converged after 73 iterations (max diff = 7.316583e-09)
+Elapsed time (GPU): 25.194 seconds
+Converged after 37 iterations (max diff = 8.981249e-09)
+Mobility computation time: 1008.15 ms
+cluster created
+Converged after 72 iterations (max diff = 8.411216e-09)
+Elapsed time (GPU): 24.847 seconds
+Converged after 34 iterations (max diff = 7.316716e-09)
+Mobility computation time: 922.92 ms
+cluster created
+Converged after 71 iterations (max diff = 9.768017e-09)
+Elapsed time (GPU): 24.503 seconds
+Converged after 34 iterations (max diff = 8.177664e-09)
+Mobility computation time: 923.89 ms
+cluster created
+Converged after 67 iterations (max diff = 9.839128e-09)
+Elapsed time (GPU): 23.123 seconds
+Converged after 34 iterations (max diff = 4.696810e-09)
+Mobility computation time: 918.88 ms
+cluster created
+Converged after 70 iterations (max diff = 8.775826e-09)
+Elapsed time (GPU): 24.159 seconds
+Converged after 35 iterations (max diff = 7.956434e-09)
+Mobility computation time: 945.42 ms
+cluster created
+Converged after 72 iterations (max diff = 7.731851e-09)
+Elapsed time (GPU): 24.847 seconds
+Converged after 36 iterations (max diff = 8.871114e-09)
+Mobility computation time: 974.19 ms
+cluster created
+Converged after 65 iterations (max diff = 9.429190e-09)
+Elapsed time (GPU): 22.441 seconds
+Converged after 34 iterations (max diff = 7.516322e-09)
+Mobility computation time: 925.53 ms
+cluster created
+Converged after 75 iterations (max diff = 7.963875e-09)
+Elapsed time (GPU): 25.888 seconds
+Converged after 34 iterations (max diff = 8.333867e-09)
+Mobility computation time: 932.72 ms
+errors (MAE) -> 2b: 1.875855e+01, RPY: 2.185554e+01, 3b: 1.295331e+01, nbody: 1.463421e+01 mfs_coarse: 1.098434e+00
+volume_fraction=0.2, num_particles=300
+cluster created
+Converged after 72 iterations (max diff = 7.913388e-09)
+Elapsed time (GPU): 24.853 seconds
+Converged after 36 iterations (max diff = 4.957019e-09)
+Mobility computation time: 975.82 ms
+cluster created
+Converged after 73 iterations (max diff = 7.469110e-09)
+Elapsed time (GPU): 25.197 seconds
+Converged after 38 iterations (max diff = 7.007010e-09)
+Mobility computation time: 1030.92 ms
+cluster created
+Converged after 74 iterations (max diff = 7.813691e-09)
+Elapsed time (GPU): 25.540 seconds
+Converged after 39 iterations (max diff = 8.246951e-09)
+Mobility computation time: 1056.80 ms
+cluster created
+Converged after 78 iterations (max diff = 7.216302e-09)
+Elapsed time (GPU): 26.922 seconds
+Converged after 35 iterations (max diff = 6.944148e-09)
+Mobility computation time: 947.31 ms
+cluster created
+Converged after 75 iterations (max diff = 9.471528e-09)
+Elapsed time (GPU): 25.883 seconds
+Converged after 39 iterations (max diff = 4.743531e-09)
+Mobility computation time: 1061.29 ms
+cluster created
+Converged after 72 iterations (max diff = 9.031829e-09)
+Elapsed time (GPU): 24.851 seconds
+Converged after 36 iterations (max diff = 5.960154e-09)
+Mobility computation time: 982.20 ms
+cluster created
+Converged after 74 iterations (max diff = 8.595438e-09)
+Elapsed time (GPU): 25.540 seconds
+Converged after 35 iterations (max diff = 9.065426e-09)
+Mobility computation time: 952.47 ms
+cluster created
+Converged after 77 iterations (max diff = 8.593119e-09)
+Elapsed time (GPU): 26.571 seconds
+Converged after 37 iterations (max diff = 7.831390e-09)
+Mobility computation time: 1005.09 ms
+cluster created
+Converged after 80 iterations (max diff = 9.380221e-09)
+Elapsed time (GPU): 27.608 seconds
+Converged after 40 iterations (max diff = 9.703785e-09)
+Mobility computation time: 1093.08 ms
+cluster created
+Converged after 69 iterations (max diff = 9.395306e-09)
+Elapsed time (GPU): 23.817 seconds
+Converged after 37 iterations (max diff = 7.502459e-09)
+Mobility computation time: 1005.34 ms
+errors (MAE) -> 2b: 2.271616e+01, RPY: 2.589224e+01, 3b: 1.551864e+01, nbody: 1.810244e+01 mfs_coarse: 1.309842e+00
+Saved results to data/grand_M_acc_uniform_fixed_N.csv

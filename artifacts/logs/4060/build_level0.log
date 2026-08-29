@@ -1,0 +1,16 @@
+
+
+-- Configuring done (5.7s)
+-- Generating done (0.1s)
+-- Build files have been written to: /opt/widebvh-src/build-4060
+[8/12] Linking CUDA shared library CMakeFiles/widebvh_nemo_p5.dir/cmake_device_link.o
+[9/12] Linking CUDA shared library libwidebvh_nemo_p5.so
+[10/12] Building CUDA object CMakeFiles/widebvh_nemo.dir/src/nemo_capi.cu.o
+[11/12] Linking CUDA shared library CMakeFiles/widebvh_nemo.dir/cmake_device_link.o
+[12/12] Linking CUDA shared library libwidebvh_nemo.so
+
+real	1m6.861s
+user	2m33.252s
+sys	0m5.580s
+-rwxr-xr-x 1 ubuntu ubuntu 12703208 Aug 18 06:10 /opt/widebvh-src/build-4060/libwidebvh_nemo.so
+-rwxr-xr-x 1 ubuntu ubuntu 12911896 Aug 18 06:10 /opt/widebvh-src/build-4060/libwidebvh_nemo_p5.so

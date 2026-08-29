@@ -29,6 +29,66 @@ print("torch current cudaStream_t :", torch.cuda.current_stream().cuda_stream)
 print("warp current cudaStream_t  :", torch_from_warp.cuda_stream)
 
 
+def _process_device_memory_mb(device_index: int = 0) -> Optional[float]:
+    """VRAM the driver attributes to THIS process, in MB, or None if unavailable.
+
+    torch.cuda.max_memory_allocated/reserved see only the caching allocator, so
+    they miss everything the widebvh engine cudaMallocs directly. Per-PID
+    accounting is used rather than a mem_get_info free-memory delta because the
+    latter is corrupted by other tenants on a shared GPU -- on the cluster's H200s
+    it produced readings below the process's own `reserved`.
+
+    Reports the driver's high-water mark, which does not fall when torch frees
+    into its cache; that is the correct figure for "will this card hold the run".
+
+    Off unless NEMO_DEVICE_MEM=1. The caller prints once per step, and each call
+    forks nvidia-smi (~100 ms) -- enough to dominate a 280 ms step and corrupt the
+    wall-clock timings the benchmarks record. The CUDA-event timings around it are
+    unaffected either way.
+    """
+    if os.environ.get("NEMO_DEVICE_MEM", "0") != "1":
+        return None
+
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-compute-apps=pid,used_memory",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5).stdout
+    except Exception:
+        return None
+    mypid = str(os.getpid())
+    for line in out.strip().splitlines():
+        parts = [x.strip() for x in line.split(",")]
+        if len(parts) == 2 and parts[0] == mypid:
+            try:
+                return float(parts[1])
+            except ValueError:
+                return None
+    return None
+
+
+def warp_fmm_patch_state():
+    """Is this the FMM-patched Warp fork? True / False / None if undeterminable.
+
+    `hasattr(wp, "bvh_mp_query")` does NOT work and returns False even on the
+    fork: Warp's `add_builtin` registers builtins in a function table, and the
+    `wp.`-qualified names exist only as type stubs in `warp/__init__.pyi`. Ask
+    the table instead.
+
+    None means Warp's registry moved and we cannot tell; callers should treat
+    that as "assume patched" rather than block, since the point of the check is
+    a readable error message, not enforcement.
+    """
+    for mod in ("warp._src.context", "warp.context"):
+        try:
+            table = __import__(mod, fromlist=["x"]).builtin_functions
+        except (ImportError, AttributeError):
+            continue
+        return "bvh_mp_query" in table
+    return None
+
+
 def _get_wp_stream(device=None):
     torch_stream = torch.cuda.current_stream(device=device)
     return wp.stream_from_torch(torch_stream)
@@ -223,10 +283,10 @@ class WarpFMM:
         wp_stream = _get_wp_stream(device=torch.device(device))
         with wp.ScopedStream(wp_stream):
             self._wp_device = wp.get_device(device)
-            max_pairs = 1_000_000 * 50  # preallocate for 50 million pairs
+            max_pairs = 1_000_000 * 50  # TODO: Avoid preallocation
             self._neighbor_search = HashGridNeighborSearch(
                 device=device,
-                max_pairs=max_pairs,
+                #max_pairs=max_pairs,
             )
 
         self.fmm_buffer_allocated_ = False
@@ -301,7 +361,18 @@ class WarpFMM:
         torch.cuda.synchronize()
         peak_alloc = torch.cuda.max_memory_allocated(gpu_device) / (1024**2)
         peak_reserved = torch.cuda.max_memory_reserved(gpu_device) / (1024**2)
-        print(f"[MobFMM] peak GPU memory: allocated {peak_alloc:.2f} MB, reserved {peak_reserved:.2f} MB")
+        # Both figures are PyTorch's caching allocator only. The widebvh treecode
+        # allocates its BVH, buckets and pair list with raw cudaMalloc/thrust, which
+        # never passes through that allocator -- at N=1M it is ~1.3 GiB the two
+        # numbers above cannot see. Report what the device is actually holding for
+        # this process too, since that is the figure a 20 GB card has to satisfy.
+        device_used = _process_device_memory_mb(device_index)
+        extra = ""
+        if device_used is not None:
+            extra = (f", process total {device_used:.2f} MB "
+                     f"(non-torch {device_used - peak_reserved:.2f} MB)")
+        print(f"[MobFMM] peak GPU memory: allocated {peak_alloc:.2f} MB, "
+              f"reserved {peak_reserved:.2f} MB{extra}")
 
         rgraph_elapsed = rgraph_start_evt.elapsed_time(rgraph_end_evt)
         print(f"[MobFMM] near-field construction: {rgraph_elapsed:.3f} ms")
@@ -325,6 +396,20 @@ class WarpFMM:
         forces: torch.Tensor,
     ) -> torch.Tensor:
         """Retuns 3D far-field velocities (linear only) using treecode-like FMM."""
+        # The only method in this class that needs the FMM patch on top of
+        # Warp's BVH (wp.bvh_mp_query / multipole_query_next / bvh_primitive_id,
+        # and wp.Bvh's "lbvh" + leaf_size below), from the fork
+        # github.com/Shihab-Shahriar/warp @ 6f312f7. WidebvhFMM overrides this
+        # method, so a widebvh-only environment runs fine on stock warp-lang --
+        # which is what the Docker image installs. Check here rather than at
+        # import or in __init__: both of those run on the widebvh path too.
+        assert warp_fmm_patch_state() is not False, (
+            f"WarpFMM's far field needs the patched Warp fork "
+            f"(github.com/Shihab-Shahriar/warp, adds wp.bvh_mp_query); this "
+            f"environment has stock warp-lang {wp.config.version}. Use the "
+            f"widebvh backend, or rebuild the container with "
+            f"docker/pack_context.sh --with-warp-fork."
+        )
         torch.cuda.synchronize()
 
         start_evt = torch.cuda.Event(enable_timing=True)
@@ -485,14 +570,14 @@ def accuracy_test(
 
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"
-    two_body = "data/models/two_body_combined_model.pt"
+    two_body = "data/models/combined_2body.wt"
 
 
     mob_fmm = Mob_Nbody_Torch(
         shape=shape,
         self_nn_path=self_path,
         two_nn_path=two_body,
-        nbody_nn_path="data/models/nbody_pinn_b1.pt",
+        nbody_nn_path="data/models/nbody_cross_tmp.wt",
         near_field_2b="nn",
         far_field_2b=None,
         near_far_switch=6.0,
@@ -511,7 +596,7 @@ def accuracy_test(
         shape=shape,
         self_nn_path=self_path,
         two_nn_path=two_body,
-        nbody_nn_path="data/models/nbody_pinn_b1.pt",
+        nbody_nn_path="data/models/nbody_cross_tmp.wt",
         near_field_2b="nn",
         far_field_2b="rpy",
         near_far_switch=6.0,
@@ -629,8 +714,8 @@ def perf_test(
     viscosity = 1.0
 
     self_model = "data/models/self_interaction_model.pt"
-    two_body_model = "data/models/two_body_combined_model.pt"
-    nbody_path = "data/models/nbody_pinn_b1.pt"
+    two_body_model = "data/models/combined_2body.wt"
+    nbody_path = "data/models/nbody_cross_tmp.wt"
 
     mob_fmm = Mob_Nbody_Torch(
         shape=shape,

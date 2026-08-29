@@ -355,7 +355,7 @@ if __name__ == '__main__':
     shape = "prolateSpheroid"
     a,b,c = 1.0, 1.0, 3.0
 
-    root = "/home/shihab/src/mfs/"
+    root = "data/"
     b_single = np.loadtxt(f'{root}points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
     s_single = np.loadtxt(f'{root}points/s_{shape}_{acc}.txt', dtype=np.float64)
     

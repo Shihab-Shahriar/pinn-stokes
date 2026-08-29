@@ -1,0 +1,57 @@
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+module: /mnt/ffs24/home/khanmd/pinn-stokes/benchmarks/accuracy_grand_M.py
+Loaded geometry: 54 boundary nodes, 47 source points
+Initialized MFS coarse mobility operator with Triton backend.
+[built CPU fig-3 operators in 0.6s]
+[built GPU fig-4 n-body operator with nbody wt=data/models/nbody_cross_tmp.wt]
+
+===== vf=0.1, N=300, seed=123 =====
+cluster created
+Converged after 59 iterations (max diff = 7.970703e-09)
+Elapsed time (GPU): 21.011 seconds
+[ground-truth Xfine MFS solve: 23.6s]
+Converged after 27 iterations (max diff = 8.351306e-09)
+Mobility computation time: 763.63 ms
+[operator evals: 42.0s]
+op             rel_rmse   expected       d%
+M_rpy           17.0133      17.01    +0.0%
+M_2b            13.7213      13.72    +0.0%
+M_3b            10.1738      10.19    -0.2%
+M_nbody         10.3966      10.40    -0.0%
+mfs_coarse       0.8469       0.85    -0.4%
+Computing neighbor pairs for n-body correction...
+Module src.hashgrid_neighbors b882eb1 load on device 'cuda:0' took 188.25 ms  (cached)
+no of RPY interactions: 83986
+no of NN interactions: 5714
+[Mob_Nbody] Base velocity compute time: 177.038 ms
+[Mob_Nbody] Post-base path time: 106.319 ms
+[NBODY CPU-vs-GPU] max_abs_diff=4.386e-03  rel_diff=2.1223%  CPU rel_rmse=10.3966  GPU rel_rmse=10.0735  (gpu wt=data/models/nbody_cross_tmp.wt)
+
+===== vf=0.2, N=300, seed=123 =====
+cluster created
+Converged after 72 iterations (max diff = 7.913388e-09)
+Elapsed time (GPU): 24.853 seconds
+[ground-truth Xfine MFS solve: 26.9s]
+Converged after 36 iterations (max diff = 4.957019e-09)
+Mobility computation time: 1000.14 ms
+[operator evals: 45.0s]
+op             rel_rmse   expected       d%
+M_rpy           35.4140      35.41    +0.0%
+M_2b            30.8198      30.82    -0.0%
+M_3b            20.2258      20.28    -0.3%
+M_nbody         24.0058      24.01    -0.0%
+mfs_coarse       1.7439       1.74    +0.2%
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79722
+no of NN interactions: 9978
+[Mob_Nbody] Base velocity compute time: 4.495 ms
+[Mob_Nbody] Post-base path time: 3.119 ms
+[NBODY CPU-vs-GPU] max_abs_diff=1.009e-02  rel_diff=4.7810%  CPU rel_rmse=24.0058  GPU rel_rmse=23.7526  (gpu wt=data/models/nbody_cross_tmp.wt)
+
+Done.

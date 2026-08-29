@@ -563,9 +563,9 @@ def imp_mfs_mobility_sphere_triton(
 
 
 class MobMFSTriton:
-    def __init__(self, shape, acc):
+    def __init__(self, shape, acc, tol=1e-8):
         assert shape=="sphere", "Only sphere shape is implemented in this example."
-
+        self.tol = tol
         self.boundary = np.loadtxt(f'data/points/b_{shape}_{acc}.txt', dtype=np.float64)
         self.source = np.loadtxt(f'data/points/s_{shape}_{acc}.txt', dtype=np.float64)
         print(f"Loaded geometry: {self.boundary.shape[0]} boundary nodes, {self.source.shape[0]} source points")
@@ -615,7 +615,7 @@ class MobMFSTriton:
             T_ext_list,
             B_inv_t,
             max_iter=1000,
-            tol=1e-7,
+            tol=self.tol,
             print_steps=False,
             L_cut=self.L_cut,
             device=b_t.device,

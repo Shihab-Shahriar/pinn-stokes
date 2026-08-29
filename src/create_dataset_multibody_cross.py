@@ -59,10 +59,10 @@ def generate_dataset_spheroid_multibody(
 
     acc = "fine"
     boundary1 = np.loadtxt(
-        f"/home/shihab/src/mfs/points/b_sphere_{acc}.txt", dtype=np.float64
+        f"data/points/b_sphere_{acc}.txt", dtype=np.float64
     )
     source1 = np.loadtxt(
-        f"/home/shihab/src/mfs/points/s_sphere_{acc}.txt", dtype=np.float64
+        f"data/points/s_sphere_{acc}.txt", dtype=np.float64
     )
     print(
         f"Target: {boundary1.shape[0]} boundary nodes, {source1.shape[0]} source points"

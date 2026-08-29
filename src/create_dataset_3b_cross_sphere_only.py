@@ -53,8 +53,8 @@ def generate_dataset_spheroid_3body(N_data, dist_min, dist_max, no_overlap_thres
     """
     acc = "fine"
     # Load target (particle #1) geometry from files.
-    boundary1 = np.loadtxt(f'/home/shihab/src/mfs/points/b_sphere_{acc}.txt', dtype=np.float64)  # boundary nodes
-    source1 = np.loadtxt(f'/home/shihab/src/mfs/points/s_sphere_{acc}.txt', dtype=np.float64)
+    boundary1 = np.loadtxt(f'data/points/b_sphere_{acc}.txt', dtype=np.float64)  # boundary nodes
+    source1 = np.loadtxt(f'data/points/s_sphere_{acc}.txt', dtype=np.float64)
     print(f"Target: {boundary1.shape[0]} boundary nodes, {source1.shape[0]} source points")
     
     B_orig = build_B(boundary1, source1, np.zeros(3))

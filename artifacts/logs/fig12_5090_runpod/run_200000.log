@@ -1,0 +1,333 @@
+Warp 1.12.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.1
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA GeForce RTX 5090" (31 GiB, sm_120, mempool enabled)
+   Kernel cache:
+     /workspace/.cache/warp
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 879867200
+
+########## widebvh  N=200,000 ##########
+[MobFMM] far-field FMM GPU time: 46.645 ms
+Building spatial grid for neighbor search...
+Positions shape: (200000,)
+Counting neighbors per particle...
+    Module src.hashgrid_neighbors 86a8751 load on device 'cuda:0' took 0.97 ms  (cached)
+Total near-field pairs found: 4158018
+Collecting neighbor edge indexes...
+Warp::HashGrid took 26.43 ms
+no of NN interactions: 4158018
+AUTOTUNE mm(4000000x4, 4x64)
+strides: [7, 1], [1, 4]
+dtypes: torch.float32, torch.float32
+  mm 0.7967 ms 100.0% 
+  triton_mm_2 0.8089 ms 98.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=32, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=8
+  triton_mm_14 0.8100 ms 98.4% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=128, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=8
+  triton_mm_11 0.8105 ms 98.3% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=128, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_12 0.8110 ms 98.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=128, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_13 0.8115 ms 98.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=128, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=8
+  triton_mm_3 0.8223 ms 96.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=64, BLOCK_N=32, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=8
+  triton_mm_10 0.8223 ms 96.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=64, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=4
+  triton_mm_9 0.8243 ms 96.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=64, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_5 0.8243 ms 96.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=64, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 0.9186 seconds and 0.0003 seconds precompiling for 16 choices
+AUTOTUNE mm(4000000x32, 32x64)
+strides: [32, 1], [1, 32]
+dtypes: torch.float32, torch.float32
+  triton_mm_40 1.0332 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=4
+  triton_mm_41 1.0342 ms 99.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  mm 1.0350 ms 99.8% 
+  triton_mm_39 1.0358 ms 99.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=8
+  triton_mm_42 1.0363 ms 99.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_38 1.0363 ms 99.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  triton_mm_44 1.0368 ms 99.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_35 1.0373 ms 99.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=32, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=8
+  triton_mm_34 1.0373 ms 99.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=32, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=8
+  triton_mm_43 1.0383 ms 99.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 0.7187 seconds and 0.0003 seconds precompiling for 17 choices
+AUTOTUNE mm(4000000x64, 64x32)
+strides: [64, 1], [1, 64]
+dtypes: torch.float32, torch.float32
+  mm 0.9708 ms 100.0% 
+  triton_mm_24 0.9708 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=32, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_17 0.9723 ms 99.8% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=32, BLOCK_N=32, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=4
+  triton_mm_18 0.9728 ms 99.8% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=32, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=8
+  triton_mm_28 0.9728 ms 99.8% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=32, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_29 0.9738 ms 99.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=32, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=8
+  triton_mm_23 0.9738 ms 99.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=32, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_27 0.9738 ms 99.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=32, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_21 0.9743 ms 99.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=32, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  triton_mm_20 0.9748 ms 99.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=64, BLOCK_N=32, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 0.7468 seconds and 0.0002 seconds precompiling for 18 choices
+AUTOTUNE mm(4000000x64, 64x8)
+strides: [64, 1], [8, 1]
+dtypes: torch.float32, torch.float32
+  mm 0.6979 ms 100.0% 
+  triton_mm_60 0.7060 ms 98.8% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=16, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_56 0.7065 ms 98.8% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=16, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_59 0.7085 ms 98.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=16, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_54 0.7091 ms 98.4% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=16, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  triton_mm_49 0.7096 ms 98.3% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=32, BLOCK_N=16, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=2
+  triton_mm_51 0.7096 ms 98.3% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=16, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=4
+  triton_mm_53 0.7096 ms 98.3% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=64, BLOCK_N=16, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  triton_mm_57 0.7096 ms 98.3% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=16, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=4
+  triton_mm_52 0.7102 ms 98.3% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=16, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 0.6892 seconds and 0.0002 seconds precompiling for 17 choices
+AUTOTUNE mm(9x3, 3x4000000)
+strides: [3, 1], [1, 3]
+dtypes: torch.float32, torch.float32
+  triton_mm_66 0.1413 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=4
+  triton_mm_68 0.1413 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  triton_mm_71 0.1413 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_75 0.1423 ms 99.3% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=8
+  triton_mm_69 0.1423 ms 99.3% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_74 0.1423 ms 99.3% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=8
+  triton_mm_73 0.1424 ms 99.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=4
+  triton_mm_64 0.1434 ms 98.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=32, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=1, num_warps=2
+  triton_mm_70 0.1434 ms 98.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_67 0.1434 ms 98.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=32, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=2
+SingleProcess AUTOTUNE benchmarking takes 0.4072 seconds and 0.0002 seconds precompiling for 13 choices
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_mob_2b.py", line 104, in forward
+    contribution = torch.zeros_like(force)
+
+
+[Mob_Nbody] Base velocity compute time: 27385.097 ms
+W0823 15:52:01.554000 6149 torch/_logging/_internal.py:1154] [1/0] Profiler function <class 'torch.autograd.profiler.record_function'> will be ignored
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 125, in forward
+    return self.parent._nbody_chunk_velocity(
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 279, in _nbody_chunk_velocity
+    top_k_indices, neighbor_mask = self.get_k_per_pair(
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 220, in get_k_per_pair
+    candidate_mask = torch.cat([topk_mask[t_idx], topk_mask[s_idx]], dim=1)
+
+
+[Mob_Nbody] Post-base path time: 9001.620 ms
+[MobFMM] peak GPU memory: allocated 2355.02 MB, reserved 3072.00 MB
+[MobFMM] near-field construction: 26.592 ms
+[MobFMM] near-field operator time: 36386.934 ms
+[MobFMM] overall Nearfield time: 36,433.305 ms
+[MobFMM] near-field particles updates per sec: 5,489.48
+[MobFMM] total GPU time: 36491.777 ms
+[MobFMM] total particles updates per sec: 5,480.69
+
+
+[MobFMM] far-field FMM GPU time: 16.670 ms
+Building spatial grid for neighbor search...
+Positions shape: (200000,)
+Counting neighbors per particle...
+Total near-field pairs found: 4158018
+Collecting neighbor edge indexes...
+Warp::HashGrid took 1.19 ms
+no of NN interactions: 4158018
+[Mob_Nbody] Base velocity compute time: 11.993 ms
+[Mob_Nbody] Post-base path time: 30.098 ms
+[MobFMM] peak GPU memory: allocated 2258.34 MB, reserved 3072.00 MB
+[MobFMM] near-field construction: 1.380 ms
+[MobFMM] near-field operator time: 42.210 ms
+[MobFMM] overall Nearfield time: 43.792 ms
+[MobFMM] near-field particles updates per sec: 4,567,090.77
+[MobFMM] total GPU time: 61.050 ms
+[MobFMM] total particles updates per sec: 3,276,022.97
+
+
+[MobFMM] far-field FMM GPU time: 16.193 ms
+Building spatial grid for neighbor search...
+Positions shape: (200000,)
+Counting neighbors per particle...
+Total near-field pairs found: 4158018
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.82 ms
+no of NN interactions: 4158018
+[Mob_Nbody] Base velocity compute time: 11.651 ms
+[Mob_Nbody] Post-base path time: 30.038 ms
+[MobFMM] peak GPU memory: allocated 2258.34 MB, reserved 3072.00 MB
+[MobFMM] near-field construction: 0.911 ms
+[MobFMM] near-field operator time: 41.796 ms
+[MobFMM] overall Nearfield time: 42.837 ms
+[MobFMM] near-field particles updates per sec: 4,668,823.42
+[MobFMM] total GPU time: 59.550 ms
+[MobFMM] total particles updates per sec: 3,358,501.42
+
+
+[MobFMM] far-field FMM GPU time: 16.186 ms
+Building spatial grid for neighbor search...
+Positions shape: (200000,)
+Counting neighbors per particle...
+Total near-field pairs found: 4158018
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.79 ms
+no of NN interactions: 4158018
+[Mob_Nbody] Base velocity compute time: 11.584 ms
+[Mob_Nbody] Post-base path time: 30.047 ms
+[MobFMM] peak GPU memory: allocated 2258.34 MB, reserved 3072.00 MB
+[MobFMM] near-field construction: 0.873 ms
+[MobFMM] near-field operator time: 41.736 ms
+[MobFMM] overall Nearfield time: 42.743 ms
+[MobFMM] near-field particles updates per sec: 4,679,180.53
+[MobFMM] total GPU time: 59.457 ms
+[MobFMM] total particles updates per sec: 3,363,784.96
+
+
+[MobFMM] far-field FMM GPU time: 16.229 ms
+Building spatial grid for neighbor search...
+Positions shape: (200000,)
+Counting neighbors per particle...
+Total near-field pairs found: 4158018
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.80 ms
+no of NN interactions: 4158018
+[Mob_Nbody] Base velocity compute time: 11.564 ms
+[Mob_Nbody] Post-base path time: 30.075 ms
+[MobFMM] peak GPU memory: allocated 2258.34 MB, reserved 3072.00 MB
+[MobFMM] near-field construction: 0.884 ms
+[MobFMM] near-field operator time: 41.745 ms
+[MobFMM] overall Nearfield time: 42.759 ms
+[MobFMM] near-field particles updates per sec: 4,677,370.06
+[MobFMM] total GPU time: 59.512 ms
+[MobFMM] total particles updates per sec: 3,360,693.84
+
+
+[MobFMM] far-field FMM GPU time: 16.153 ms
+Building spatial grid for neighbor search...
+Positions shape: (200000,)
+Counting neighbors per particle...
+Total near-field pairs found: 4158018
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.79 ms
+no of NN interactions: 4158018
+[Mob_Nbody] Base velocity compute time: 11.552 ms
+[Mob_Nbody] Post-base path time: 30.044 ms
+[MobFMM] peak GPU memory: allocated 2258.34 MB, reserved 3072.00 MB
+[MobFMM] near-field construction: 0.882 ms
+[MobFMM] near-field operator time: 41.702 ms
+[MobFMM] overall Nearfield time: 42.714 ms
+[MobFMM] near-field particles updates per sec: 4,682,310.93
+[MobFMM] total GPU time: 59.389 ms
+[MobFMM] total particles updates per sec: 3,367,636.52
+
+
+[MobFMM] far-field FMM GPU time: 16.138 ms
+Building spatial grid for neighbor search...
+Positions shape: (200000,)
+Counting neighbors per particle...
+Total near-field pairs found: 4158018
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.80 ms
+no of NN interactions: 4158018
+[Mob_Nbody] Base velocity compute time: 11.596 ms
+[Mob_Nbody] Post-base path time: 30.068 ms
+[MobFMM] peak GPU memory: allocated 2258.34 MB, reserved 3072.00 MB
+[MobFMM] near-field construction: 0.887 ms
+[MobFMM] near-field operator time: 41.771 ms
+[MobFMM] overall Nearfield time: 42.784 ms
+[MobFMM] near-field particles updates per sec: 4,674,683.03
+[MobFMM] total GPU time: 59.426 ms
+[MobFMM] total particles updates per sec: 3,365,516.70
+
+
+[MobFMM] far-field FMM GPU time: 17.156 ms
+Building spatial grid for neighbor search...
+Positions shape: (200000,)
+Counting neighbors per particle...
+Total near-field pairs found: 4158018
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.79 ms
+no of NN interactions: 4158018
+[Mob_Nbody] Base velocity compute time: 11.570 ms
+[Mob_Nbody] Post-base path time: 30.021 ms
+[MobFMM] peak GPU memory: allocated 2258.34 MB, reserved 3072.00 MB
+[MobFMM] near-field construction: 0.883 ms
+[MobFMM] near-field operator time: 41.709 ms
+[MobFMM] overall Nearfield time: 42.720 ms
+[MobFMM] near-field particles updates per sec: 4,681,616.45
+[MobFMM] total GPU time: 61.037 ms
+[MobFMM] total particles updates per sec: 3,276,711.73
+
+
+[MobFMM] far-field FMM GPU time: 17.021 ms
+Building spatial grid for neighbor search...
+Positions shape: (200000,)
+Counting neighbors per particle...
+Total near-field pairs found: 4158018
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.85 ms
+no of NN interactions: 4158018
+[Mob_Nbody] Base velocity compute time: 11.641 ms
+[Mob_Nbody] Post-base path time: 30.042 ms
+[MobFMM] peak GPU memory: allocated 2258.34 MB, reserved 3072.00 MB
+[MobFMM] near-field construction: 0.942 ms
+[MobFMM] near-field operator time: 41.787 ms
+[MobFMM] overall Nearfield time: 42.859 ms
+[MobFMM] near-field particles updates per sec: 4,666,411.16
+[MobFMM] total GPU time: 60.497 ms
+[MobFMM] total particles updates per sec: 3,305,938.96
+
+
+[MobFMM] far-field FMM GPU time: 18.313 ms
+Building spatial grid for neighbor search...
+Positions shape: (200000,)
+Counting neighbors per particle...
+Total near-field pairs found: 4158018
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.80 ms
+no of NN interactions: 4158018
+[Mob_Nbody] Base velocity compute time: 11.572 ms
+[Mob_Nbody] Post-base path time: 30.017 ms
+[MobFMM] peak GPU memory: allocated 2258.34 MB, reserved 3072.00 MB
+[MobFMM] near-field construction: 0.891 ms
+[MobFMM] near-field operator time: 41.694 ms
+[MobFMM] overall Nearfield time: 42.711 ms
+[MobFMM] near-field particles updates per sec: 4,682,601.99
+[MobFMM] total GPU time: 61.666 ms
+[MobFMM] total particles updates per sec: 3,243,280.89
+
+
+[MobFMM] far-field FMM GPU time: 18.342 ms
+Building spatial grid for neighbor search...
+Positions shape: (200000,)
+Counting neighbors per particle...
+Total near-field pairs found: 4158018
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.79 ms
+no of NN interactions: 4158018
+[Mob_Nbody] Base velocity compute time: 11.578 ms
+[Mob_Nbody] Post-base path time: 30.020 ms
+[MobFMM] peak GPU memory: allocated 2258.34 MB, reserved 3072.00 MB
+[MobFMM] near-field construction: 0.885 ms
+[MobFMM] near-field operator time: 41.704 ms
+[MobFMM] overall Nearfield time: 42.718 ms
+[MobFMM] near-field particles updates per sec: 4,681,837.19
+[MobFMM] total GPU time: 61.669 ms
+[MobFMM] total particles updates per sec: 3,243,105.75
+
+
+[MobFMM] far-field FMM GPU time: 17.146 ms
+Building spatial grid for neighbor search...
+Positions shape: (200000,)
+Counting neighbors per particle...
+Total near-field pairs found: 4158018
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.78 ms
+no of NN interactions: 4158018
+[Mob_Nbody] Base velocity compute time: 11.574 ms
+[Mob_Nbody] Post-base path time: 30.018 ms
+[MobFMM] peak GPU memory: allocated 2258.34 MB, reserved 3072.00 MB
+[MobFMM] near-field construction: 0.873 ms
+[MobFMM] near-field operator time: 41.698 ms
+[MobFMM] overall Nearfield time: 42.699 ms
+[MobFMM] near-field particles updates per sec: 4,683,981.27
+[MobFMM] total GPU time: 60.486 ms
+[MobFMM] total particles updates per sec: 3,306,561.74
+
+
+@@ N=200,000  total=60.79 ms (+-0.32)  far=17.15 ms  3.290 M updates/s  VRAM 2.21 GB
+
+wrote 1 rows -> results/fig12_5090_200000.csv
+
+ N          total ms    far ms   M updates/s   VRAM GB
+   200,000     60.79     17.15        3.290      2.21

@@ -1,0 +1,69 @@
+Warp 1.12.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA GeForce RTX 4060 Laptop GPU" (8 GiB, sm_89, mempool enabled)
+   Kernel cache:
+     /workspace/.cache/warp
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 499488768
+to drop: 537224
+to drop: 537224
+
+=== twodrop0: N=1,047,968  (two-drop sedimentation t=0 (generated, seed 0)) ===
+  [gravity] reference: 6.2s  ||u_far||=1.2425e+05  ||u_self+u_far||=1.2427e+05
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+    pdeg=7 l=0 leaf=1024  mac=0.4   rel_far=1.543e-08  rel_total=1.542e-08  far=78930.48 ms (trav 78745.2 p2p 0.2 up 194.6 build 8.1)  pairs=50,691,009
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+    pdeg=7 l=0 leaf=1024  mac=0.5   rel_far=1.924e-08  rel_total=1.923e-08  far=52577.77 ms (trav 52369.6 p2p 0.2 up 195.7 build 8.1)  pairs=27,831,444
+    pdeg=7 l=0 leaf=1024  mac=0.6   rel_far=7.669e-08  rel_total=7.668e-08  far=15325.45 ms (trav 10699.6 p2p 4417.5 up 195.7 build 8.8)  pairs=16,790,878
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+    pdeg=7 l=3 leaf=1024  mac=0.4   rel_far=2.584e-08  rel_total=2.584e-08  far= 3718.69 ms (trav 3678.2 p2p 0.2 up 21.6 build 11.9)  pairs=50,691,009
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+    pdeg=7 l=3 leaf=1024  mac=0.5   rel_far=2.385e-08  rel_total=2.385e-08  far= 2385.40 ms (trav 2352.5 p2p 0.2 up 19.9 build 11.7)  pairs=27,831,444
+    pdeg=7 l=3 leaf=1024  mac=0.6   rel_far=1.369e-07  rel_total=1.369e-07  far=  693.55 ms (trav 441.4 p2p 217.5 up 20.8 build 11.7)  pairs=16,790,878
+  [random] reference: 6.5s  ||u_far||=1.9981e+01  ||u_self+u_far||=2.0097e+01
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+    pdeg=7 l=0 leaf=1024  mac=0.4   rel_far=4.618e-07  rel_total=4.591e-07  far=79383.67 ms (trav 79175.5 p2p 0.2 up 195.7 build 8.2)  pairs=50,691,009
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+    pdeg=7 l=0 leaf=1024  mac=0.5   rel_far=2.984e-06  rel_total=2.967e-06  far=52580.08 ms (trav 52371.0 p2p 0.2 up 195.7 build 8.1)  pairs=27,831,444
+    pdeg=7 l=0 leaf=1024  mac=0.6   rel_far=1.616e-05  rel_total=1.607e-05  far=15325.67 ms (trav 10699.4 p2p 4417.6 up 195.7 build 8.8)  pairs=16,790,878
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=50691009, budget/tile=26843545 pairs)
+    pdeg=7 l=3 leaf=1024  mac=0.4   rel_far=6.266e-07  rel_total=6.230e-07  far= 3791.45 ms (trav 3742.4 p2p 0.3 up 19.7 build 11.8)  pairs=50,691,009
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=27831444, budget/tile=26843545 pairs)
+    pdeg=7 l=3 leaf=1024  mac=0.5   rel_far=3.014e-06  rel_total=2.997e-06  far= 2440.04 ms (trav 2397.8 p2p 0.3 up 21.8 build 12.0)  pairs=27,831,444
+    pdeg=7 l=3 leaf=1024  mac=0.6   rel_far=1.617e-05  rel_total=1.608e-05  far=  709.32 ms (trav 451.6 p2p 223.6 up 20.3 build 11.7)  pairs=16,790,878
+
+wrote 12 rows -> data/widebvh_4060_sweep.csv

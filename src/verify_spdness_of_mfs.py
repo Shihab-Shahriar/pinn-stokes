@@ -34,7 +34,7 @@ def get_6x6_mobility():
     }
     a, b, c = axes_length[shape]
     acc = "Xfine"
-    root = "/home/shihab/src/mfs/"
+    root = "data/"
 
     boundary1 = np.loadtxt(f'{root}points/b_{shape}_{acc}.txt', dtype=np.float64)  # boundary nodes
     source1 = np.loadtxt(f'{root}points/s_{shape}_{acc}.txt', dtype=np.float64)  # source points
@@ -127,7 +127,7 @@ def get_18x18_mobility_equilateral():
     # Geometry/shape setup (reuse the same discretization for all three spheres)
     shape = "sphere"
     acc = "fine"
-    root = "/home/shihab/src/mfs/"
+    root = "data/"
 
     # Load boundary and source nodes for a single unit sphere (radius=1)
     boundary = np.loadtxt(f"{root}points/b_{shape}_{acc}.txt", dtype=np.float64)
@@ -235,7 +235,7 @@ def get_6N6N_mobility_from_csv(csv_path: str = "tmp/reference_sphere_2.0.csv"):
     # Geometry/shape setup (same discretization for all spheres)
     shape = "sphere"
     acc = "fine"
-    root = "/home/shihab/src/mfs/"
+    root = "data/"
 
     boundary = np.loadtxt(f"{root}points/b_{shape}_{acc}.txt", dtype=np.float64)
     source = np.loadtxt(f"{root}points/s_{shape}_{acc}.txt", dtype=np.float64)

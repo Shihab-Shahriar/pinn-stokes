@@ -1,0 +1,2 @@
+backend,n,total_ms,std_ms,min_ms,far_ms,near_ms,updates_per_sec,peak_vram_gb,mac,theta,pdeg,order,max_leaf,gpu,git_sha
+widebvh,50000,22.795617997568723,0.09759943611829407,22.686967015033588,45.65894317626953,-22.86332517870081,2193404.013233279,1.0136713981628418,0.8,nan,7,0,1024,NVIDIA GeForce RTX 5090,ac78eb4-dirty

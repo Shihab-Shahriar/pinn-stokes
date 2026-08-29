@@ -1,0 +1,13 @@
+-- Configuring done (0.1s)
+-- Generating done (0.1s)
+-- Build files have been written to: /opt/widebvh-src/build-4060
+
+real	2m24.059s
+user	7m49.440s
+sys	0m13.607s
+-rwxr-xr-x 1 ubuntu ubuntu 12703272 Aug 18 06:28 /opt/widebvh-src/build-4060/libwidebvh_nemo.so
+-rwxr-xr-x 1 ubuntu ubuntu 12400216 Aug 18 06:29 /opt/widebvh-src/build-4060/libwidebvh_nemo_f32l1.so
+-rwxr-xr-x 1 ubuntu ubuntu 12458024 Aug 18 06:29 /opt/widebvh-src/build-4060/libwidebvh_nemo_f32l2.so
+-rwxr-xr-x 1 ubuntu ubuntu 12911960 Aug 18 06:28 /opt/widebvh-src/build-4060/libwidebvh_nemo_p5.so
+-rwxr-xr-x 1 ubuntu ubuntu 12510600 Aug 18 06:28 /opt/widebvh-src/build-4060/libwidebvh_nemo_p5_f32l1.so
+-rwxr-xr-x 1 ubuntu ubuntu 12564312 Aug 18 06:28 /opt/widebvh-src/build-4060/libwidebvh_nemo_p5_f32l2.so

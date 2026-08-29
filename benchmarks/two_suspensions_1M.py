@@ -1,5 +1,7 @@
 import sys
 import os
+import io
+import contextlib
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -15,11 +17,24 @@ config.triton.cudagraphs = False
 config.freezing = True
 
 # Add src to path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# insert(0), not append: PYTHONPATH carries an older pinn-stokes checkout that
+# otherwise shadows this repo's `src` package when run as `python benchmarks/...`
+# (sys.path[0] is then the script's own directory, not the cwd).
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 #from src.fmm_stkfmm import MobStkFMM
 from src.gpu_nbody_mob import Mob_Nbody_Torch
 from src.treecode import WarpFMM
+from src.treecode_widebvh import (
+    WidebvhFMM, DEFAULT_MAC, DEFAULT_MAX_LEAF, DEFAULT_CART_MAC,
+    DEFAULT_CART_ORDER)
+from src.gpu_mob_2b import DEFAULT_TWO_BODY_CHUNK
+from src.gpu_nbody_mob import DEFAULT_PAIR_CHUNK
+from benchmarks.figure11_breakdown import parse_components
+
+# Far-field solver. "widebvh" is the calibrated default (see
+# benchmarks/mac_calibration.py); "warp" reproduces the published baseline.
+FAR_FIELD_BACKEND = os.environ.get("NEMO_FAR_FIELD", "widebvh")
 
 def generate_suspension_drop(center, drop_radius):
     """
@@ -95,6 +110,10 @@ def save_vtk(particles, timestamp, output_dir="figures"):
 def save_plot(particles, timestamp, output_dir=r"figures/drop_1M/"):
     # Save VTK file for ParaView
     save_vtk(particles, timestamp, output_dir)
+
+    # Binary dump alongside the VTK: same data, 12 MB vs 75 MB of ASCII, and it
+    # is what an A/B comparison between two `mac` values reads back.
+    np.save(os.path.join(output_dir, f"positions_{timestamp:.1f}.npy"), particles)
     
     # plot a random 1% subsample
     subsample_ratio = 0.01
@@ -134,7 +153,11 @@ def save_plot(particles, timestamp, output_dir=r"figures/drop_1M/"):
     plt.close(fig)
 
 @torch.no_grad()
-def main(theta, benchmark_mode=True, t_final=0.5):
+def main(theta, benchmark_mode=True, t_final=0.5, *, mac=None,
+         max_leaf=DEFAULT_MAX_LEAF, hilbert_q=None, seed=0,
+         out_dir="figures/drop_1M/", pdeg=7, fp32_level=0,
+         pair_budget_gb=None, two_body_chunk=DEFAULT_TWO_BODY_CHUNK,
+         pair_chunk=DEFAULT_PAIR_CHUNK, log_csv=None):
     # --- Simulation Parameters ---
     R_drop = 175.0
     r_particle = 1.0
@@ -150,6 +173,12 @@ def main(theta, benchmark_mode=True, t_final=0.5):
     viscosity = 1.0
     SAVE_STUFF = False if benchmark_mode else True
     
+
+    # Seeded so that two runs at different `mac` see a bit-identical initial
+    # cloud: generate_suspension_drop jitters the lattice with
+    # np.random.uniform, and unseeded that made any A/B comparison of the
+    # dynamics meaningless. Matches benchmarks/far_field_drift.py.
+    np.random.seed(seed)
 
     print("Generating Drop 1...")
     drop1 = generate_suspension_drop((0, 0, z_center_1), R_drop )
@@ -168,8 +197,8 @@ def main(theta, benchmark_mode=True, t_final=0.5):
     # Adjust paths to be relative to project root
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     self_model = os.path.join(project_root, "data/models/self_interaction_model.pt")
-    two_body_model = os.path.join(project_root, "data/models/two_body_combined_model.pt")
-    nbody_path = os.path.join(project_root, "data/models/nbody_pinn_b1.pt")
+    two_body_model = os.path.join(project_root, "data/models/combined_2body.wt")
+    nbody_path = os.path.join(project_root, "data/models/nbody_cross_tmp.wt")
 
     print("Initializing Mob_Nbody_Torch...")
     mob_fmm = Mob_Nbody_Torch(
@@ -180,6 +209,11 @@ def main(theta, benchmark_mode=True, t_final=0.5):
         near_field_2b="nn",
         far_field_2b=None,
         near_far_switch=6.0,
+        # Both pair paths are chunked (two-body 4M, n-body 2M by default), which
+        # is what keeps this case inside a 20 GB card (4.1 GiB vs 15.4 GiB
+        # process footprint at N=1M). Exposed as CLI knobs for smaller cards.
+        two_body_chunk_size=two_body_chunk,
+        pair_chunk_size=pair_chunk,
     )
     
     print("Initializing MobStkFMM...")
@@ -190,14 +224,51 @@ def main(theta, benchmark_mode=True, t_final=0.5):
     #     max_pts=256   
     # )
 
-    warp_solver = WarpFMM(
-        near_field_operator=mob_fmm,
-        theta=0.3,
-        leaf_size=16,
-        near_field_cutoff=6.0,
-        device="cuda",
-        block_dim=256,
-    )
+    if FAR_FIELD_BACKEND.startswith("widebvh"):
+        cart = FAR_FIELD_BACKEND == "widebvh-cart"
+        # `mac` is per-policy: the two expansions truncate different series and
+        # no value transfers between them, so None means "this policy's
+        # calibrated default" rather than a single shared number.
+        if mac is None:
+            mac = DEFAULT_CART_MAC if cart else DEFAULT_MAC
+        # Two balls in a large bounding box occupy only ~35% of it, so the
+        # bucket count for a given cells-per-axis is far below the uniform
+        # case and cart_hilbert_q's fill=1 assumption does not hold. 26 is
+        # what the sweep found here (6101 buckets, 172 particles each:
+        # 345.8 ms of far field on auto, 135.2 at 26). bary is left on auto,
+        # which is within 5% of its own optimum.
+        if hilbert_q is None:
+            hilbert_q = 26.0 if cart else None
+        elif hilbert_q <= 0.0:
+            hilbert_q = None          # explicit request for the engine's auto
+        warp_solver = WidebvhFMM(
+            near_field_operator=mob_fmm,
+            near_field_cutoff=6.0,
+            device="cuda",
+            policy="cart" if cart else "bary",
+            mac=mac,
+            max_leaf=max_leaf,
+            order=DEFAULT_CART_ORDER if cart else None,
+            hilbert_q=hilbert_q,
+            pdeg=pdeg,
+            fp32_level=fp32_level,
+            pair_budget_gb=pair_budget_gb,
+        )
+        print(f"Far field: widebvh treecode, policy={warp_solver.policy}, "
+              f"mac={warp_solver.mac}, PDEG={warp_solver.pdeg}, "
+              f"order={warp_solver.order}, maxLeaf={warp_solver.max_leaf}, "
+              f"fp32_level={warp_solver.fp32_level}, "
+              f"pair_budget_gb={warp_solver.env['TC_PAIR_BUDGET_GB']}")
+    else:
+        warp_solver = WarpFMM(
+            near_field_operator=mob_fmm,
+            theta=theta,
+            leaf_size=16,
+            near_field_cutoff=6.0,
+            device="cuda",
+            block_dim=256,
+        )
+        print(f"Far field: Warp treecode, theta={theta}")
 
 
     device = torch.device("cuda")
@@ -234,7 +305,8 @@ def main(theta, benchmark_mode=True, t_final=0.5):
     current_time = 0.0
 
     start_time = time.perf_counter()
-    
+    step_rows = []
+
     # Perf note: tried sorting data every 10 timesteps. didn't help.
     with torch.no_grad():
         while current_time <= t_final + save_tol:
@@ -243,7 +315,8 @@ def main(theta, benchmark_mode=True, t_final=0.5):
                 for save_t in save_timestamps:
                     if abs(current_time - save_t) < save_tol:
                         print(f"Saving configuration at t={current_time:.2f}")
-                        save_plot(positions.detach().cpu().numpy(), current_time)
+                        save_plot(positions.detach().cpu().numpy(), current_time,
+                                  output_dir=out_dir)
                         #np.save(os.path.join("figures", f"config_{current_time:.1f}.npy"), positions.detach().cpu().numpy())
             
             if current_time >= t_final - save_tol:
@@ -252,9 +325,23 @@ def main(theta, benchmark_mode=True, t_final=0.5):
             # Compute velocity on GPU
             print(f"Step t={current_time:.2f}")
             start = time.perf_counter()
-            vel = warp_solver.apply(positions, orientations, forces, vis_arr)
+            if log_csv is None:
+                vel = warp_solver.apply(positions, orientations, forces, vis_arr)
+            else:
+                # Capture the operator's own [MobFMM]/[Mob_Nbody] stdout keys
+                # for this step so the per-step breakdown lands in a CSV as
+                # well as in the log. Same parser as figure11_breakdown.py.
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    vel = warp_solver.apply(positions, orientations, forces, vis_arr)
+                sys.stdout.write(buf.getvalue())
+                raw = parse_components(buf.getvalue())
+                step_rows.append({k: (v[-1] if v else "") for k, v in raw.items()})
+                step_rows[-1]["t"] = round(current_time, 4)
             end = time.perf_counter()
             print(f"Velocity computed in {end - start:.3f} seconds.")
+            if log_csv is not None:
+                step_rows[-1]["wall_s"] = round(end - start, 4)
             
             # Extract linear velocity (first 3 components)
             v_linear = vel[:, :3]
@@ -270,5 +357,116 @@ def main(theta, benchmark_mode=True, t_final=0.5):
     print("Simulation complete.")
     print(f"Total simulation time: {total_time:.2f} seconds.")
 
+    if log_csv is not None and step_rows:
+        _write_step_csv(log_csv, step_rows, dict(
+            n=n_particles, mac=mac, max_leaf=max_leaf, pdeg=pdeg,
+            fp32_level=fp32_level, two_body_chunk=two_body_chunk,
+            pair_chunk=pair_chunk, backend=FAR_FIELD_BACKEND,
+            gpu=torch.cuda.get_device_name(0)))
+        _print_summary(step_rows, total_time)
+
+
+def _write_step_csv(path, rows, config):
+    import csv
+    keys = ["t", "wall_s", "far_ms", "nsearch_ms", "self2b_ms", "nbody_ms",
+            "overall_near_ms", "total_gpu_ms", "near_pairs", "peak_alloc_mb",
+            "peak_total_mb"]
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    with open(path, "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(config) + keys)
+        w.writeheader()
+        for r in rows:
+            w.writerow({**config, **{k: r.get(k, "") for k in keys}})
+    print(f"Wrote {len(rows)} per-step rows -> {path}")
+
+
+def _print_summary(rows, total_time):
+    """Mean/median of the timed steps, in the same '@@' style as
+    far_field_drift.py so logs can be grepped uniformly."""
+    def col(k):
+        return [float(r[k]) for r in rows if r.get(k) not in ("", None)]
+    def stats(xs):
+        if not xs:
+            return "n/a"
+        xs = sorted(xs)
+        med = xs[len(xs) // 2] if len(xs) % 2 else 0.5 * (xs[len(xs)//2 - 1] + xs[len(xs)//2])
+        return f"mean {sum(xs)/len(xs):9.2f}  median {med:9.2f}  min {xs[0]:9.2f}  max {xs[-1]:9.2f}"
+    print(f"@@ steps={len(rows)}  total_sim_time={total_time:.2f}s  "
+          f"({1e3*total_time/len(rows):.1f} ms/step wall incl. Euler update)")
+    for k, label in (("wall_s", "wall_s     "), ("far_ms", "far_ms     "),
+                     ("overall_near_ms", "near_ms    "),
+                     ("nsearch_ms", "nsearch_ms "), ("self2b_ms", "self2b_ms  "),
+                     ("nbody_ms", "nbody_ms   "), ("total_gpu_ms", "total_gpu  ")):
+        print(f"@@ {label} {stats(col(k))}")
+    pk = col("peak_total_mb") or col("peak_alloc_mb")
+    if pk:
+        print(f"@@ peak_mem_mb  max {max(pk):.0f}  "
+              f"({'process total' if col('peak_total_mb') else 'torch allocated'})")
+
+
 if __name__ == "__main__":
-    main(theta=.3, benchmark_mode=False, t_final=1.0)
+    import argparse
+
+    ap = argparse.ArgumentParser(
+        description="1M two-drop sedimentation (Figure 13 / nemo.pdf sec 3.4). "
+                    "Defaults reproduce the checked-in timing run exactly; "
+                    "--snapshots --t-final 1.0 reproduces the figure.")
+    ap.add_argument("--mac", type=float, default=None,
+                    help="widebvh acceptance criterion; default is the "
+                         "policy's calibrated value (bary %.2f, cart %.2f). "
+                         "NOT WarpFMM's theta. Saturates at 1.0 -- above that "
+                         "the tree has no further nodes to accept and both the "
+                         "error and the cost stop moving."
+                         % (DEFAULT_MAC, DEFAULT_CART_MAC))
+    ap.add_argument("--max-leaf", type=int, default=DEFAULT_MAX_LEAF,
+                    help="widebvh leaf size (default %(default)s). Trades "
+                         "traversal against P2P at essentially constant "
+                         "accuracy, so it is the free knob on a GPU whose "
+                         "fp64 P2P is relatively more expensive than the H200's.")
+    ap.add_argument("--hilbert-q", type=float, default=None,
+                    help="source-bucket cells per axis; default is the "
+                         "policy's value (26 for cart, engine auto for bary). "
+                         "Pass 0 to force the engine's auto.")
+    ap.add_argument("--theta", type=float, default=0.3,
+                    help="WarpFMM opening angle, used only when "
+                         "NEMO_FAR_FIELD=warp (default %(default)s)")
+    ap.add_argument("--t-final", type=float, default=0.5,
+                    help="end time; dt is 0.01, so 0.5 is 50 steps (default, "
+                         "the timing run) and 1.0 is the 100 steps Figure 13 shows")
+    ap.add_argument("--snapshots", action="store_true",
+                    help="write VTK/npy/png every 0.1 (the figure run); off by "
+                         "default, which is the timing run")
+    ap.add_argument("--seed", type=int, default=0,
+                    help="RNG seed for the lattice jitter (default %(default)s). "
+                         "Two runs must share it to be comparable.")
+    ap.add_argument("--out-dir", default="figures/drop_1M/",
+                    help="snapshot output directory (default %(default)s)")
+    ap.add_argument("--pdeg", type=int, default=7,
+                    help="widebvh barycentric degree (compile-time; needs the "
+                         "matching libwidebvh_nemo_p<N>.so). Default %(default)s")
+    ap.add_argument("--fp32-level", type=int, default=0,
+                    help="widebvh fp32 fast-path level: 0 = production fp64 "
+                         "kernels, 1 = fp32 M2P, 2 = + fp32 P2P, 3 = + fp32 "
+                         "upward pass (needs libwidebvh_nemo*_f32l<L>.so). "
+                         "Default %(default)s")
+    ap.add_argument("--pair-budget-gb", type=float, default=None,
+                    help="widebvh P2P pair-list budget; default is ~6%% of "
+                         "VRAM (min 1 GB), which caps at 26.8M pairs on an "
+                         "8 GB card -- raise it (2-3) for leaf sizes below "
+                         "1024, whose pair counts otherwise spill into the "
+                         "engine's tiled fallback path")
+    ap.add_argument("--two-body-chunk", type=int, default=DEFAULT_TWO_BODY_CHUNK,
+                    help="pairs per two-body NN chunk (default %(default)s)")
+    ap.add_argument("--pair-chunk", type=int, default=DEFAULT_PAIR_CHUNK,
+                    help="pairs per n-body NN chunk (default %(default)s)")
+    ap.add_argument("--log-csv", default=None,
+                    help="write a per-step breakdown CSV (far/near/nsearch/"
+                         "self2b/nbody/total ms, wall s, peak memory) parsed "
+                         "from the operator's stdout, plus an @@ summary")
+    a = ap.parse_args()
+
+    main(theta=a.theta, benchmark_mode=not a.snapshots, t_final=a.t_final,
+         mac=a.mac, max_leaf=a.max_leaf, hilbert_q=a.hilbert_q, seed=a.seed,
+         out_dir=a.out_dir, pdeg=a.pdeg, fp32_level=a.fp32_level,
+         pair_budget_gb=a.pair_budget_gb, two_body_chunk=a.two_body_chunk,
+         pair_chunk=a.pair_chunk, log_csv=a.log_csv)

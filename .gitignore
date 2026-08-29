@@ -1,8 +1,11 @@
-figures/
+figures/gpu_scaling
+figures/drop_1M
+figures/runtime_breakdown
 tmp/
 data/*.npy
 data/**/*.npy 
 data/.ipynb_checkpoints
+data/archive/
 experiments/.ipynb_checkpoints
 experiments/figs/.ipynb_checkpoints
 experiments/*.png
@@ -12,6 +15,9 @@ utils/__pycache__
 benchmarks/__pycache__
 data/points/
 data/simulations/
-
+__pycache__/
 *.data
 *.txt
+.tmp/
+# build context produced by docker/pack_context.sh
+nemo-ctx.tar.gz

@@ -1,0 +1,611 @@
+<title>Is the NeMO grand mobility symmetric with the treecode?</title>
+<style>
+:root {
+  color-scheme: light;
+  --plane:#f2f3f6; --card:#ffffff; --chart-surface:#fcfcfb;
+  --ink:#14161c; --ink-2:#4b505c; --muted:#7f848f;
+  --rule:#dfe2e9; --rule-soft:#eaecf1;
+  --accent:#27478d; --accent-soft:#e8ecf7;
+  --s1:#2a78d6; --s2:#eb6834;
+  --grid:#e6e8ee; --axis:#c3c7d0;
+  --crit:#d03b3b; --good:#0ca30c;
+  --band:#f0f2f7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --plane:#0e0f13; --card:#171920; --chart-surface:#1a1a19;
+    --ink:#f0f2f6; --ink-2:#b3b9c6; --muted:#868c99;
+    --rule:#2b2e37; --rule-soft:#22242b;
+    --accent:#87a8ee; --accent-soft:#1b2333;
+    --s1:#3987e5; --s2:#d95926;
+    --grid:#2a2c31; --axis:#3a3d46;
+    --crit:#e36a6a; --good:#38b93a;
+    --band:#20232b;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane:#0e0f13; --card:#171920; --chart-surface:#1a1a19;
+  --ink:#f0f2f6; --ink-2:#b3b9c6; --muted:#868c99;
+  --rule:#2b2e37; --rule-soft:#22242b;
+  --accent:#87a8ee; --accent-soft:#1b2333;
+  --s1:#3987e5; --s2:#d95926;
+  --grid:#2a2c31; --axis:#3a3d46;
+  --crit:#e36a6a; --good:#38b93a;
+  --band:#20232b;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin:0; background:var(--plane); color:var(--ink);
+  font-family: ui-serif, Charter, "Bitstream Charter", "Iowan Old Style", Georgia, serif;
+  font-size:17px; line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap { max-width:960px; margin:0 auto; padding:56px 24px 96px; }
+.prose { max-width:68ch; }
+
+h1,h2,h3,.eyebrow,.tick,.axlab,.dlab,.ptlab,.rowlab,.note,.band-lab,.marker-lab,
+.stat-lab,.pill,summary,th,.kv {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.eyebrow {
+  font-size:12px; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--muted); font-weight:600; margin:0 0 14px;
+}
+h1 { font-size:clamp(30px,4.4vw,44px); line-height:1.12; letter-spacing:-.022em;
+     font-weight:640; margin:0 0 18px; text-wrap:balance; }
+h2 { font-size:22px; letter-spacing:-.01em; font-weight:640; margin:0 0 4px; }
+h3 { font-size:16px; font-weight:640; margin:28px 0 6px; letter-spacing:-.005em; }
+.lede { font-size:19.5px; color:var(--ink-2); margin:0 0 8px; }
+p { margin:0 0 18px; }
+a { color:var(--accent); text-underline-offset:3px; }
+
+.meta {
+  display:flex; flex-wrap:wrap; gap:8px 22px; margin:26px 0 0;
+  padding-top:18px; border-top:1px solid var(--rule);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size:12.5px; color:var(--muted);
+}
+
+/* verdict */
+.verdict { margin:40px 0 8px; display:grid; gap:14px;
+           grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); }
+.stat { background:var(--card); border:1px solid var(--rule); border-radius:10px;
+        padding:20px 20px 18px; }
+.stat .v { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+           font-size:34px; font-weight:600; letter-spacing:-.02em; line-height:1.05;
+           font-variant-numeric: tabular-nums; }
+.stat .v.bad { color:var(--crit); }
+.stat .v.ok  { color:var(--good); }
+.stat-lab { font-size:13px; color:var(--ink-2); margin-top:8px; line-height:1.42; }
+
+.callout {
+  border-left:3px solid var(--accent); background:var(--accent-soft);
+  padding:16px 20px; border-radius:0 8px 8px 0; margin:26px 0;
+}
+.callout p:last-child { margin-bottom:0; }
+
+section { margin-top:52px; }
+.sechead { display:flex; align-items:baseline; gap:12px; margin-bottom:16px;
+           padding-bottom:10px; border-bottom:1px solid var(--rule); }
+.snum { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size:13px; color:var(--muted); font-weight:600; }
+
+/* figures */
+figure { margin:26px 0 8px; background:var(--card); border:1px solid var(--rule);
+         border-radius:10px; padding:18px 18px 12px; }
+figcaption { font-size:13.5px; color:var(--ink-2); margin-top:6px;
+             padding-top:12px; border-top:1px solid var(--rule-soft); }
+.chart { display:block; width:100%; height:auto; background:var(--chart-surface);
+         border-radius:6px; }
+.grid { stroke:var(--grid); stroke-width:1; }
+.axis { stroke:var(--axis); stroke-width:1; }
+.band { fill:var(--band); }
+.band-lab { fill:var(--muted); font-size:11px; }
+.tick { fill:var(--muted); font-size:11.5px; font-variant-numeric:tabular-nums; }
+.axlab { fill:var(--ink-2); font-size:12.5px; }
+.line { fill:none; stroke-width:2; }
+.line.s1 { stroke:var(--s1); } .line.s2 { stroke:var(--s2); }
+.dot { stroke:var(--chart-surface); stroke-width:2; }
+.dot.s1 { fill:var(--s1); } .dot.s2 { fill:var(--s2); }
+.dot.rec { fill:var(--s1); stroke:var(--s1); stroke-width:3; }
+.err { stroke:var(--s1); stroke-width:1.5; opacity:.55; }
+.dlab { font-size:12.5px; font-weight:600; }
+.dlab.s1 { fill:var(--s1); } .dlab.s2 { fill:var(--s2); }
+.leader { stroke-width:1; }
+.leader.s1 { stroke:var(--s1); } .leader.s2 { stroke:var(--s2); }
+.ptlab { fill:var(--ink-2); font-size:11.5px; font-variant-numeric:tabular-nums; }
+.ptlab.em { fill:var(--ink); font-weight:600; }
+.note { fill:var(--muted); font-size:11.5px; }
+.note.s2 { fill:var(--s2); font-weight:600; }
+.note.rec { fill:var(--s1); font-weight:600; }
+.marker { stroke:var(--axis); stroke-width:1; stroke-dasharray:3 4; }
+.marker-lab { fill:var(--muted); font-size:11px; }
+.rowlab { fill:var(--ink-2); font-size:13px; }
+.bar.s1 { fill:var(--s1); } .bar.s2 { fill:var(--s2); }
+.barval { fill:var(--ink); font-size:13px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          font-variant-numeric:tabular-nums; }
+.barpct { fill:var(--muted); }
+.chart circle:hover { stroke-width:3; }
+.chart rect.bar:hover { opacity:.85; }
+
+/* tables */
+.tableview { margin-top:10px; }
+summary { cursor:pointer; font-size:12.5px; color:var(--muted); padding:6px 0; }
+summary:hover { color:var(--ink-2); }
+.scroll { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; font-size:13.5px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-variant-numeric:tabular-nums; }
+th { text-align:left; font-size:12px; letter-spacing:.04em; text-transform:uppercase;
+     color:var(--muted); font-weight:600; padding:8px 14px 8px 0;
+     border-bottom:1px solid var(--rule); white-space:nowrap; }
+td { padding:7px 14px 7px 0; border-bottom:1px solid var(--rule-soft);
+     color:var(--ink-2); white-space:nowrap; }
+td:first-child { color:var(--ink); }
+tr.em td { color:var(--ink); font-weight:600; }
+
+code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+              font-size:.88em; }
+code { background:var(--rule-soft); padding:1.5px 5px; border-radius:4px; }
+pre { background:var(--card); border:1px solid var(--rule); border-radius:8px;
+      padding:16px 18px; overflow-x:auto; font-size:13px; line-height:1.6; }
+pre code { background:none; padding:0; }
+
+ol.fixes { list-style:none; counter-reset:f; padding:0; margin:22px 0 0; }
+ol.fixes > li { counter-increment:f; position:relative; padding:18px 0 18px 46px;
+                border-top:1px solid var(--rule); }
+ol.fixes > li::before {
+  content:counter(f); position:absolute; left:0; top:20px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px;
+  font-weight:600; color:var(--accent); background:var(--accent-soft);
+  width:26px; height:26px; border-radius:50%; display:grid; place-items:center;
+}
+ol.fixes h3 { margin:0 0 6px; }
+ol.fixes p { margin:0 0 8px; font-size:16px; }
+ol.fixes p:last-child { margin-bottom:0; }
+.pill { display:inline-block; font-size:11px; font-weight:600; letter-spacing:.05em;
+        text-transform:uppercase; padding:2.5px 8px; border-radius:999px;
+        border:1px solid var(--rule); color:var(--muted); margin-left:8px;
+        vertical-align:2px; }
+.pill.rec { color:var(--good); border-color:var(--good); }
+ul.plain { padding-left:20px; }
+ul.plain li { margin-bottom:12px; }
+</style>
+<div class="wrap">
+
+<p class="eyebrow">NeMO mobility operator &middot; numerical verification</p>
+<h1>Is the grand mobility still symmetric once the treecode handles the far field?</h1>
+<p class="lede prose">No. But the near field is, the cause is provable, and the asymmetry
+turns out to be the treecode's own truncation error rather than a defect on top of it.
+A larger problem showed up alongside it.</p>
+
+<div class="meta">
+  <span>benchmarks/symmetry_treecode.py</span>
+  <span>NVIDIA H200</span>
+  <span>TORCH_COMPILE_DISABLE=1</span>
+  <span>branch: performance</span>
+</div>
+
+<div class="verdict">
+  <div class="stat">
+    <div class="v bad">1.5%</div>
+    <div class="stat-lab">relative asymmetry of the grand mobility at
+      N&nbsp;=&nbsp;1&nbsp;M, production &#952;&nbsp;=&nbsp;0.3</div>
+  </div>
+  <div class="stat">
+    <div class="v ok">4&#215;10&#8315;&#8313;</div>
+    <div class="stat-lab">the same operator with the treecode off &mdash; so the tree is
+      the entire cause, not the neural near field</div>
+  </div>
+  <div class="stat">
+    <div class="v bad">10.0%</div>
+    <div class="stat-lab">of the far-field operator's Frobenius norm is discarded: it
+      carries no rotation&ndash;translation coupling at all</div>
+  </div>
+</div>
+
+<div class="callout prose">
+  <p><strong>What to do.</strong> The symmetry defect is real but second-order. The
+  translation-only far field is <strong>6&#215; larger, systematic, and makes particle
+  rotation rates untrustworthy</strong> in any treecode run &mdash; fix that first. For
+  symmetry itself, dropping &#952; from 0.3 to 0.2 costs 36&nbsp;% step time and buys
+  3.4&#215; on both asymmetry and far-field accuracy; a symmetrized apply is exact and
+  costs about the same.</p>
+</div>
+
+<section>
+  <div class="sechead"><span class="snum">01</span><h2>The near field is symmetric</h2></div>
+  <div class="prose">
+  <p><code>Mob_Nbody_Torch</code> with <code>far_field_2b=None</code> &mdash; self plus
+  two-body NN plus n-body NN, nothing else &mdash; assembled column by column into a
+  900&#215;900 matrix gives
+  <span class="mono">&#8214;M&#8722;M&#7488;&#8214;/&#8214;M&#8214; = 4.85&#215;10&#8315;&#8313;</span>
+  and <span class="mono">max|M&#8722;M&#7488;| = 1.40&#215;10&#8315;&#8313;</span>. Symmetric
+  to float32 precision.</p>
+  <p>Worth recording because <code>src/model_archs.py</code> warns that the two-body kernel
+  <span class="mono">M_t</span> is deliberately <em>not</em> symmetric. That turns out to be
+  exactly the condition that makes the assembled matrix symmetric &mdash; with
+  <span class="mono">RT = c(r)&middot;L3(d&#770;)</span> and
+  <span class="mono">L3(&#8722;d&#770;) = &#8722;L3(d&#770;) = L3(d&#770;)&#7488;</span>, the
+  directed-edge scatter in <code>PairVelKernel</code> lands the transpose in the right
+  place on its own.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><span class="snum">02</span><h2>The far field is not &mdash; and the
+    multipole acceptance is provably the cause</h2></div>
+  <figure>
+    <svg class="chart" viewBox="0 0 880 400" role="img" aria-label="Relative asymmetry and truncation error versus opening angle theta">
+<rect x="66" y="26" width="115.9" height="322" class="band"/>
+<text x="123.9" y="42" class="band-lab" text-anchor="middle">identically</text>
+<text x="123.9" y="56" class="band-lab" text-anchor="middle">zero</text>
+<line x1="66" y1="348.0" x2="752" y2="348.0" class="grid"/>
+<text x="56" y="352.0" class="tick" text-anchor="end">10⁻⁵</text>
+<line x1="66" y1="269.1" x2="752" y2="269.1" class="grid"/>
+<text x="56" y="273.1" class="tick" text-anchor="end">10⁻⁴</text>
+<line x1="66" y1="190.1" x2="752" y2="190.1" class="grid"/>
+<text x="56" y="194.1" class="tick" text-anchor="end">10⁻³</text>
+<line x1="66" y1="111.2" x2="752" y2="111.2" class="grid"/>
+<text x="56" y="115.2" class="tick" text-anchor="end">10⁻²</text>
+<line x1="66" y1="32.3" x2="752" y2="32.3" class="grid"/>
+<text x="56" y="36.3" class="tick" text-anchor="end">10⁻¹</text>
+<line x1="66.0" y1="348" x2="66.0" y2="353" class="axis"/>
+<text x="66.0" y="368" class="tick" text-anchor="middle">0</text>
+<line x1="158.7" y1="348" x2="158.7" y2="353" class="axis"/>
+<text x="158.7" y="368" class="tick" text-anchor="middle">0.1</text>
+<line x1="251.4" y1="348" x2="251.4" y2="353" class="axis"/>
+<text x="251.4" y="368" class="tick" text-anchor="middle">0.2</text>
+<line x1="344.1" y1="348" x2="344.1" y2="353" class="axis"/>
+<text x="344.1" y="368" class="tick" text-anchor="middle">0.3</text>
+<line x1="436.8" y1="348" x2="436.8" y2="353" class="axis"/>
+<text x="436.8" y="368" class="tick" text-anchor="middle">0.4</text>
+<line x1="529.5" y1="348" x2="529.5" y2="353" class="axis"/>
+<text x="529.5" y="368" class="tick" text-anchor="middle">0.5</text>
+<line x1="622.2" y1="348" x2="622.2" y2="353" class="axis"/>
+<text x="622.2" y="368" class="tick" text-anchor="middle">0.6</text>
+<line x1="714.9" y1="348" x2="714.9" y2="353" class="axis"/>
+<text x="714.9" y="368" class="tick" text-anchor="middle">0.7</text>
+<line x1="66" y1="348" x2="752" y2="348" class="axis"/>
+<path d="M 205.1 317.7 L 228.2 237.4 L 251.4 190.9 L 297.8 141.1 L 344.1 114.7 L 436.8 85.4 L 529.5 66.3 L 622.2 52.5 L 714.9 42.7" class="line s1"/>
+<circle cx="205.1" cy="317.7" r="4.5" class="dot s1"><title>theta 0.15 — asymmetry 2.42×10⁻⁵</title></circle>
+<circle cx="228.2" cy="237.4" r="4.5" class="dot s1"><title>theta 0.175 — asymmetry 2.52×10⁻⁴</title></circle>
+<circle cx="251.4" cy="190.9" r="4.5" class="dot s1"><title>theta 0.2 — asymmetry 9.77×10⁻⁴</title></circle>
+<circle cx="297.8" cy="141.1" r="4.5" class="dot s1"><title>theta 0.25 — asymmetry 4.17×10⁻³</title></circle>
+<circle cx="344.1" cy="114.7" r="4.5" class="dot s1"><title>theta 0.3 — asymmetry 9.03×10⁻³</title></circle>
+<circle cx="436.8" cy="85.4" r="4.5" class="dot s1"><title>theta 0.4 — asymmetry 2.12×10⁻²</title></circle>
+<circle cx="529.5" cy="66.3" r="4.5" class="dot s1"><title>theta 0.5 — asymmetry 3.70×10⁻²</title></circle>
+<circle cx="622.2" cy="52.5" r="4.5" class="dot s1"><title>theta 0.6 — asymmetry 5.54×10⁻²</title></circle>
+<circle cx="714.9" cy="42.7" r="4.5" class="dot s1"><title>theta 0.7 — asymmetry 7.38×10⁻²</title></circle>
+<line x1="719.9" y1="42.7" x2="724.9" y2="28.7" class="leader s1"/>
+<text x="727.9" y="32.7" class="dlab s1">asymmetry</text>
+<path d="M 205.1 329.6 L 228.2 248.7 L 251.4 202.0 L 297.8 151.5 L 344.1 124.6 L 436.8 95.3 L 529.5 76.1 L 622.2 62.0 L 714.9 52.5" class="line s2"/>
+<circle cx="205.1" cy="329.6" r="4.5" class="dot s2"><title>theta 0.15 — truncation error 1.71×10⁻⁵</title></circle>
+<circle cx="228.2" cy="248.7" r="4.5" class="dot s2"><title>theta 0.175 — truncation error 1.81×10⁻⁴</title></circle>
+<circle cx="251.4" cy="202.0" r="4.5" class="dot s2"><title>theta 0.2 — truncation error 7.06×10⁻⁴</title></circle>
+<circle cx="297.8" cy="151.5" r="4.5" class="dot s2"><title>theta 0.25 — truncation error 3.09×10⁻³</title></circle>
+<circle cx="344.1" cy="124.6" r="4.5" class="dot s2"><title>theta 0.3 — truncation error 6.75×10⁻³</title></circle>
+<circle cx="436.8" cy="95.3" r="4.5" class="dot s2"><title>theta 0.4 — truncation error 1.59×10⁻²</title></circle>
+<circle cx="529.5" cy="76.1" r="4.5" class="dot s2"><title>theta 0.5 — truncation error 2.78×10⁻²</title></circle>
+<circle cx="622.2" cy="62.0" r="4.5" class="dot s2"><title>theta 0.6 — truncation error 4.20×10⁻²</title></circle>
+<circle cx="714.9" cy="52.5" r="4.5" class="dot s2"><title>theta 0.7 — truncation error 5.54×10⁻²</title></circle>
+<line x1="719.9" y1="52.5" x2="724.9" y2="66.5" class="leader s2"/>
+<text x="727.9" y="70.5" class="dlab s2">truncation error</text>
+<line x1="344.1" y1="26" x2="344.1" y2="348" class="marker"/>
+<text x="344.1" y="18" class="marker-lab" text-anchor="middle">production θ = 0.3</text>
+<text x="409.0" y="392" class="axlab" text-anchor="middle">opening angle θ</text>
+<text transform="translate(16,187.0) rotate(-90)" class="axlab" text-anchor="middle">relative Frobenius norm</text>
+</svg>
+    <figcaption>Far-field block assembled in isolation (N&nbsp;=&nbsp;800, 2400&#215;2400)
+      against a dense float64 RPY reference over all pairs with r&nbsp;&#8805;&nbsp;6. Below
+      &#952;&nbsp;&#8776;&nbsp;0.15 the asymmetry is identically zero &mdash; not small,
+      zero.</figcaption>
+    <details class="tableview"><summary>Table view — asymmetry and truncation error vs θ (N = 800)</summary><div class="scroll"><table><thead><tr><th>θ</th><th>rel. asymmetry</th><th>truncation error</th><th>ratio</th></tr></thead><tbody><tr><td>0.000 – 0.125</td><td>0 (exact)</td><td>8.16×10⁻⁸</td><td>—</td></tr><tr><td>0.15</td><td>2.42×10⁻⁵</td><td>1.71×10⁻⁵</td><td>1.414</td></tr><tr><td>0.175</td><td>2.52×10⁻⁴</td><td>1.81×10⁻⁴</td><td>1.392</td></tr><tr><td>0.2</td><td>9.77×10⁻⁴</td><td>7.06×10⁻⁴</td><td>1.383</td></tr><tr><td>0.25</td><td>4.17×10⁻³</td><td>3.09×10⁻³</td><td>1.352</td></tr><tr><td>0.3</td><td>9.03×10⁻³</td><td>6.75×10⁻³</td><td>1.337</td></tr><tr><td>0.4</td><td>2.12×10⁻²</td><td>1.59×10⁻²</td><td>1.332</td></tr><tr><td>0.5</td><td>3.70×10⁻²</td><td>2.78×10⁻²</td><td>1.329</td></tr><tr><td>0.6</td><td>5.54×10⁻²</td><td>4.20×10⁻²</td><td>1.321</td></tr><tr><td>0.7</td><td>7.38×10⁻²</td><td>5.54×10⁻²</td><td>1.333</td></tr></tbody></table></div></details>
+  </figure>
+  <div class="prose">
+  <p><strong>The tree is the cause.</strong> Below &#952;&nbsp;&#8776;&nbsp;0.15 no node
+  passes the acceptance test, traversal degenerates to all-direct pairs, and the result is
+  bitwise symmetric: <code>rpy_far_velocity_pair3x3</code> builds a tensor that is symmetric
+  and even in <strong>r</strong>, and with a unit force on a single particle there is no
+  summation to reorder. Asymmetry switches on exactly when the tree starts lumping
+  sources.</p>
+  <p><strong>The near/far partition is clean.</strong> At &#952;&nbsp;=&nbsp;0 the assembled
+  block matches the dense reference to 8&#215;10&#8315;&#8312;. The
+  <code>closest_dist_sq &lt; 36.0</code> guard in <code>warp/native/bvh.h:640</code> and the
+  <code>dot(rvec,rvec) &lt; near_cutoff2</code> skip in <code>treecode.py:178</code> really do
+  produce the exact r&nbsp;&#8805;&nbsp;6 partition &mdash; no double counting, no gaps.</p>
+  <p><strong>The asymmetry <em>is</em> the truncation error.</strong> The ratio between them
+  sits at &#8730;2&nbsp;=&nbsp;1.414 at onset and drifts only to about 1.33. If the treecode
+  error <span class="mono">E = M &#8722; M_exact</span> were uncorrelated with its own
+  transpose you would get exactly &#8730;2; landing at or just under it means essentially
+  none of <span class="mono">E</span> is a symmetric common mode. There is no separate
+  asymmetry problem to solve &mdash; shrink the truncation error and the asymmetry shrinks
+  one-for-one.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><span class="snum">03</span><h2>Treecode on versus off</h2></div>
+  <div class="prose">
+  <p>Full 900&#215;900 grand mobility at N&nbsp;=&nbsp;150, &#952;&nbsp;=&nbsp;0.3, assembled
+  both ways:</p>
+  </div>
+  <figure>
+    <div class="scroll"><table>
+      <thead><tr><th>far field</th><th>rel. asymmetry</th><th>max|M&#8722;M&#7488;|</th>
+        <th>neg. eigenvalues</th><th>min eigenvalue</th></tr></thead>
+      <tbody>
+        <tr class="em"><td>treecode</td><td>1.19&#215;10&#8315;&#179;</td>
+          <td>2.42&#215;10&#8315;&#8308;</td><td>33</td><td>&#8722;9.565&#215;10&#8315;&#179;</td></tr>
+        <tr><td>dense analytic RPY</td><td>3.77&#215;10&#8315;&#8313;</td>
+          <td>1.16&#215;10&#8315;&#8313;</td><td>33</td><td>&#8722;9.428&#215;10&#8315;&#179;</td></tr>
+      </tbody>
+    </table></div>
+    <figcaption>Five orders of magnitude separate the two rows on symmetry &mdash; and the
+      negative-eigenvalue count is identical.</figcaption>
+  </figure>
+  <div class="prose">
+  <p>Two conclusions. The treecode is the <strong>sole source of asymmetry</strong>. And the
+  treecode is <strong>not</strong> the source of the negative eigenvalues: both operators
+  have exactly 33, with near-identical minima. The grand mobility is already non-SPD without
+  any tree &mdash; that comes from the neural near field and is pre-existing.</p>
+  <p>(The far-field-free operator in &#167;01 shows 110 negative eigenvalues, but that is an
+  artifact of hard-truncating the far field to zero, which cannot preserve
+  positive-definiteness. It is not an operator anyone runs.)</p>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><span class="snum">04</span><h2>At production scale</h2></div>
+  <figure>
+    <svg class="chart" viewBox="0 0 880 340" role="img" aria-label="Relative asymmetry versus particle count at theta 0.3">
+<line x1="66" y1="271.9" x2="820" y2="271.9" class="grid"/>
+<text x="56" y="275.9" class="tick" text-anchor="end">10⁻³</text>
+<line x1="66" y1="105.4" x2="820" y2="105.4" class="grid"/>
+<text x="56" y="109.4" class="tick" text-anchor="end">10⁻²</text>
+<line x1="82.0" y1="288" x2="82.0" y2="293" class="axis"/>
+<text x="82.0" y="308" class="tick" text-anchor="middle">10²</text>
+<line x1="246.8" y1="288" x2="246.8" y2="293" class="axis"/>
+<text x="246.8" y="308" class="tick" text-anchor="middle">10³</text>
+<line x1="411.7" y1="288" x2="411.7" y2="293" class="axis"/>
+<text x="411.7" y="308" class="tick" text-anchor="middle">10⁴</text>
+<line x1="576.5" y1="288" x2="576.5" y2="293" class="axis"/>
+<text x="576.5" y="308" class="tick" text-anchor="middle">10⁵</text>
+<line x1="741.3" y1="288" x2="741.3" y2="293" class="axis"/>
+<text x="741.3" y="308" class="tick" text-anchor="middle">10⁶</text>
+<line x1="66" y1="288" x2="820" y2="288" class="axis"/>
+<path d="M 111.0 259.2 L 411.7 98.5 L 576.5 89.0 L 741.3 74.8" class="line s1"/>
+<circle cx="111.0" cy="259.2" r="5" class="dot s1"><title>N 150 — asymmetry 1.19×10⁻³</title></circle>
+<text x="111.0" y="243.2" class="ptlab" text-anchor="middle">0.12%</text>
+<line x1="411.7" y1="110.7" x2="411.7" y2="88.1" class="err"/>
+<circle cx="411.7" cy="98.5" r="5" class="dot s1"><title>N 10,000 — asymmetry 1.10×10⁻²</title></circle>
+<text x="411.7" y="82.5" class="ptlab" text-anchor="middle">1.10%</text>
+<line x1="576.5" y1="100.0" x2="576.5" y2="79.5" class="err"/>
+<circle cx="576.5" cy="89.0" r="5" class="dot s1"><title>N 100,000 — asymmetry 1.25×10⁻²</title></circle>
+<text x="576.5" y="73.0" class="ptlab" text-anchor="middle">1.25%</text>
+<line x1="741.3" y1="87.6" x2="741.3" y2="63.9" class="err"/>
+<circle cx="741.3" cy="74.8" r="5" class="dot s1"><title>N 1,000,000 — asymmetry 1.53×10⁻²</title></circle>
+<text x="741.3" y="58.8" class="ptlab" text-anchor="middle">1.53%</text>
+<text x="111.0" y="277.2" class="note" text-anchor="middle">dense assembly</text>
+<text x="443.0" y="332" class="axlab" text-anchor="middle">particles N</text>
+<text transform="translate(16,157.0) rotate(-90)" class="axlab" text-anchor="middle">relative asymmetry</text>
+</svg>
+    <figcaption>Hutchinson probes &mdash;
+      <span class="mono">E[(u&#7488;Mv &#8722; v&#7488;Mu)&#178;] = &#8214;M&#8722;M&#7488;&#8214;&#178;</span>
+      for Rademacher u,&nbsp;v &mdash; so no assembly is needed at 10&#8309;&#8211;10&#8310;
+      particles. Validated first against the dense N&nbsp;=&nbsp;150 result (probe
+      1.35&#215;10&#8315;&#179;&nbsp;&#177;&nbsp;2.1&#215;10&#8315;&#8308; vs. dense
+      1.19&#215;10&#8315;&#179;, inside one standard error). Bars are &#177;1 s.e. over
+      K&nbsp;=&nbsp;24 probes.</figcaption>
+    <details class="tableview"><summary>Table view — asymmetry vs system size (θ = 0.3)</summary><div class="scroll"><table><thead><tr><th>N</th><th>rel. asymmetry</th><th>std. error</th></tr></thead><tbody><tr><td>150</td><td>1.19×10⁻³</td><td>dense</td></tr><tr><td>10,000</td><td>1.10×10⁻²</td><td>1.70×10⁻³</td></tr><tr><td>100,000</td><td>1.25×10⁻²</td><td>1.76×10⁻³</td></tr><tr><td>1,000,000</td><td>1.53×10⁻²</td><td>2.48×10⁻³</td></tr></tbody></table></div></details>
+  </figure>
+  <div class="prose">
+  <p>Asymmetry grows with N and then plateaus near 1.5&nbsp;%: deeper trees serve more of the
+  far field from lumped nodes, but that fraction saturates.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><span class="snum">05</span><h2>What it costs to buy symmetry back</h2></div>
+  <figure>
+    <svg class="chart" viewBox="0 0 880 400" role="img" aria-label="Relative asymmetry versus full step time at N equals 100,000">
+<line x1="66" y1="300.1" x2="820" y2="300.1" class="grid"/>
+<text x="56" y="304.1" class="tick" text-anchor="end">10⁻⁴</text>
+<line x1="66" y1="208.4" x2="820" y2="208.4" class="grid"/>
+<text x="56" y="212.4" class="tick" text-anchor="end">10⁻³</text>
+<line x1="66" y1="116.8" x2="820" y2="116.8" class="grid"/>
+<text x="56" y="120.8" class="tick" text-anchor="end">10⁻²</text>
+<line x1="110.3" y1="348" x2="110.3" y2="353" class="axis"/>
+<text x="110.3" y="368" class="tick" text-anchor="middle">75</text>
+<line x1="240.5" y1="348" x2="240.5" y2="353" class="axis"/>
+<text x="240.5" y="368" class="tick" text-anchor="middle">100</text>
+<line x1="423.9" y1="348" x2="423.9" y2="353" class="axis"/>
+<text x="423.9" y="368" class="tick" text-anchor="middle">150</text>
+<line x1="554.1" y1="348" x2="554.1" y2="353" class="axis"/>
+<text x="554.1" y="368" class="tick" text-anchor="middle">200</text>
+<line x1="737.5" y1="348" x2="737.5" y2="353" class="axis"/>
+<text x="737.5" y="368" class="tick" text-anchor="middle">300</text>
+<line x1="66" y1="348" x2="820" y2="348" class="axis"/>
+<path d="M 751.2 330.4 L 697.7 204.3 L 326.3 152.3 L 186.5 103.8 L 135.2 77.9 L 112.1 57.0" class="line s1"/>
+<circle cx="751.2" cy="330.4" r="5" class="dot s1"><title>theta 0.05 — asymmetry 4.66×10⁻⁵, far field 236.3 ms, full step 309.2 ms</title></circle>
+<text x="751.2" y="314.4" class="ptlab" text-anchor="middle">θ 0.05</text>
+<circle cx="697.7" cy="204.3" r="5" class="dot s1"><title>theta 0.1 — asymmetry 1.11×10⁻³, far field 203.6 ms, full step 274.7 ms</title></circle>
+<text x="697.7" y="188.3" class="ptlab" text-anchor="middle">θ 0.1</text>
+<circle cx="326.3" cy="152.3" r="7" class="dot s1 rec"><title>theta 0.2 — asymmetry 4.10×10⁻³, far field 49.8 ms, full step 120.9 ms</title></circle>
+<text x="326.3" y="136.3" class="ptlab em" text-anchor="middle">θ 0.2</text>
+<circle cx="186.5" cy="103.8" r="7" class="dot s2"><title>theta 0.3 — asymmetry 1.39×10⁻², far field 18.7 ms, full step 88.8 ms</title></circle>
+<text x="186.5" y="87.8" class="ptlab em" text-anchor="middle">θ 0.3</text>
+<circle cx="135.2" cy="77.9" r="5" class="dot s1"><title>theta 0.4 — asymmetry 2.66×10⁻², far field 8.9 ms, full step 79.2 ms</title></circle>
+<text x="135.2" y="61.9" class="ptlab" text-anchor="middle">θ 0.4</text>
+<circle cx="112.1" cy="57.0" r="5" class="dot s1"><title>theta 0.5 — asymmetry 4.49×10⁻², far field 5.2 ms, full step 75.3 ms</title></circle>
+<text x="112.1" y="41.0" class="ptlab" text-anchor="middle">θ 0.5</text>
+<text x="186.5" y="127.8" class="note s2" text-anchor="middle">current</text>
+<text x="326.3" y="176.3" class="note rec" text-anchor="middle">recommended</text>
+<text x="443.0" y="392" class="axlab" text-anchor="middle">full mobility step (ms, N = 100,000)</text>
+<text transform="translate(16,191.0) rotate(-90)" class="axlab" text-anchor="middle">relative asymmetry</text>
+</svg>
+    <figcaption>N&nbsp;=&nbsp;100,000 on the H200. The near field costs roughly 70&nbsp;ms of
+      every step regardless of &#952;, which is what makes the far field cheap to buy
+      down.</figcaption>
+    <details class="tableview"><summary>Table view — cost and accuracy vs θ (N = 100,000)</summary><div class="scroll"><table><thead><tr><th>θ</th><th>rel. asymmetry</th><th>far field</th><th>full step</th></tr></thead><tbody><tr><td>0.05</td><td>4.66×10⁻⁵</td><td>236.3 ms</td><td>309.2 ms</td></tr><tr><td>0.1</td><td>1.11×10⁻³</td><td>203.6 ms</td><td>274.7 ms</td></tr><tr><td>0.2</td><td>4.10×10⁻³</td><td>49.8 ms</td><td>120.9 ms</td></tr><tr><td>0.3</td><td>1.39×10⁻²</td><td>18.7 ms</td><td>88.8 ms</td></tr><tr><td>0.4</td><td>2.66×10⁻²</td><td>8.9 ms</td><td>79.2 ms</td></tr><tr><td>0.5</td><td>4.49×10⁻²</td><td>5.2 ms</td><td>75.3 ms</td></tr></tbody></table></div></details>
+  </figure>
+  <div class="prose">
+  <p><strong>&#952;&nbsp;0.3&nbsp;&rarr;&nbsp;0.2 cuts asymmetry 3.4&#215; for 1.36&#215; the
+  step time</strong> &mdash; and cuts the far-field truncation error by the same 3.4&#215;,
+  since &#167;02 showed the two move together. Going further to &#952;&nbsp;=&nbsp;0.1 costs
+  3.1&#215; the step time for 12&#215;, which is a much worse trade.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><span class="snum">06</span><h2>The bigger finding: the far field
+    carries no rotation</h2></div>
+  <div class="prose">
+  <p><code>WarpFMM.apply</code> slices <code>forces[:, :3]</code> and writes back into
+  <code>total_vel[:, :3]</code>. Torques never enter the far field, and the RT, TR and RR
+  blocks are exactly zero beyond r&nbsp;=&nbsp;6. That is symmetric &mdash; a zero block is
+  its own transpose &mdash; but it is a real physics truncation, and it is larger than the
+  symmetry defect.</p>
+  </div>
+  <figure>
+    <svg class="chart" viewBox="0 0 880 276" role="img" aria-label="Far-field operator block norms, kept versus discarded">
+<text x="176" y="52" class="rowlab" text-anchor="end">TT  translation ← force</text>
+<rect x="190" y="26" width="490.0" height="42" rx="4" class="bar s1"><title>TT  translation ← force — Frobenius norm 1.4149, kept</title></rect>
+<text x="692.0" y="52" class="barval">1.4149<tspan class="barpct">  (100.0% of TT)</tspan></text>
+<text x="176" y="106" class="rowlab" text-anchor="end">RT  translation ← torque</text>
+<rect x="190" y="80" width="34.7" height="42" rx="4" class="bar s2"><title>RT  translation ← torque — Frobenius norm 0.1002, discarded</title></rect>
+<text x="236.7" y="106" class="barval">0.1002<tspan class="barpct">  (7.1% of TT)</tspan></text>
+<text x="176" y="160" class="rowlab" text-anchor="end">TR  rotation ← force</text>
+<rect x="190" y="134" width="34.7" height="42" rx="4" class="bar s2"><title>TR  rotation ← force — Frobenius norm 0.1002, discarded</title></rect>
+<text x="236.7" y="160" class="barval">0.1002<tspan class="barpct">  (7.1% of TT)</tspan></text>
+<text x="176" y="214" class="rowlab" text-anchor="end">RR  rotation ← torque</text>
+<rect x="190" y="188" width="4.0" height="42" rx="4" class="bar s2"><title>RR  rotation ← torque — Frobenius norm 0.0115, discarded</title></rect>
+<text x="206.0" y="214" class="barval">0.0115<tspan class="barpct">  (0.8% of TT)</tspan></text>
+<text x="190" y="268" class="note">blue = evaluated by the treecode · orange = set to zero beyond r = 6</text>
+</svg>
+    <figcaption>Dense full-6&#215;6 far-field operator, N&nbsp;=&nbsp;150, validated against
+      <code>benchmarks/bench_rpy.py:two_body_rpy_batch</code> to 5&#215;10&#8315;&#8312;.
+      Discarding RT, TR and RR removes <strong>10.0&nbsp;% of
+      &#8214;M_far&#8214;_F</strong> &mdash; which accounts almost exactly for the 5.8&nbsp;%
+      gap between the treecode and dense-RPY grand matrices in &#167;03.</figcaption>
+    <details class="tableview"><summary>Table view — far-field operator block norms (N = 150)</summary><div class="scroll"><table><thead><tr><th>block</th><th>‖·‖_F</th><th>% of TT</th><th>treecode</th></tr></thead><tbody><tr><td>TT  translation ← force</td><td>1.4149</td><td>100.00%</td><td>kept</td></tr><tr><td>RT  translation ← torque</td><td>0.1002</td><td>7.08%</td><td>discarded</td></tr><tr><td>TR  rotation ← force</td><td>0.1002</td><td>7.08%</td><td>discarded</td></tr><tr><td>RR  rotation ← torque</td><td>0.0115</td><td>0.82%</td><td>discarded</td></tr></tbody></table></div></details>
+  </figure>
+  <div class="prose">
+  <p>The damage concentrates in angular velocity, and specifically in the <strong>TR block
+  &mdash; rotation driven by neighbours' forces</strong>, not by their torques. Under a
+  sedimentation-style loading (uniform gravity plus random torques) the discarded far-field
+  angular velocity is <em>larger than the entire near-field angular velocity</em>:</p>
+  </div>
+  <figure>
+    <div class="scroll"><table>
+      <thead><tr><th>config</th><th>&#8214;&#937;_far&#8214; / &#8214;&#937;_near&#8214;</th>
+        <th>&#937;_far from forces</th><th>&#937;_far from torques</th>
+        <th>U error</th></tr></thead>
+      <tbody>
+        <tr><td>N = 800, &#966; &#8776; 0.1</td><td>1.17</td><td>2.012</td><td>0.029</td>
+          <td>3.25&#215;10&#8315;&#179;</td></tr>
+        <tr><td>N = 10,000, &#966; &#8776; 0.1</td><td>1.74</td><td>11.33</td><td>0.099</td>
+          <td>8.01&#215;10&#8315;&#8308;</td></tr>
+      </tbody>
+    </table></div>
+    <figcaption>99&nbsp;% of the discarded rotation comes from the force&rarr;rotation
+      coupling. Translational velocity is barely affected.</figcaption>
+  </figure>
+  <div class="prose">
+  <p>So: linear dynamics are fine. <strong>Particle rotation rates in a treecode run are
+  not.</strong></p>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><span class="snum">07</span><h2>Options</h2></div>
+  <ol class="fixes">
+    <li>
+      <h3>Lower theta<span class="pill rec">free today</span></h3>
+      <p>&#952;&nbsp;=&nbsp;0.2 buys 3.4&#215; on both asymmetry and far-field accuracy for
+      36&nbsp;% more wall time. Nothing to implement &mdash; it is a constructor
+      argument.</p>
+    </li>
+    <li>
+      <h3>Symmetrized apply, u = &#189;(Mf + M&#7488;f)</h3>
+      <p><span class="mono">M&#7488;f</span> needs no assembly: re-run the <em>same</em>
+      traversal and scatter with atomics &mdash; for each source j inside an accepted node of
+      target i, add <span class="mono">M_eff[i,j]&#7488; f_i</span> into
+      <span class="mono">v_j</span>. Identical traversal means an identical pair set, so the
+      result is symmetric by construction, exactly, at any &#952;.</p>
+      <p>Cost is about 2&#215; the far field plus atomic contention &mdash; at
+      &#952;&nbsp;=&nbsp;0.3 that is roughly +19&nbsp;ms on an 89&nbsp;ms step, cheaper than
+      dropping to &#952;&nbsp;=&nbsp;0.2. It is the only option giving <em>exact</em> symmetry
+      without touching the vendored Warp BVH. It does not improve accuracy &mdash; the
+      truncation error stays.</p>
+    </li>
+    <li>
+      <h3>Dual-tree traversal with a symmetric node&ndash;node criterion and M2L</h3>
+      <p>The principled fix: a reciprocal partition and, with matched truncation order on
+      both sides, close to self-adjoint. A large rewrite of
+      <code>warp/native/bvh.{h,cu}</code>, and worth noting that even textbook FMM with M2L
+      is not <em>exactly</em> symmetric &mdash; so this buys accuracy more than it buys
+      symmetry.</p>
+    </li>
+    <li>
+      <h3>Accept it</h3>
+      <p>Defensible for deterministic dynamics: 1.5&nbsp;% sits inside the treecode's own
+      truncation budget and is dwarfed by &#167;06. <strong>Not</strong> defensible for
+      Brownian or fluctuating hydrodynamics, where a symmetric PSD M is needed to form
+      <span class="mono">M&#185;&#8260;&#178;</span> (Cholesky or Lanczos) and to satisfy
+      fluctuation&ndash;dissipation. This operator is neither symmetric nor PSD.</p>
+    </li>
+  </ol>
+</section>
+
+<section>
+  <div class="sechead"><span class="snum">08</span><h2>Found along the way</h2></div>
+  <div class="prose">
+  <ul class="plain">
+    <li><strong><code>near_field_cutoff</code> is a live footgun.</strong> It is a
+      <code>WarpFMM</code> constructor argument, but the matching gate is hardcoded as
+      <code>36.0</code> in <code>warp/native/bvh.h:640</code>. Any value other than 6.0
+      silently double-counts pairs (below 6) or drops them (above 6). An
+      <code>assert near_field_cutoff == 6.0</code> would close it.</li>
+    <li><strong>Viscosity is ignored inside <code>WarpFMM.apply</code>.</strong> The
+      far-field kernels are called with <code>a=1.0, mu=1.0</code> hardcoded
+      (<code>treecode.py:172,181</code>) and <code>_gpu_near_field_pass</code> is invoked with
+      <code>viscosity=1.0</code> (<code>:426</code>), so the <code>vis_arr</code> argument
+      does nothing. Silent wrong answer for &#956;&nbsp;&#8800;&nbsp;1.</li>
+    <li><strong><code>src/grpy.py</code> has two bugs.</strong>
+      <code>tr_block = -muRT_flat.T</code> (<code>:124</code>) makes the flat (6N,6N) output
+      non-symmetric and disagrees with its own <code>blockmatrix=True</code> branch; and
+      <code>_build_cross</code> (<code>:136</code>) has the opposite rotlet sign from the
+      PyGRPY reference in <code>src/grpy_tensors.py:14</code>. No module imports it today,
+      which is why it has gone unnoticed. The production paths
+      (<code>benchmarks/bench_rpy.py</code>, <code>src/grpy_tensors.py</code>) are both
+      correct and symmetric.</li>
+  </ul>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><span class="snum">09</span><h2>Reproducing</h2></div>
+  <pre><code>source ~/warp_env.sh
+export TORCH_COMPILE_DISABLE=1
+
+python benchmarks/symmetry_treecode.py near                 # 01
+python benchmarks/symmetry_treecode.py theta --n-far 800    # 02
+python benchmarks/symmetry_treecode.py grand --n 150        # 03
+python benchmarks/symmetry_treecode.py probe --K 24         # 04
+python benchmarks/symmetry_treecode.py thetascale --K 16    # 05
+python benchmarks/symmetry_treecode.py ttonly               # 06
+python benchmarks/symmetry_treecode.py all                  # everything -> artifacts/*.json</code></pre>
+  <div class="prose">
+  <p>Three self-checks run before any number is reported: the dense float64 reference must be
+  exactly symmetric, the &#952;&nbsp;=&nbsp;0 far field must match it to float32, and the
+  Hutchinson estimator must reproduce the dense answer at N&nbsp;=&nbsp;150. All three
+  pass.</p>
+  </div>
+</section>
+
+</div>

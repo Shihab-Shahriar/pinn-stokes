@@ -15,8 +15,12 @@ from scipy.spatial.transform import Rotation as R
 from scipy.spatial.transform import Rotation
 
 
-import sys 
-sys.path.append("/home/shihab/repo/utils")
+import sys
+import os
+
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(os.path.join(_REPO_ROOT, "utils"))
+sys.path.append(os.path.join(_REPO_ROOT, "src"))
 
 # NOTE orientation[i] is always the rotation needed to convert z-axis to the 
 # major axis of the particle. That is,
@@ -92,8 +96,6 @@ class NNMob:
         return np.concatenate([V, W], axis=1)
 
     def compute_rpy_mobility(self, c2):
-        import sys
-        sys.path.insert(0, '/home/shihab/hignn')
         from grpy_tensors import mu 
     
         c = np.array([[0.0, 0.0, 0.0], list(c2)])
@@ -352,7 +354,7 @@ def helens_3body_sphere():
     just_rpy = True
     print("Just RPY? -- ", just_rpy)
 
-    nn_path = "/home/shihab/repo/experiments/all_models_sphere.wt"
+    nn_path = "experiments/all_models_sphere.wt"
     mob = NNMob(nn_path, nn_only=False, rpy_only=just_rpy, switch_dist=6.0)
     
 
@@ -393,12 +395,12 @@ def helens_3body_sphere():
 
 
 def main():
-    nn_path = "/home/shihab/repo/experiments/all_models_sphere.wt"
+    nn_path = "experiments/all_models_sphere.wt"
     mob = NNMob(nn_path, nn_only=False, rpy_only=False, switch_dist=6.0)
 
     # max dist between spheres in the following is 12.78, something 
     # the model not trained to handle on nn_only mode
-    path = "/home/shihab/repo/data/reference_sphere.csv"
+    path = "data/reference_sphere.csv"
     config = check_against_ref(mob, path, print_stuff=True)
 
     print("Just RPY...\n")

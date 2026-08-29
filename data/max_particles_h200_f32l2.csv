@@ -1,0 +1,16 @@
+batch,n_side,N,warm_requested,cold,warm_ok,warm_step_s,tiled_p2p,tc_pair_budget_gb,mem_fraction,empty_cache,torch_alloc_gib,torch_reserved_gib,proc_peak_mb,failure
+b1,374,52313624,3,ok,3,14.35,no,8.4,,0,110.77,131.02,138305,
+b2,374,52313624,6,ok,3,14.35,no,8.4,,0,110.77,134.16,141965,widebvh bad_alloc on warm 4
+b2,380,54872000,4,ok,0,,yes,8.4,,0,114.96,129.06,142617,widebvh bad_alloc on warm 1
+b2,385,57066625,4,ok,0,,yes,8.4,,0,119.56,134.01,139253,widebvh bad_alloc on warm 1
+b1,390,59319000,3,ok,2,24.2,yes,8.4,,0,125.60,128.63,142843,widebvh bad_alloc on warm 3
+b2,390,59319000,4,ok,2,16.6,no,10,,0,125.60,131.72,140443,widebvh bad_alloc on warm 3
+b1,403,65450827,3,ok,0,,yes,8.4,,0,137.13,137.23,142777,widebvh bad_alloc on warm 1
+b2,404,65939264,0,fail,0,,yes,8.4,,0,121.77,123.65,127657,torch OOM 31.44 GiB in _per_particle_topk
+b2,406,66923416,0,fail,0,,yes,8.4,,0,123.59,125.26,138809,torch OOM 31.91 GiB in _per_particle_topk
+b4,374,52313624,8,ok,8,14.6,no,8.4,0.92,0,110.77,118.11,135905,
+b3,374,52313624,4,ok,4,14.67,no,8.4,,1,109.60,122.83,127717,
+b3,400,64000000,3,ok,3,18.32,no,10,,1,134.09,134.18,139625,
+b4,402,64964808,3,ok,3,18.56,no,11,,1,136.11,136.21,141705,
+b4,403,65450827,3,ok,3,18.75,no,11,,1,137.13,137.23,142777,
+b4,403,65450827,3,ok,3,27.1,yes,8.4,,1,137.13,137.23,142777,

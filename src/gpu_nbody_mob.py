@@ -5,10 +5,14 @@ import sys
 import time
 from typing import Tuple
 
+from benchmarks.cluster import uniform_sphere_cluster
 import numpy as np
 import pandas as pd
+from src.triton_mfs import MobMFSTriton
 import torch
 import torch.profiler as profiler
+import matplotlib.pyplot as plt
+from scipy.stats import gaussian_kde
 
 torch.set_float32_matmul_precision('high')
 
@@ -22,8 +26,15 @@ For now, profiling shows out of 40ms, 32ms is in two-body model.
 # Ensure relative imports work if run as a script
 sys.path.append(os.path.dirname(__file__))
 
-from src.gpu_mob_2b import NNMobTorch, TensorLike, check_against_ref, check_against_ref_gpu
+from src.gpu_mob_2b import (
+    NNMobTorch, TensorLike, DEFAULT_TWO_BODY_CHUNK,
+    check_against_ref, check_against_ref_gpu)
 from src.model_archs import MultiBodyCorrection
+from benchmarks.cluster import uniform_sphere_cluster
+
+# Pairs per n-body NN chunk; see the sweep in Mob_Nbody_Torch.__init__.
+DEFAULT_PAIR_CHUNK = 2_000_000
+
 
 class Mob_Nbody_Torch(NNMobTorch):
     """NNMob augmented with an n-body correction network, running on GPU."""
@@ -46,7 +57,21 @@ class Mob_Nbody_Torch(NNMobTorch):
         neighbor_cutoff: float = DEFAULT_NEIGHBOR_CUTOFF,
         max_k_neighbors: int = DEFAULT_MAX_K_NEIGHBORS,
         mean_dist_s: float = DEFAULT_MEAN_DIST_S,
-        pair_chunk_size: int = 8_000_000,
+        # 8M was chosen when the unchunked two-body path set a ~10.3 GiB floor, so
+        # any value below that was free and none of it showed up in peak VRAM. With
+        # that path chunked the n-body chunk becomes the binding term. Swept at
+        # N=1.05M / 21.2M pairs with two_body_chunk_size fixed at 4M:
+        #
+        #   nb chunk | n-body ms | peak alloc
+        #   8M       |  154.26   | 8.37 GiB
+        #   4M       |  154.88   | 4.46 GiB
+        #   2M       |  156.00   | 2.51 GiB   <- 5.86 GiB saved for 1.7 ms
+        #   1M       |  158.24   | 2.40 GiB   <- 0.11 GiB more for another 2.2 ms
+        #
+        # 2M is where the trade stops paying: below it the curve flattens on memory
+        # and keeps rising on time.
+        pair_chunk_size: int = DEFAULT_PAIR_CHUNK,
+        two_body_chunk_size: int = DEFAULT_TWO_BODY_CHUNK,
     ) -> None:
         super().__init__(
             shape=shape,
@@ -55,11 +80,13 @@ class Mob_Nbody_Torch(NNMobTorch):
             near_field=near_field_2b,
             far_field=far_field_2b,
             switch_dist=near_far_switch,
+            two_body_chunk_size=two_body_chunk_size,
         )
         assert shape == "sphere", "Only sphere shape currently supported for n-body operator"
 
         median_2b = 5.008307682776568 #copied from 2b training notebook
-        state_dict = torch.load("experiments/nbody_cross_tmp.wt", weights_only=True)
+        assert nbody_nn_path.endswith(".wt"), "Expected .wt weights for nbody_nn_path; TorchScript .pt is not supported here"
+        state_dict = torch.load(nbody_nn_path, weights_only=True)
         two_nn_keys = [k for k in state_dict.keys() if k.startswith("two_nn.")]
         for k in two_nn_keys:
             del state_dict[k]
@@ -81,19 +108,81 @@ class Mob_Nbody_Torch(NNMobTorch):
                 self.parent = parent
 
             def forward(self, pos: torch.Tensor,
-                    force: torch.Tensor, t_idx: torch.Tensor,
-                    s_idx: torch.Tensor) -> torch.Tensor:
+                    force: torch.Tensor, t_idx_chunk: torch.Tensor,
+                    s_idx_chunk: torch.Tensor, topk_indices: torch.Tensor,
+                    topk_mask: torch.Tensor) -> torch.Tensor:
                 # Delegate to the Python implementation; torch.compile may insert
                 # graph breaks around calls to TorchScript model, but still speeds up
                 # surrounding tensor ops.
-                return self.parent.get_nbody_velocity(
-                    pos, force, t_idx, s_idx)
+                #
+                # The compiled unit is ONE chunk, not the whole chunk loop. The loop
+                # bound is the pair count, which drifts every step of a dynamics run;
+                # inside a compiled region that forces either a guard on its exact value
+                # (recompile per step -> config.recompile_limit -> silent eager fallback,
+                # ~3.5x slower) or, once the dimension is marked dynamic, a `range` over
+                # a symbolic int, which dynamo cannot represent at all. Keeping the loop
+                # in Python leaves one compiled graph serving every chunk size.
+                return self.parent._nbody_chunk_velocity(
+                    pos, force, t_idx_chunk, s_idx_chunk, topk_indices, topk_mask)
                 #viscosity, print_dim=False)
 
         self._nbody_kernel = _NBodyKernelModule(self).to(self.device)
         self._nbody_kernel_compiled = torch.compile(
             self._nbody_kernel, mode="max-autotune", 
             backend="inductor", fullgraph=False, dynamic=True)
+
+    @torch.no_grad()
+    def _per_particle_topk(
+        self,
+        pos: torch.Tensor,
+        t_idx: torch.Tensor,
+        s_idx: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Each particle's K nearest neighbors, as (N,K) indices and a validity mask.
+
+        Must be computed over the *complete* edge list, never per pair-chunk. The table
+        is indexed by both endpoints of every pair in get_k_per_pair, but a chunk holds
+        only a contiguous range of `t_idx` (fill_edge_indexes_kernel emits edges grouped
+        by target), so a per-chunk table leaves every source outside that range unwritten.
+        Those pairs then silently fall back to the target's neighbors alone, which is a
+        directed truncation: (t,s) keeps t's neighbors while (s,t) keeps s's, and the
+        assembled mobility stops being symmetric. See get_nbody_velocity.
+        """
+        device = pos.device
+        dtype = pos.dtype
+        index_dtype = t_idx.dtype
+        num_particles = pos.shape[0]
+        K = self.max_k_neighbors
+        max_neighbors = self.MAX_PARTICLE_NEIGHBORS
+
+        edge_dist = torch.linalg.norm(pos[s_idx] - pos[t_idx], dim=1)
+
+        # One spare column absorbs the overflow from any particle with more than
+        # max_neighbors neighbors; it is sliced off before the top-K. Without it those
+        # writes land out of bounds. The original guard was dropped for being a
+        # CPU-GPU sync -- this one costs neither a sync nor a compaction.
+        neighbors = torch.full((num_particles, max_neighbors + 1), -1,
+                               dtype=index_dtype, device=device)
+        neighbor_dists = torch.full((num_particles, max_neighbors + 1), torch.inf,
+                                    dtype=dtype, device=device)
+
+        # t_idx, s_idx already carry both directions, so no concatenation is needed.
+        # Edges arrive sorted and grouped by target, which is what makes the running
+        # offset below a valid within-particle slot index.
+        counts = torch.bincount(t_idx, minlength=num_particles)
+        prefix = torch.cumsum(counts, dim=0) - counts
+        local_pos = torch.arange(t_idx.shape[0], device=device) - prefix[t_idx]
+        local_pos = torch.where(local_pos < max_neighbors, local_pos,
+                                torch.full_like(local_pos, max_neighbors))
+
+        neighbors[t_idx, local_pos] = s_idx
+        neighbor_dists[t_idx, local_pos] = edge_dist
+
+        topk_dists, topk_pos = torch.topk(neighbor_dists[:, :max_neighbors], K,
+                                          dim=1, largest=False, sorted=True)
+        topk_indices = neighbors[:, :max_neighbors].gather(1, topk_pos)
+        topk_mask = torch.isfinite(topk_dists) & (topk_indices >= 0)
+        return topk_indices, topk_mask
 
     @torch.no_grad()
     def get_k_per_pair(
@@ -103,59 +192,22 @@ class Mob_Nbody_Torch(NNMobTorch):
         t_idx: torch.Tensor,
         pos_s: torch.Tensor,
         s_idx: torch.Tensor,
-        s_vec: torch.Tensor,
+        topk_indices: torch.Tensor,
+        topk_mask: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Compute top-K neighbors per pair directly from pair edges."""
+        """Top-K neighbors for each pair, drawn from the union of both endpoints'.
+
+        `topk_indices` / `topk_mask` come from _per_particle_topk and cover all N
+        particles, not just this chunk's.
+        """
         device = pos.device
-        dtype = pos.dtype
         index_dtype = t_idx.dtype
-        num_particles = pos.shape[0]
         K = self.max_k_neighbors
-        max_neighbors = self.MAX_PARTICLE_NEIGHBORS
 
         if t_idx.numel() == 0:
             empty_idx = torch.zeros(t_idx.shape[0], K, dtype=index_dtype, device=device)
             empty_mask = torch.zeros(t_idx.shape[0], K, dtype=torch.bool, device=device)
             return empty_idx, empty_mask
-
-        edge_dist = torch.linalg.norm(s_vec, dim=1)
-
-        neighbors = torch.full((num_particles, max_neighbors), -1, dtype=index_dtype, device=device)
-        neighbor_dists = torch.full((num_particles, max_neighbors), torch.inf, dtype=dtype, device=device)
-
-        # Since t_idx, s_idx already contain both directions (undirected graph),
-        # we don't need to concatenate.
-        src = t_idx
-        dst = s_idx
-        dist = edge_dist
-
-        # order = torch.argsort(src)
-        # src = src[order]
-        # dst = dst[order]
-        # dist = dist[order]
-
-        counts = torch.bincount(src, minlength=num_particles)
-        # ones = torch.ones((src.numel(),), device=device, dtype=torch.int32)
-        # counts = torch.zeros((num_particles,), device=device, dtype=torch.int32)
-        # counts = counts.scatter_add(0, src, ones)
-
-        # Optimization: redundant, already doing all this inside HashGrid. 
-        prefix = torch.cumsum(counts, dim=0) - counts
-        local_pos = torch.arange(src.shape[0], device=device) - prefix[src]
-        # valid_slots = local_pos < max_neighbors
-
-        # # if valid_slots.any(): # Removed to avoid CPU-GPU sync
-        # src = src[valid_slots]
-        # dst = dst[valid_slots]
-        # dist = dist[valid_slots]
-        # local_pos = local_pos[valid_slots]
-
-        neighbors[src, local_pos] = dst
-        neighbor_dists[src, local_pos] = dist
-
-        topk_dists, topk_pos = torch.topk(neighbor_dists, K, dim=1, largest=False, sorted=True)
-        topk_indices = neighbors.gather(1, topk_pos)
-        topk_mask = torch.isfinite(topk_dists) & (topk_indices >= 0)
 
         # Identify duplicates: mask out candidates in s that appear in t
         c_t = topk_indices[t_idx]
@@ -202,15 +254,20 @@ class Mob_Nbody_Torch(NNMobTorch):
 
 
     @torch.no_grad()
-    def _process_nbody_chunk(
+    def _nbody_chunk_velocity(
         self,
         pos: torch.Tensor,
         force: torch.Tensor,
         t_idx_chunk: torch.Tensor,
         s_idx_chunk: torch.Tensor,
-        velocities: torch.Tensor,
-    ) -> None:
-        """Process a chunk of pairs and accumulate n-body corrections into velocities."""
+        topk_indices: torch.Tensor,
+        topk_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        """The n-body correction contributed by one chunk of pairs, as (P,6).
+
+        Returns the per-pair prediction rather than scattering it, so the scatter (and
+        with it the chunk loop) can stay outside the compiled region.
+        """
         K = self.max_k_neighbors
         dtype = pos.dtype
 
@@ -220,7 +277,8 @@ class Mob_Nbody_Torch(NNMobTorch):
 
         with torch.profiler.record_function("get_k_per_pair"):
             top_k_indices, neighbor_mask = self.get_k_per_pair(
-                pos, pos_t, t_idx_chunk, pos_s, s_idx_chunk, s_vec
+                pos, pos_t, t_idx_chunk, pos_s, s_idx_chunk,
+                topk_indices, topk_mask
             )
 
         P = top_k_indices.shape[0]
@@ -278,7 +336,7 @@ class Mob_Nbody_Torch(NNMobTorch):
         with torch.profiler.record_function("nbody_neural_net"):
             pred = self.nbody_nn.predict_velocity(X, Fs)
 
-        velocities.index_add_(0, t_idx_chunk, pred)
+        return pred
 
     @torch.no_grad()
     def get_nbody_velocity(
@@ -287,24 +345,41 @@ class Mob_Nbody_Torch(NNMobTorch):
         force: torch.Tensor,   # shape (N, 6)
         t_idx: torch.Tensor,   # shape (num_pairs,)
         s_idx: torch.Tensor,   # shape (num_pairs,)
+        topk_indices: torch.Tensor | None = None,
+        topk_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Compute the learned n-body correction for each particle using PyTorch.
 
-        Processes pairs in chunks of self.pair_chunk_size to bound peak VRAM.
+        Processes pairs in chunks of self.pair_chunk_size to bound peak VRAM. Only the
+        per-pair work is chunked; the per-particle neighbor table covers all N particles,
+        because chunking it changes the answer (see _per_particle_topk). Chunking is
+        unaffected: that table is sized by particle count, not chunk length, so it was
+        never what chunking bounded.
+
+        `apply` builds the table itself and passes it in, which keeps it out of the
+        compiled region -- see _NBodyKernelModule.forward. Standalone callers can omit
+        it and get it built here.
         """
         N = pos.shape[0]
         dtype = pos.dtype
-        num_pairs = t_idx.shape[0]
+        num_pairs = int(t_idx.shape[0])
 
         velocities = torch.zeros(N, 6, device=self.device, dtype=dtype)
 
+        if topk_indices is None or topk_mask is None:
+            topk_indices, topk_mask = self._per_particle_topk(pos, t_idx, s_idx)
+
         for start in range(0, num_pairs, self.pair_chunk_size):
             end = min(start + self.pair_chunk_size, num_pairs)
-            self._process_nbody_chunk(
-                pos, force,
-                t_idx[start:end], s_idx[start:end],
-                velocities,
-            )
+            t_c, s_c = t_idx[start:end], s_idx[start:end]
+            # The last chunk is a different size from the full ones, and in a dynamics
+            # run its size changes every step. Declaring it dynamic keeps that to one
+            # compiled graph instead of one per size.
+            torch._dynamo.mark_dynamic(t_c, 0)
+            torch._dynamo.mark_dynamic(s_c, 0)
+            pred = self._nbody_kernel_compiled(
+                pos, force, t_c, s_c, topk_indices, topk_mask)
+            velocities.index_add_(0, t_c, pred)
 
         return velocities
 
@@ -358,8 +433,9 @@ class Mob_Nbody_Torch(NNMobTorch):
         # Compute and add n-body correction
         torch.cuda.synchronize()
         start = time.perf_counter()
-        v_nbody = self._nbody_kernel_compiled(
-            pos, force, t_idx, s_idx)
+        topk_indices, topk_mask = self._per_particle_topk(pos, t_idx, s_idx)
+        v_nbody = self.get_nbody_velocity(
+            pos, force, t_idx, s_idx, topk_indices, topk_mask)
         torch.cuda.synchronize()
         end = time.perf_counter()
         #print(f"Nbody kernel execution time: {(end - start)*1000:.6f} ms")
@@ -399,13 +475,16 @@ from src.mob_op_nbody import Mob_Op_Nbody
 def accuracy_test():
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"
-    two_body = "data/models/two_body_combined_model.pt"
+    two_body_wt = "data/models/combined_2body.wt"
+    nbody_wt = "data/models/nbody_cross_tmp.wt"
+    two_body_script = "data/models/two_body_combined_model.pt"
+    nbody_script = "data/models/nbody_pinn_b1.pt"
 
     mob_cpu = Mob_Op_Nbody(
         shape=shape,
         self_nn_path=self_path,
-        two_nn_path=two_body,
-        nbody_nn_path="data/models/nbody_pinn_b1.pt",
+        two_nn_path=two_body_script,
+        nbody_nn_path=nbody_script,
         nn_only=False,
         rpy_only=False,
         switch_dist=6.0,
@@ -414,8 +493,8 @@ def accuracy_test():
     mob_gpu = Mob_Nbody_Torch(
         shape=shape,
         self_nn_path=self_path,
-        two_nn_path=two_body,
-        nbody_nn_path="data/models/nbody_pinn_b1.pt",
+        two_nn_path=two_body_wt,
+        nbody_nn_path=nbody_wt,
         near_field_2b="nn",
         far_field_2b="rpy",
         near_far_switch=6.0,
@@ -451,12 +530,12 @@ def perftest():
 
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"
-    two_body = "data/models/two_body_combined_model.pt"
+    two_body = "data/models/combined_2body.wt"
     mob_gpu = Mob_Nbody_Torch(
         shape=shape,
         self_nn_path=self_path,
         two_nn_path=two_body,
-        nbody_nn_path="data/models/nbody_pinn_b1.pt",
+        nbody_nn_path="data/models/nbody_cross_tmp.wt",
         near_field_2b="nn",
         far_field_2b="rpy",
         near_far_switch=6.0,
@@ -501,12 +580,12 @@ def profile_get_nbody_velocity(
 
     shape = "sphere"
     self_path = "data/models/self_interaction_model.pt"
-    two_body = "data/models/two_body_combined_model.pt"
+    two_body = "data/models/combined_2body.wt"
     mob_gpu = Mob_Nbody_Torch(
         shape=shape,
         self_nn_path=self_path,
         two_nn_path=two_body,
-        nbody_nn_path="data/models/nbody_pinn_b1.pt",
+        nbody_nn_path="data/models/nbody_cross_tmp.wt",
         near_field_2b="nn",
         far_field_2b="rpy",
         near_far_switch=6.0,
@@ -557,3 +636,7 @@ if __name__ == "__main__":
     else:
         #perftest()
         accuracy_test()
+
+
+
+    

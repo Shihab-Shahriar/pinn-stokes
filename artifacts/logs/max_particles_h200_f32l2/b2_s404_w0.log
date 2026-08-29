@@ -1,0 +1,52 @@
+Warp 1.12.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /workspace/.cache/warp
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 767316736
+n_side=404  N=65,939,264  phi=0.1  a=3.472931  fp32_level=2  expandable_segments=True
+gpu=NVIDIA H200  total=139.80 GiB
+lattice built in 0.10 s, extent -700.0 .. 700.0
+[treecode] split P2P tiled over 2 target tile(s) (near pairs=279104101, budget/tile=225164820 pairs)
+[MobFMM] far-field FMM GPU time: 13492.547 ms
+Building spatial grid for neighbor search...
+Positions shape: (65939264,)
+Counting neighbors per particle...
+    Module src.hashgrid_neighbors 86a8751 load on device 'cuda:0' took 1.06 ms  (cached)
+Total near-field pairs found: 1416567158
+Collecting neighbor edge indexes...
+Warp::HashGrid took 325.24 ms
+no of NN interactions: 1416567158
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/workspace/pinn-stokes/src/gpu_mob_2b.py", line 104, in forward
+    contribution = torch.zeros_like(force)
+[Mob_Nbody] Base velocity compute time: 7996.711 ms
+Traceback (most recent call last):
+  File "/workspace/pinn-stokes/benchmarks/max_particles.py", line 150, in main
+    vel = op.apply(positions, orientations, forces, vis)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/pinn-stokes/src/treecode.py", line 506, in apply
+    near_vel = self._gpu_near_field_pass(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/pinn-stokes/src/treecode.py", line 347, in _gpu_near_field_pass
+    v_near = self.near_field_operator.apply(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 436, in apply
+    topk_indices, topk_mask = self._per_particle_topk(pos, t_idx, s_idx)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/venv/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/pinn-stokes/src/gpu_nbody_mob.py", line 181, in _per_particle_topk
+    topk_dists, topk_pos = torch.topk(neighbor_dists[:, :max_neighbors], K,
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 31.44 GiB. GPU 0 has a total capacity of 139.80 GiB of which 30.84 GiB is free. Including non-PyTorch memory, this process has 108.95 GiB memory in use. Of the allocated memory 106.71 GiB is allocated by PyTorch, and 49.97 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+FAILED after cold_ok=False warm_ok=0: OutOfMemoryError: CUDA out of memory. Tried to allocate 31.44 GiB. GPU 0 has a total capacity of 139.80 GiB of which 30.84 GiB is free. Including non-PyTorch memory, this process
+RESULT n_side=404 N=65939264 cold=fail warm_ok=0/0 warm_s=- torch_alloc_gib=121.77 torch_reserved_gib=123.65 proc_mb=111568.0 gpu_used_mb_now=111577.0 fp32_level=2  fail="OutOfMemoryError: CUDA out of memory. Tried to allocate 31.44 GiB. GPU 0 has a total capacity of 139.80 GiB of which 30.84 GiB is free. Including non-PyTorch memory, this process"
+exit=2
+peak_gpu_used_mb=127657

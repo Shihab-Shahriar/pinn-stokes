@@ -1,0 +1,97 @@
+Warp 1.12.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA GeForce RTX 4060 Laptop GPU" (8 GiB, sm_89, mempool enabled)
+   Kernel cache:
+     /workspace/.cache/warp
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 927189408
+to drop: 537224
+to drop: 537224
+
+=== twodrop0: N=1,047,968  (two-drop sedimentation t=0 (generated, seed 0)) ===
+  [gravity] reference: 6.3s  ||u_far||=1.2425e+05  ||u_self+u_far||=1.2427e+05
+    pdeg=7 l=3 leaf=256   mac=0.6   rel_far=1.535e-07  rel_total=1.535e-07  far=  700.60 ms (trav 591.8 p2p 67.7 up 19.6 build 17.4)  pairs=15,916,511  asym=3.682e-05
+    pdeg=7 l=3 leaf=256   mac=0.7   rel_far=3.324e-07  rel_total=3.323e-07  far=  494.02 ms (trav 406.3 p2p 43.2 up 17.3 build 17.2)  pairs=10,141,320  asym=1.537e-04
+    pdeg=7 l=3 leaf=256   mac=0.8   rel_far=1.097e-06  rel_total=1.096e-06  far=  369.05 ms (trav 295.7 p2p 29.8 up 17.7 build 17.2)  pairs=7,322,351  asym=6.098e-04
+    pdeg=7 l=3 leaf=256   mac=0.9   rel_far=3.650e-06  rel_total=3.650e-06  far=  296.83 ms (trav 224.6 p2p 29.0 up 19.2 build 17.0)  pairs=7,141,470  asym=1.582e-03
+    pdeg=7 l=3 leaf=256   mac=1.0   rel_far=9.740e-06  rel_total=9.738e-06  far=  289.06 ms (trav 217.5 p2p 28.9 up 19.3 build 17.4)  pairs=7,139,518  asym=3.422e-03
+    pdeg=7 l=3 leaf=512   mac=0.6   rel_far=1.495e-07  rel_total=1.495e-07  far=  668.97 ms (trav 510.4 p2p 120.7 up 18.0 build 17.0)  pairs=16,963,558  asym=3.059e-05
+    pdeg=7 l=3 leaf=512   mac=0.7   rel_far=3.631e-07  rel_total=3.631e-07  far=  475.71 ms (trav 358.8 p2p 74.6 up 19.0 build 17.0)  pairs=10,834,680  asym=1.122e-04
+    pdeg=7 l=3 leaf=512   mac=0.8   rel_far=1.179e-06  rel_total=1.179e-06  far=  355.13 ms (trav 266.5 p2p 48.7 up 17.1 build 17.3)  pairs=7,396,517  asym=6.561e-04
+    pdeg=7 l=3 leaf=512   mac=0.9   rel_far=3.939e-06  rel_total=3.938e-06  far=  284.69 ms (trav 208.2 p2p 44.0 up 20.4 build 17.3)  pairs=6,633,239  asym=2.850e-03
+    pdeg=7 l=3 leaf=512   mac=1.0   rel_far=1.057e-05  rel_total=1.057e-05  far=  269.70 ms (trav 184.7 p2p 43.4 up 17.8 build 16.9)  pairs=6,627,906  asym=4.699e-03
+    pdeg=7 l=3 leaf=1024  mac=0.6   rel_far=1.369e-07  rel_total=1.369e-07  far=  687.23 ms (trav 427.0 p2p 214.9 up 17.9 build 15.6)  pairs=16,790,878  asym=3.242e-05
+    pdeg=7 l=3 leaf=1024  mac=0.7   rel_far=3.554e-07  rel_total=3.553e-07  far=  486.67 ms (trav 308.7 p2p 136.1 up 18.4 build 15.7)  pairs=10,820,533  asym=1.490e-04
+    pdeg=7 l=3 leaf=1024  mac=0.8   rel_far=1.138e-06  rel_total=1.138e-06  far=  363.62 ms (trav 230.6 p2p 89.8 up 17.7 build 15.5)  pairs=7,335,886  asym=6.030e-04
+    pdeg=7 l=3 leaf=1024  mac=0.9   rel_far=3.787e-06  rel_total=3.786e-06  far=  284.57 ms (trav 176.0 p2p 69.3 up 20.1 build 15.6)  pairs=5,946,155  asym=2.006e-03
+    pdeg=7 l=3 leaf=1024  mac=1.0   rel_far=1.075e-05  rel_total=1.075e-05  far=  271.73 ms (trav 159.5 p2p 67.3 up 16.8 build 15.6)  pairs=5,918,843  asym=4.571e-03
+    pdeg=7 l=3 leaf=2048  mac=0.6   rel_far=1.306e-07  rel_total=1.306e-07  far=  706.03 ms (trav 349.5 p2p 312.7 up 19.6 build 14.5)  pairs=14,048,292  asym=3.046e-05
+    pdeg=7 l=3 leaf=2048  mac=0.7   rel_far=4.403e-07  rel_total=4.402e-07  far=  498.41 ms (trav 259.7 p2p 197.3 up 19.7 build 14.7)  pairs=9,123,685  asym=1.193e-04
+    pdeg=7 l=3 leaf=2048  mac=0.8   rel_far=1.632e-06  rel_total=1.632e-06  far=  372.07 ms (trav 201.6 p2p 131.7 up 21.5 build 14.7)  pairs=6,222,836  asym=5.859e-04
+    pdeg=7 l=3 leaf=2048  mac=0.9   rel_far=4.938e-06  rel_total=4.937e-06  far=  287.22 ms (trav 153.4 p2p 97.4 up 19.5 build 14.6)  pairs=4,801,389  asym=1.898e-03
+    pdeg=7 l=3 leaf=2048  mac=1.0   rel_far=1.075e-05  rel_total=1.074e-05  far=  274.05 ms (trav 137.8 p2p 96.7 up 19.3 build 14.6)  pairs=4,762,051  asym=4.029e-03
+    pdeg=5 l=3 leaf=256   mac=0.6   rel_far=5.332e-06  rel_total=5.331e-06  far=  527.38 ms (trav 424.7 p2p 67.6 up 8.0 build 19.1)  pairs=15,916,511  asym=4.191e-04
+    pdeg=5 l=3 leaf=256   mac=0.7   rel_far=1.432e-05  rel_total=1.431e-05  far=  370.88 ms (trav 290.8 p2p 38.1 up 9.1 build 18.9)  pairs=10,141,320  asym=1.398e-03
+    pdeg=5 l=3 leaf=256   mac=0.8   rel_far=3.315e-05  rel_total=3.314e-05  far=  278.74 ms (trav 215.7 p2p 27.6 up 8.6 build 18.2)  pairs=7,322,351  asym=4.609e-03
+    pdeg=5 l=3 leaf=256   mac=0.9   rel_far=7.320e-05  rel_total=7.319e-05  far=  228.53 ms (trav 169.5 p2p 26.2 up 8.3 build 18.6)  pairs=7,141,470  asym=1.093e-02
+    pdeg=5 l=3 leaf=256   mac=1.0   rel_far=1.407e-04  rel_total=1.407e-04  far=  217.83 ms (trav 158.3 p2p 26.4 up 8.5 build 18.2)  pairs=7,139,518  asym=1.473e-02
+    pdeg=5 l=3 leaf=512   mac=0.6   rel_far=5.473e-06  rel_total=5.472e-06  far=  519.25 ms (trav 369.2 p2p 120.4 up 9.7 build 17.5)  pairs=16,963,558  asym=4.032e-04
+    pdeg=5 l=3 leaf=512   mac=0.7   rel_far=1.498e-05  rel_total=1.497e-05  far=  366.64 ms (trav 264.3 p2p 73.6 up 8.2 build 17.5)  pairs=10,834,680  asym=1.664e-03
+    pdeg=5 l=3 leaf=512   mac=0.8   rel_far=3.440e-05  rel_total=3.439e-05  far=  271.99 ms (trav 194.7 p2p 45.5 up 8.4 build 17.5)  pairs=7,396,517  asym=3.364e-03
+    pdeg=5 l=3 leaf=512   mac=0.9   rel_far=7.659e-05  rel_total=7.657e-05  far=  223.43 ms (trav 148.8 p2p 39.7 up 8.2 build 17.6)  pairs=6,633,239  asym=8.273e-03
+    pdeg=5 l=3 leaf=512   mac=1.0   rel_far=1.437e-04  rel_total=1.437e-04  far=  208.51 ms (trav 137.2 p2p 39.7 up 8.1 build 17.0)  pairs=6,627,906  asym=1.199e-02
+    pdeg=5 l=3 leaf=1024  mac=0.6   rel_far=5.452e-06  rel_total=5.451e-06  far=  554.63 ms (trav 313.8 p2p 215.2 up 9.1 build 15.6)  pairs=16,790,878  asym=4.555e-04
+    pdeg=5 l=3 leaf=1024  mac=0.7   rel_far=1.493e-05  rel_total=1.492e-05  far=  394.04 ms (trav 232.2 p2p 134.1 up 9.2 build 15.8)  pairs=10,820,533  asym=1.362e-03
+    pdeg=5 l=3 leaf=1024  mac=0.8   rel_far=3.365e-05  rel_total=3.365e-05  far=  293.52 ms (trav 178.1 p2p 85.9 up 9.3 build 15.5)  pairs=7,335,886  asym=3.531e-03
+    pdeg=5 l=3 leaf=1024  mac=0.9   rel_far=7.547e-05  rel_total=7.546e-05  far=  234.27 ms (trav 140.7 p2p 68.4 up 9.3 build 15.7)  pairs=5,946,155  asym=8.902e-03
+    pdeg=5 l=3 leaf=1024  mac=1.0   rel_far=1.472e-04  rel_total=1.471e-04  far=  220.45 ms (trav 123.6 p2p 67.7 up 9.4 build 15.5)  pairs=5,918,843  asym=1.478e-02
+    pdeg=5 l=3 leaf=2048  mac=0.6   rel_far=5.858e-06  rel_total=5.857e-06  far=  603.08 ms (trav 257.0 p2p 313.8 up 10.9 build 14.7)  pairs=14,048,292  asym=4.388e-04
+    pdeg=5 l=3 leaf=2048  mac=0.7   rel_far=1.731e-05  rel_total=1.731e-05  far=  421.02 ms (trav 195.3 p2p 195.4 up 11.1 build 14.6)  pairs=9,123,685  asym=1.328e-03
+    pdeg=5 l=3 leaf=2048  mac=0.8   rel_far=4.016e-05  rel_total=4.015e-05  far=  310.09 ms (trav 153.2 p2p 125.3 up 11.5 build 14.6)  pairs=6,222,836  asym=3.353e-03
+    pdeg=5 l=3 leaf=2048  mac=0.9   rel_far=8.626e-05  rel_total=8.624e-05  far=  240.72 ms (trav 114.6 p2p 93.1 up 10.8 build 14.7)  pairs=4,801,389  asym=7.567e-03
+    pdeg=5 l=3 leaf=2048  mac=1.0   rel_far=1.485e-04  rel_total=1.485e-04  far=  234.07 ms (trav 104.9 p2p 91.9 up 10.2 build 14.6)  pairs=4,762,051  asym=1.361e-02
+  [random] reference: 6.5s  ||u_far||=1.9981e+01  ||u_self+u_far||=2.0097e+01
+    pdeg=7 l=3 leaf=256   mac=0.6   rel_far=1.782e-05  rel_total=1.771e-05  far=  734.34 ms (trav 615.0 p2p 71.3 up 18.3 build 18.2)  pairs=15,916,511  asym=3.682e-05
+    pdeg=7 l=3 leaf=256   mac=0.7   rel_far=8.060e-05  rel_total=8.013e-05  far=  521.62 ms (trav 434.6 p2p 43.6 up 20.7 build 18.0)  pairs=10,141,320  asym=1.537e-04
+    pdeg=7 l=3 leaf=256   mac=0.8   rel_far=3.268e-04  rel_total=3.249e-04  far=  386.71 ms (trav 311.2 p2p 31.4 up 17.5 build 17.9)  pairs=7,322,351  asym=6.098e-04
+    pdeg=7 l=3 leaf=256   mac=0.9   rel_far=1.146e-03  rel_total=1.139e-03  far=  315.41 ms (trav 238.0 p2p 30.2 up 17.7 build 18.0)  pairs=7,141,470  asym=1.582e-03
+    pdeg=7 l=3 leaf=256   mac=1.0   rel_far=2.091e-03  rel_total=2.079e-03  far=  298.10 ms (trav 224.9 p2p 30.6 up 17.5 build 18.0)  pairs=7,139,518  asym=3.422e-03
+    pdeg=7 l=3 leaf=512   mac=0.6   rel_far=1.637e-05  rel_total=1.628e-05  far=  693.60 ms (trav 528.9 p2p 126.4 up 17.7 build 17.5)  pairs=16,963,558  asym=3.061e-05
+    pdeg=7 l=3 leaf=512   mac=0.7   rel_far=7.342e-05  rel_total=7.300e-05  far=  494.46 ms (trav 372.4 p2p 77.7 up 20.7 build 17.5)  pairs=10,834,680  asym=1.122e-04
+    pdeg=7 l=3 leaf=512   mac=0.8   rel_far=3.079e-04  rel_total=3.061e-04  far=  368.37 ms (trav 275.1 p2p 51.7 up 17.5 build 17.4)  pairs=7,396,517  asym=6.561e-04
+    pdeg=7 l=3 leaf=512   mac=0.9   rel_far=1.107e-03  rel_total=1.100e-03  far=  295.12 ms (trav 206.9 p2p 45.6 up 17.9 build 17.4)  pairs=6,633,239  asym=2.850e-03
+    pdeg=7 l=3 leaf=512   mac=1.0   rel_far=2.074e-03  rel_total=2.062e-03  far=  279.94 ms (trav 192.0 p2p 45.7 up 18.4 build 17.1)  pairs=6,627,906  asym=4.699e-03
+    pdeg=7 l=3 leaf=1024  mac=0.6   rel_far=1.617e-05  rel_total=1.608e-05  far=  710.32 ms (trav 447.4 p2p 221.9 up 18.4 build 15.9)  pairs=16,790,878  asym=3.242e-05
+    pdeg=7 l=3 leaf=1024  mac=0.7   rel_far=7.371e-05  rel_total=7.328e-05  far=  497.85 ms (trav 316.3 p2p 136.6 up 20.0 build 15.6)  pairs=10,820,533  asym=1.490e-04
+    pdeg=7 l=3 leaf=1024  mac=0.8   rel_far=3.089e-04  rel_total=3.071e-04  far=  387.52 ms (trav 254.7 p2p 89.7 up 22.0 build 16.1)  pairs=7,335,886  asym=6.030e-04
+    pdeg=7 l=3 leaf=1024  mac=0.9   rel_far=1.137e-03  rel_total=1.130e-03  far=  299.23 ms (trav 189.0 p2p 71.8 up 18.6 build 15.7)  pairs=5,946,155  asym=2.006e-03
+    pdeg=7 l=3 leaf=1024  mac=1.0   rel_far=2.120e-03  rel_total=2.107e-03  far=  281.14 ms (trav 165.9 p2p 72.6 up 19.1 build 16.0)  pairs=5,918,843  asym=4.571e-03
+    pdeg=7 l=3 leaf=2048  mac=0.6   rel_far=1.486e-05  rel_total=1.478e-05  far=  728.36 ms (trav 373.3 p2p 317.1 up 21.7 build 14.6)  pairs=14,048,292  asym=3.045e-05
+    pdeg=7 l=3 leaf=2048  mac=0.7   rel_far=6.822e-05  rel_total=6.782e-05  far=  515.97 ms (trav 274.9 p2p 202.7 up 22.4 build 14.7)  pairs=9,123,685  asym=1.193e-04
+    pdeg=7 l=3 leaf=2048  mac=0.8   rel_far=2.935e-04  rel_total=2.919e-04  far=  382.68 ms (trav 200.9 p2p 136.8 up 19.1 build 14.7)  pairs=6,222,836  asym=5.859e-04
+    pdeg=7 l=3 leaf=2048  mac=0.9   rel_far=1.108e-03  rel_total=1.102e-03  far=  302.97 ms (trav 163.5 p2p 100.5 up 19.8 build 14.6)  pairs=4,801,389  asym=1.898e-03
+    pdeg=7 l=3 leaf=2048  mac=1.0   rel_far=2.089e-03  rel_total=2.077e-03  far=  285.63 ms (trav 145.4 p2p 101.2 up 20.2 build 14.6)  pairs=4,762,051  asym=4.029e-03
+    pdeg=5 l=3 leaf=256   mac=0.6   rel_far=2.317e-04  rel_total=2.304e-04  far=  539.03 ms (trav 441.8 p2p 68.1 up 9.7 build 19.4)  pairs=15,916,511  asym=4.191e-04
+    pdeg=5 l=3 leaf=256   mac=0.7   rel_far=6.991e-04  rel_total=6.951e-04  far=  383.33 ms (trav 306.7 p2p 40.6 up 9.3 build 19.1)  pairs=10,141,320  asym=1.398e-03
+    pdeg=5 l=3 leaf=256   mac=0.8   rel_far=1.882e-03  rel_total=1.872e-03  far=  287.80 ms (trav 224.0 p2p 28.0 up 8.8 build 18.4)  pairs=7,322,351  asym=4.609e-03
+    pdeg=5 l=3 leaf=256   mac=0.9   rel_far=4.530e-03  rel_total=4.503e-03  far=  235.81 ms (trav 176.1 p2p 27.4 up 8.7 build 18.6)  pairs=7,141,470  asym=1.093e-02
+    pdeg=5 l=3 leaf=256   mac=1.0   rel_far=6.726e-03  rel_total=6.687e-03  far=  223.16 ms (trav 161.1 p2p 27.8 up 8.6 build 18.7)  pairs=7,139,518  asym=1.473e-02
+    pdeg=5 l=3 leaf=512   mac=0.6   rel_far=2.097e-04  rel_total=2.085e-04  far=  532.62 ms (trav 369.3 p2p 124.1 up 9.1 build 17.3)  pairs=16,963,558  asym=4.032e-04
+    pdeg=5 l=3 leaf=512   mac=0.7   rel_far=6.315e-04  rel_total=6.279e-04  far=  378.09 ms (trav 269.5 p2p 75.2 up 8.7 build 17.7)  pairs=10,834,680  asym=1.664e-03
+    pdeg=5 l=3 leaf=512   mac=0.8   rel_far=1.827e-03  rel_total=1.817e-03  far=  281.13 ms (trav 200.2 p2p 46.6 up 9.1 build 17.5)  pairs=7,396,517  asym=3.364e-03
+    pdeg=5 l=3 leaf=512   mac=0.9   rel_far=4.521e-03  rel_total=4.495e-03  far=  230.16 ms (trav 155.2 p2p 40.6 up 9.9 build 17.6)  pairs=6,633,239  asym=8.273e-03
+    pdeg=5 l=3 leaf=512   mac=1.0   rel_far=6.867e-03  rel_total=6.828e-03  far=  211.18 ms (trav 139.2 p2p 40.7 up 8.4 build 17.5)  pairs=6,627,906  asym=1.199e-02
+    pdeg=5 l=3 leaf=1024  mac=0.6   rel_far=2.076e-04  rel_total=2.064e-04  far=  576.48 ms (trav 319.0 p2p 224.1 up 9.2 build 15.9)  pairs=16,790,878  asym=4.555e-04
+    pdeg=5 l=3 leaf=1024  mac=0.7   rel_far=6.355e-04  rel_total=6.319e-04  far=  399.50 ms (trav 229.1 p2p 133.4 up 9.8 build 15.9)  pairs=10,820,533  asym=1.362e-03
+    pdeg=5 l=3 leaf=1024  mac=0.8   rel_far=1.782e-03  rel_total=1.771e-03  far=  298.80 ms (trav 176.3 p2p 85.7 up 9.6 build 15.7)  pairs=7,335,886  asym=3.531e-03
+    pdeg=5 l=3 leaf=1024  mac=0.9   rel_far=4.532e-03  rel_total=4.506e-03  far=  236.40 ms (trav 138.0 p2p 65.8 up 9.8 build 15.5)  pairs=5,946,155  asym=8.902e-03
+    pdeg=5 l=3 leaf=1024  mac=1.0   rel_far=6.869e-03  rel_total=6.830e-03  far=  224.11 ms (trav 129.9 p2p 66.0 up 9.6 build 15.6)  pairs=5,918,843  asym=1.478e-02
+    pdeg=5 l=3 leaf=2048  mac=0.6   rel_far=1.982e-04  rel_total=1.970e-04  far=  617.63 ms (trav 269.9 p2p 318.0 up 11.4 build 14.7)  pairs=14,048,292  asym=4.388e-04
+    pdeg=5 l=3 leaf=2048  mac=0.7   rel_far=6.084e-04  rel_total=6.049e-04  far=  421.69 ms (trav 195.1 p2p 196.1 up 10.5 build 14.7)  pairs=9,123,685  asym=1.328e-03
+    pdeg=5 l=3 leaf=2048  mac=0.8   rel_far=1.710e-03  rel_total=1.700e-03  far=  318.90 ms (trav 151.8 p2p 130.7 up 10.9 build 14.7)  pairs=6,222,836  asym=3.353e-03
+    pdeg=5 l=3 leaf=2048  mac=0.9   rel_far=4.474e-03  rel_total=4.448e-03  far=  253.32 ms (trav 127.3 p2p 96.5 up 11.0 build 14.8)  pairs=4,801,389  asym=7.567e-03
+    pdeg=5 l=3 leaf=2048  mac=1.0   rel_far=6.929e-03  rel_total=6.889e-03  far=  237.39 ms (trav 109.7 p2p 96.3 up 10.7 build 14.8)  pairs=4,762,051  asym=1.361e-02
+
+wrote 80 rows -> data/widebvh_4060_sweep.csv

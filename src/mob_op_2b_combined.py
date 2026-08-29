@@ -14,11 +14,19 @@ from scipy.spatial.transform import Rotation as R
 from scipy.spatial.transform import Rotation
 
 from src.analysis_utils import quaternion_to_6d_batch
-from src.model_archs import SelfInteraction, TwoBodySphere, TwoBodyProlate
+from src.model_archs import (
+    SelfInteraction,
+    TwoBodyCombined,
+    TwoBodyProlate,
+    TwoBodySphere,
+)
 from src.mfs_utils import min_distance_two_ellipsoids
 
-import sys 
-sys.path.append("/home/shihab/repo/utils")
+import sys
+import os
+
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(os.path.join(_REPO_ROOT, "utils"))
 
 from benchmarks.cluster import reference_data_generation
 
@@ -98,8 +106,8 @@ class NNMob:
         }
         self.abc = np.array(axes[shape], dtype=np.float64) 
 
-        self.self_nn= torch.jit.load(self_nn_path, map_location=self.device).eval()
-        self.two_nn = torch.jit.load(two_nn_path, map_location=self.device).eval()
+        self.self_nn = self._load_self_model(self_nn_path)
+        self.two_nn = self._load_two_body_model(two_nn_path)
         
         self.nn_only   = nn_only
         self.rpy_only  = rpy_only
@@ -111,6 +119,39 @@ class NNMob:
             print("Warning: current SPD diagnostics assume sphere-only; results may be invalid for non-spherical shapes.")
 
         self.M = None
+
+    def _load_self_model(self, model_path):
+        if model_path.endswith(".pt"):
+            return torch.jit.load(model_path, map_location=self.device).eval()
+
+        if model_path.endswith(".wt"):
+            state_dict = torch.load(model_path, map_location=self.device, weights_only=True)
+            model = SelfInteraction(input_dim=9).to(self.device)
+            model.load_state_dict(state_dict)
+            return model.eval()
+
+        raise ValueError(
+            f"Unsupported self model format for '{model_path}'. Expected '.pt' or '.wt'."
+        )
+
+    def _load_two_body_model(self, model_path):
+        if model_path.endswith(".pt"):
+            return torch.jit.load(model_path, map_location=self.device).eval()
+
+        if model_path.endswith(".wt"):
+            state_dict = torch.load(model_path, map_location=self.device, weights_only=True)
+            if any(key.startswith("FtModel.") or key.startswith("FsModel.") for key in state_dict):
+                model = TwoBodyCombined(input_dim=4).to(self.device)
+            elif self.shape == "sphere":
+                model = TwoBodySphere(input_dim=4).to(self.device)
+            else:
+                model = TwoBodyProlate(input_dim=4).to(self.device)
+            model.load_state_dict(state_dict)
+            return model.eval()
+
+        raise ValueError(
+            f"Unsupported two-body model format for '{model_path}'. Expected '.pt' or '.wt'."
+        )
 
     def get_self_vel_analytical(self, orientations, force, mu):
         """
@@ -491,8 +532,8 @@ def helens_3body_sphere():
     R = 1.0  
     S = 1.0   # separation between sphere centers equals R
     
-    mob = NNMob("/home/shihab/repo/experiments/self_interaction.wt", 
-                "/home/shihab/repo/experiments/sphere_2body.wt")
+    mob = NNMob("experiments/self_interaction.wt", 
+                "experiments/sphere_2body.wt")
     
     D = 2*R + S
 
@@ -573,12 +614,11 @@ if __name__ == "__main__":
 
     # max dist between spheres in the following is 12.78, something 
     # the model not trained to handle on nn_only mode
-    path = "/home/shihab/repo/tmp/reference_sphere_0.2.csv"
+    path = "tmp/reference_sphere_0.2.csv"
     
     config = check_against_ref(mob, path)
     
     #check_against_cluster(mob, delta=0.4, numParticles=20)
-
 
 
 

@@ -176,13 +176,13 @@ def prolate():
     delta = 1.0
 
     mob = NNMob(shape,
-                "/home/shihab/repo/data/models/self_interaction_model.pt", 
-                "/home/shihab/repo/data/models/two_body_prolate_model.pt")
+                "data/models/self_interaction_model.pt", 
+                "data/models/two_body_prolate_model.pt")
     
-    df = pd.read_csv("/home/shihab/repo/data/reference_prolate.csv", float_precision="high",
+    df = pd.read_csv("data/reference_prolate.csv", float_precision="high",
                         header=0, index_col=False)
 
-    # df = pd.read_csv("/home/shihab/repo/data/n100.csv", float_precision="high",
+    # df = pd.read_csv("data/n100.csv", float_precision="high",
     #                     header=0, index_col=False)
     numParticles = df.shape[0]    
 
@@ -235,7 +235,7 @@ def bryce():
                 nn_only=False, rpy_only=False)
 
     
-    with open("/home/shihab/repo/src/pos 1.csv", "r") as f:
+    with open("src/pos 1.csv", "r") as f:
         data = f.read()
         data = list(map(float, data.split(",")))
 

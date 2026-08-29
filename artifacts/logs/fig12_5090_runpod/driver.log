@@ -1,0 +1,28 @@
+=== driver start Sun Aug 23 15:44:43 UTC 2026 ===
+generated tmp/uniform_large_0.1_1000000.csv in 38.1s
+generated tmp/uniform_large_0.1_1250000.csv in 45.5s
+generated tmp/uniform_large_0.1_1500000.csv in 58.7s
+generated tmp/uniform_large_0.1_1750000.csv in 66.8s
+generated tmp/uniform_large_0.1_2000000.csv in 75.4s
+=== configs done rc=0 Sun Aug 23 15:49:30 UTC 2026 ===
+=== SIZE 50000 start 15:49:30 ===
+=== SIZE 50000 rc=0 end 15:51:04 ===
+=== SIZE 100000 start 15:51:04 ===
+=== SIZE 100000 rc=0 end 15:51:28 ===
+=== SIZE 200000 start 15:51:28 ===
+=== SIZE 200000 rc=0 end 15:52:13 ===
+=== SIZE 500000 start 15:52:13 ===
+=== SIZE 500000 rc=0 end 15:52:39 ===
+=== SIZE 750000 start 15:52:39 ===
+=== SIZE 750000 rc=0 end 15:53:03 ===
+=== SIZE 1000000 start 15:53:03 ===
+=== SIZE 1000000 rc=0 end 15:53:29 ===
+=== SIZE 1250000 start 15:53:29 ===
+=== SIZE 1250000 rc=0 end 15:53:55 ===
+=== SIZE 1500000 start 15:53:55 ===
+=== SIZE 1500000 rc=0 end 15:54:24 ===
+=== SIZE 1750000 start 15:54:24 ===
+=== SIZE 1750000 rc=0 end 15:54:54 ===
+=== SIZE 2000000 start 15:54:54 ===
+=== SIZE 2000000 rc=0 end 15:55:23 ===
+ALL_DONE
