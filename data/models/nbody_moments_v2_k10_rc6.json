@@ -1,0 +1,16 @@
+{
+ "name": "nbody_moments_v2_k10_rc6",
+ "model": "moments",
+ "features": "moments",
+ "variant": "k10_rc6",
+ "max_neighbors": 10,
+ "neighbor_cutoff": 6.0,
+ "pair_cutoff": 6.0,
+ "mean_dist_s": 4.690027344329476,
+ "median_2b": 5.01,
+ "run": "experiments/runs_v2/mom_k10_rc6",
+ "prmse_lin": 4.518269841566163,
+ "prmse_ang": 15.656512123993105,
+ "rel_total": 5.233732346101365,
+ "created": "2026-08-30 13:12:03"
+}

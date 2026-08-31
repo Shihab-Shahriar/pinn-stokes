@@ -4,6 +4,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import os
 import datetime
+from typing import Tuple
+
+try:
+    from src import nbody_moments as nbm
+except ImportError:  # run as a script from src/
+    import nbody_moments as nbm
 
 
 #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -444,6 +450,155 @@ class MultiBodyCorrection(nn.Module):
         return v
 
 
+class MultiBodyCorrectionB1(nn.Module):
+    """The notebook baseline (experiments/branch1_multibody_pinn.ipynb -> data/models/nbody_pinn_b1.pt)
+    as a clean module: 114 -> 128 -> 64 -> 128 -> 64 -> 5 (Tanh), five coefficients on
+    L1/L2/L3 of the pair axis.  Used to retrain the baseline on an identical split/recipe for a
+    fair comparison with ``MultiBodyMoments``.  Input row layout = the CPU operator's 147 columns
+    (``Mob_Op_Nbody._build_pair_feature_vector``): the MLP consumes ``X[:, dist_s_feat_loc:]``.
+    Note: ``model_archs.L3`` is ``E(u)_ab = eps_abc u_c``; the notebook's L3 has the opposite sign,
+    which only flips the sign of the learned RT coefficient."""
+
+    def __init__(self, mean_dist_s: float, input_dim: int = 114, dist_s_feat_loc: int = 33,
+                 zero_init_head: bool = False):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.Tanh(),
+            nn.Linear(128, 64),
+            nn.Tanh(),
+            nn.Linear(64, 128),
+            nn.Tanh(),
+            nn.Linear(128, 64),
+            nn.Tanh(),
+            nn.Linear(64, 5),
+        )
+        self.mean_dist_s = float(mean_dist_s)
+        self.dist_s_feat_loc = int(dist_s_feat_loc)
+        if zero_init_head:
+            nn.init.zeros_(self.net[-1].weight)
+            nn.init.zeros_(self.net[-1].bias)
+
+    def forward(self, X):
+        return self.net(X[:, self.dist_s_feat_loc:])
+
+    @torch.jit.export
+    def predict_mobility(self, X):
+        coeff = self.net(X[:, self.dist_s_feat_loc:])
+        d_vec = X[:, :3]
+        r = X[:, self.dist_s_feat_loc] + self.mean_dist_s
+        d_vec = -d_vec / r.unsqueeze(-1)  # target - source, unit
+
+        par = L1(d_vec)
+        perp = L2(d_vec)
+        angular = L3(d_vec)
+
+        B0 = coeff[:, 0][:, None, None]; B1 = coeff[:, 1][:, None, None]
+        C0 = coeff[:, 2][:, None, None]
+        D0 = coeff[:, 3][:, None, None]; D1 = coeff[:, 4][:, None, None]
+
+        TT = B0 * par + B1 * perp
+        RT = C0 * angular
+        RR = D0 * par + D1 * perp
+        top = torch.cat([TT, RT], 2)
+        bot = torch.cat([RT, RR], 2)
+        return torch.cat([top, bot], 1)
+
+    @torch.jit.export
+    def predict_velocity(self, X, force_s):
+        K = self.predict_mobility(X)
+        return torch.einsum('bij,bj->bi', K, force_s)
+
+
+class MultiBodyMoments(nn.Module):
+    """Moments-based n-body correction m_t^(n) (moments_for_nbody.md sections 3-5).
+
+    Input row X[:, 111] = [s_vec(3) | pair scalars(4) | s_a(8) | v_a(24) | Q_a(72)]
+    (``nbody_moments.moment_features``).  Inside: pair axis z = -s_vec/|s_vec|, the 72
+    rotation-invariant swap-even invariants, standardisation (``inv_mean``/``inv_std`` buffers),
+    MLP 76 -> 128 -> 64 -> 128 -> 64 -> 93 (same hidden widths as the b1 baseline), per-basis
+    rescaling (``basis_scale`` buffer, RMS Frobenius norm of each basis tensor over the training
+    set so that raw coefficients are O(1)), and assembly onto the 34 TT/RR + 25 TR bases.
+    Reciprocity M_ji = M_ij^T and O(3) equivariance hold by construction; the buffers are fitted
+    with ``fit_normalisation`` on the training split and travel with the state dict."""
+
+    def __init__(self, mean_dist_s: float, zero_init_head: bool = True, inv_norm: bool = False):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(nbm.N_IN, 128),
+            nn.Tanh(),
+            nn.Linear(128, 64),
+            nn.Tanh(),
+            nn.Linear(64, 128),
+            nn.Tanh(),
+            nn.Linear(128, 64),
+            nn.Tanh(),
+            nn.Linear(64, nbm.N_COEF),
+        )
+        self.register_buffer("inv_mean", torch.zeros(nbm.N_IN))
+        self.register_buffer("inv_std", torch.ones(nbm.N_IN))
+        self.register_buffer("basis_scale", torch.ones(nbm.N_COEF))
+        self.mean_dist_s = float(mean_dist_s)
+        # inv_norm: feed the MLP invariants of the count-normalised (intensive) moments
+        # v_a / max(s_a, 1), Q_a / max(s_a, 1) instead of the raw sums, keeping s_a as the count input
+        # and the *bases* extensive.  Bounded inputs -> better extrapolation when the inference
+        # neighbourhoods carry more neighbours per band than the training rows.
+        self.inv_norm = bool(inv_norm)
+        if zero_init_head:  # the correction starts at exactly zero (= the two-body solution)
+            nn.init.zeros_(self.net[-1].weight)
+            nn.init.zeros_(self.net[-1].bias)
+
+    def forward(self, X):
+        return self.coefficients(X)
+
+    def _invariants(self, X):
+        s_vec, pair, s, v, Q = nbm.unpack_features(X)
+        z = nbm.pair_axis(s_vec)
+        if self.inv_norm:
+            n = s.clamp_min(1.0)
+            v = v / n.unsqueeze(-1)
+            Q = Q / n.unsqueeze(-1).unsqueeze(-1)
+        return torch.cat([pair, nbm.invariants(z, s, v, Q)], 1)
+
+    @torch.jit.export
+    def coefficients(self, X):
+        """[P, 93] scaled coefficients (TT 0:34, RR 34:68, TR=RT 68:93)."""
+        x = (self._invariants(X) - self.inv_mean) / self.inv_std
+        return self.net(x) / self.basis_scale
+
+    @torch.jit.export
+    def predict_mobility(self, X):
+        s_vec, pair, s, v, Q = nbm.unpack_features(X)
+        z = nbm.pair_axis(s_vec)
+        c = self.coefficients(X)
+        tt, tr = nbm.bases(z, v, Q)
+        return nbm.assemble_block(c, tt, tr)
+
+    @torch.jit.export
+    def predict_velocity(self, X, force_s):
+        K = self.predict_mobility(X)
+        return torch.einsum('bij,bj->bi', K, force_s)
+
+    @torch.jit.ignore
+    def fit_normalisation(self, X, chunk: int = 8192):
+        """Fit inv_mean / inv_std / basis_scale from training rows X[N, 111] (python only)."""
+        with torch.no_grad():
+            invs, fro_tt, fro_tr, n = [], 0.0, 0.0, 0
+            for i in range(0, X.shape[0], chunk):
+                Xc = X[i:i + chunk]
+                invs.append(self._invariants(Xc))
+                s_vec, pair, s, v, Q = nbm.unpack_features(Xc)
+                tt, tr = nbm.bases(nbm.pair_axis(s_vec), v, Q)
+                fro_tt = fro_tt + (tt * tt).sum((-1, -2)).sum(0)
+                fro_tr = fro_tr + (tr * tr).sum((-1, -2)).sum(0)
+                n += Xc.shape[0]
+            inv = torch.cat(invs, 0)
+            self.inv_mean.copy_(inv.mean(0))
+            self.inv_std.copy_(inv.std(0).clamp_min(1e-6))
+            scale = torch.cat([torch.sqrt(fro_tt / n), torch.sqrt(fro_tt / n), torch.sqrt(fro_tr / n)])
+            self.basis_scale.copy_(scale.clamp_min(1e-6))
+
+
 if __name__ == "__main__":
     do_models = {
         "self_interaction": False,
@@ -451,8 +606,11 @@ if __name__ == "__main__":
         "two_body_prolate": False,
         "two_body_sphere_F1": False,
         "two_body_combined": True,
-        "two_body_combined_all": False
+        "two_body_combined_all": False,
+        "nbody_moments": False,
+        "nbody_b1_retrained": False,
     }
+    NBODY_MEAN_DIST_S = 4.690027344329476  # Mob_Op_Nbody.DEFAULT_MEAN_DIST_S
     r = "experiments/"
 
     if do_models["self_interaction"]:
@@ -533,3 +691,21 @@ if __name__ == "__main__":
         scripted_model = torch.jit.script(model)
         scripted_model.save("data/models/two_body_combined_all.pt")
         print("Saved TorchScript model to two_body_combined_all.pt")
+
+    if do_models["nbody_moments"]:
+        model = MultiBodyMoments(NBODY_MEAN_DIST_S).to(device)
+        model.load_state_dict(torch.load(r+"nbody_moments.wt", weights_only=True))
+        model.eval()
+
+        scripted_model = torch.jit.script(model)
+        scripted_model.save("data/models/nbody_moments.pt")
+        print("Saved TorchScript model to nbody_moments.pt")
+
+    if do_models["nbody_b1_retrained"]:
+        model = MultiBodyCorrectionB1(NBODY_MEAN_DIST_S).to(device)
+        model.load_state_dict(torch.load(r+"nbody_b1_retrained.wt", weights_only=True))
+        model.eval()
+
+        scripted_model = torch.jit.script(model)
+        scripted_model.save("data/models/nbody_pinn_b1_retrained.pt")
+        print("Saved TorchScript model to nbody_pinn_b1_retrained.pt")

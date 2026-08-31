@@ -1,0 +1,32 @@
+host nfh-000 job 16539272 Sun Aug 30 04:18:34 AM EDT 2026
+NVIDIA H200, 143771 MiB, 580.173.02
+torch 2.8.0+cu128 triton 3.4.0
+=== tests
+................                                                         [100%]
+16 passed, 1 deselected in 56.51s
+=== benchmark (torch64 production backend, then triton32)
+ fine  torch64 P=  8 R= 48 x1: op      1.4 ms ( 1.66 TFLOPS) gemm     0.0 ms | grand M: 22 it,    0.22 s/config,   16150/h, dv 5.0e-09, peak 0.24 GiB
+ fine  torch64 P= 16 R= 96 x1: op      4.1 ms ( 4.88 TFLOPS) gemm     0.0 ms | grand M: 27 it,    0.18 s/config,   20352/h, dv 4.1e-09, peak 0.56 GiB
+ fine  torch64 P= 32 R=192 x1: op     15.8 ms (10.36 TFLOPS) gemm     0.1 ms | grand M: 26 it,    0.55 s/config,    6583/h, dv 5.6e-09, peak 1.56 GiB
+ fine  torch64 P= 64 R=384 x1: op     71.9 ms (18.51 TFLOPS) gemm     0.4 ms | grand M: 27 it,    2.43 s/config,    1483/h, dv 9.7e-09, peak 5.00 GiB
+-> data/mfs_batched_perf_h200.csv
+ fine triton32 P= 16 R= 96 x1: op      1.0 ms (19.80 TFLOPS) gemm     0.1 ms | grand M: 16 it,    0.17 s/config,   20696/h, dv 5.7e-06, peak 0.15 GiB
+ fine triton32 P= 32 R=192 x1: op      5.7 ms (28.67 TFLOPS) gemm     0.2 ms | grand M: 16 it,    0.15 s/config,   23738/h, dv 5.1e-06, peak 0.55 GiB
+ fine triton32 P= 64 R=384 x1: op     44.4 ms (29.95 TFLOPS) gemm     0.5 ms | grand M: 17 it,    0.99 s/config,    3623/h, dv 7.0e-06, peak 2.16 GiB
+-> data/mfs_batched_perf_h200.csv
+=== short generation run (all families, small)
+[gen] worker 0/1: 1 plan items, backend=torch64 acc=fine tol_v=1e-08 out=data/multibody_v2_verify
+[gen] grown/delta0.1_P8_fine/shard_0000.npz: n=32 P=8 0.06 s/config iters~33 symm<=7.8e-04 [0.1 min]
+[gen] done: 1 shards in 0.1 min
+[gen] worker 0/1: 1 plan items, backend=torch64 acc=fine tol_v=1e-08 out=data/multibody_v2_verify
+[gen] uniform/phi0.1_P64_fine/shard_0000.npz: n=4 P=64 2.43 s/config iters~27 symm<=9.0e-05 [0.2 min]
+[gen] done: 1 shards in 0.2 min
+[gen] worker 0/1: 1 plan items, backend=torch64 acc=fine tol_v=1e-08 out=data/multibody_v2_verify
+[gen] lattice/jitter0.1_phi0.1_P32_fine/shard_0000.npz: n=4 P=32 0.29 s/config iters~12 symm<=9.2e-07 [0.0 min]
+[gen] done: 1 shards in 0.0 min
+verify dataset: configs 40 ordered pairs 12138 Y shape (12138, 6)
+path,family,params,P,acc,n,n_failed,seed_first,mean_iters,mean_wall_s,max_residual,max_dv,max_symm_err,elapsed_s
+grown/delta0.1_P8_fine/shard_0000.npz,grown,"{""delta"": 0.1}",8,fine,32,0,4604535507085678939,33.0,0.05870719254016876,2.0778461474769985e-09,4.747509425726404e-09,0.0007812171722331913,3.424250841140747
+uniform/phi0.1_P64_fine/shard_0000.npz,uniform,"{""phi"": 0.1}",64,fine,4,0,4307080799382233688,27.0,2.4273778796195984,4.368327695458166e-09,6.652568795645182e-09,8.96883764536559e-05,11.29552674293518
+lattice/jitter0.1_phi0.1_P32_fine/shard_0000.npz,lattice,"{""phi"": 0.1, ""jitter"": 0.1}",32,fine,4,0,8855957665823130163,12.0,0.2859898805618286,2.2131884005668952e-10,2.4260951738341798e-09,9.21195451531218e-07,2.66767954826355
+=== done Sun Aug 30 04:20:21 AM EDT 2026

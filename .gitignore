@@ -21,3 +21,8 @@ __pycache__/
 .tmp/
 # build context produced by docker/pack_context.sh
 nemo-ctx.tar.gz
+data/multibody_v2/
+data/multibody_v2_cache*/
+experiments/runs/
+experiments/runs_v2/
+data/paper_accuracy_v2/

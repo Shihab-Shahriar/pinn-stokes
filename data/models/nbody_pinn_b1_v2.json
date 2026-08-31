@@ -1,0 +1,16 @@
+{
+ "name": "nbody_pinn_b1_v2",
+ "model": "baseline",
+ "features": "baseline",
+ "variant": "k10_rc6",
+ "max_neighbors": 10,
+ "neighbor_cutoff": 6.0,
+ "pair_cutoff": 6.0,
+ "mean_dist_s": 4.690027344329476,
+ "median_2b": 5.01,
+ "run": "experiments/runs_v2/b1_k10_rc6",
+ "prmse_lin": 6.865186668735787,
+ "prmse_ang": 19.824835933369727,
+ "rel_total": 7.606705446282043,
+ "created": "2026-08-30 13:18:32"
+}

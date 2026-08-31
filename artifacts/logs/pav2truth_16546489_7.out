@@ -1,0 +1,2081 @@
+host nfh-003 job 16546489 task 7 phi 0.2 exps fig3 fig4
+NVIDIA H200, 143771 MiB
+[cases] 160 configurations: fig3:20, fig4:140
+cluster created
+Converged after 75 iterations (max diff = 9.006630e-09)
+Elapsed time (GPU): 14.225 seconds
+[truth] N=200 phi=0.2 seed=126: 16.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed126.npz
+cluster created
+Converged after 71 iterations (max diff = 8.163357e-09)
+Elapsed time (GPU): 11.148 seconds
+[truth] N=200 phi=0.2 seed=127: 13.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed127.npz
+cluster created
+Converged after 71 iterations (max diff = 8.545082e-09)
+Elapsed time (GPU): 11.148 seconds
+[truth] N=200 phi=0.2 seed=128: 13.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed128.npz
+cluster created
+Converged after 71 iterations (max diff = 9.974588e-09)
+Elapsed time (GPU): 11.148 seconds
+[truth] N=200 phi=0.2 seed=129: 13.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed129.npz
+cluster created
+Converged after 71 iterations (max diff = 9.534703e-09)
+Elapsed time (GPU): 11.149 seconds
+[truth] N=200 phi=0.2 seed=130: 13.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed130.npz
+cluster created
+Converged after 76 iterations (max diff = 9.658037e-09)
+Elapsed time (GPU): 11.932 seconds
+[truth] N=200 phi=0.2 seed=131: 13.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed131.npz
+cluster created
+Converged after 77 iterations (max diff = 9.735788e-09)
+Elapsed time (GPU): 12.091 seconds
+[truth] N=200 phi=0.2 seed=132: 14.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed132.npz
+cluster created
+Converged after 72 iterations (max diff = 7.902557e-09)
+Elapsed time (GPU): 24.260 seconds
+[truth] N=300 phi=0.2 seed=123: 26.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N300_phi0.2_seed123.npz
+cluster created
+Converged after 72 iterations (max diff = 9.745644e-09)
+Elapsed time (GPU): 24.264 seconds
+[truth] N=300 phi=0.2 seed=124: 26.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N300_phi0.2_seed124.npz
+cluster created
+Converged after 74 iterations (max diff = 7.947018e-09)
+Elapsed time (GPU): 24.948 seconds
+[truth] N=300 phi=0.2 seed=125: 27.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N300_phi0.2_seed125.npz
+cluster created
+Converged after 78 iterations (max diff = 8.029533e-09)
+Elapsed time (GPU): 26.280 seconds
+[truth] N=300 phi=0.2 seed=126: 28.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N300_phi0.2_seed126.npz
+cluster created
+Converged after 75 iterations (max diff = 9.856421e-09)
+Elapsed time (GPU): 25.267 seconds
+[truth] N=300 phi=0.2 seed=127: 27.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N300_phi0.2_seed127.npz
+cluster created
+Converged after 72 iterations (max diff = 8.775893e-09)
+Elapsed time (GPU): 24.258 seconds
+[truth] N=300 phi=0.2 seed=128: 26.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N300_phi0.2_seed128.npz
+cluster created
+Converged after 74 iterations (max diff = 7.963206e-09)
+Elapsed time (GPU): 24.932 seconds
+[truth] N=300 phi=0.2 seed=129: 27.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N300_phi0.2_seed129.npz
+cluster created
+Converged after 77 iterations (max diff = 9.296193e-09)
+Elapsed time (GPU): 25.941 seconds
+[truth] N=300 phi=0.2 seed=130: 28.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N300_phi0.2_seed130.npz
+cluster created
+Converged after 80 iterations (max diff = 9.500906e-09)
+Elapsed time (GPU): 26.951 seconds
+[truth] N=300 phi=0.2 seed=131: 29.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N300_phi0.2_seed131.npz
+cluster created
+Converged after 69 iterations (max diff = 9.638484e-09)
+Elapsed time (GPU): 23.250 seconds
+[truth] N=300 phi=0.2 seed=132: 25.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N300_phi0.2_seed132.npz
+cluster created
+Converged after 69 iterations (max diff = 9.637638e-09)
+Elapsed time (GPU): 0.432 seconds
+[truth] N=20 phi=0.2 seed=7123: 2.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N20_phi0.2_seed7123.npz
+cluster created
+Converged after 57 iterations (max diff = 9.781403e-09)
+Elapsed time (GPU): 0.357 seconds
+[truth] N=20 phi=0.2 seed=7124: 2.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N20_phi0.2_seed7124.npz
+cluster created
+Converged after 46 iterations (max diff = 6.017985e-09)
+Elapsed time (GPU): 0.288 seconds
+[truth] N=20 phi=0.2 seed=7125: 2.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N20_phi0.2_seed7125.npz
+cluster created
+Converged after 57 iterations (max diff = 7.235943e-09)
+Elapsed time (GPU): 0.357 seconds
+[truth] N=20 phi=0.2 seed=7126: 2.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N20_phi0.2_seed7126.npz
+cluster created
+Converged after 67 iterations (max diff = 9.349508e-09)
+Elapsed time (GPU): 0.419 seconds
+[truth] N=20 phi=0.2 seed=7127: 2.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N20_phi0.2_seed7127.npz
+cluster created
+Converged after 68 iterations (max diff = 8.060919e-09)
+Elapsed time (GPU): 0.426 seconds
+[truth] N=20 phi=0.2 seed=7128: 2.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N20_phi0.2_seed7128.npz
+cluster created
+Converged after 70 iterations (max diff = 7.741651e-09)
+Elapsed time (GPU): 0.438 seconds
+[truth] N=20 phi=0.2 seed=7129: 2.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N20_phi0.2_seed7129.npz
+cluster created
+Converged after 63 iterations (max diff = 8.509703e-09)
+Elapsed time (GPU): 0.394 seconds
+[truth] N=20 phi=0.2 seed=7130: 2.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N20_phi0.2_seed7130.npz
+cluster created
+Converged after 64 iterations (max diff = 8.435363e-09)
+Elapsed time (GPU): 0.401 seconds
+[truth] N=20 phi=0.2 seed=7131: 2.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N20_phi0.2_seed7131.npz
+cluster created
+Converged after 69 iterations (max diff = 8.388857e-09)
+Elapsed time (GPU): 0.432 seconds
+[truth] N=20 phi=0.2 seed=7132: 2.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N20_phi0.2_seed7132.npz
+cluster created
+Converged after 67 iterations (max diff = 7.897183e-09)
+Elapsed time (GPU): 0.629 seconds
+[truth] N=30 phi=0.2 seed=7223: 2.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N30_phi0.2_seed7223.npz
+cluster created
+Converged after 74 iterations (max diff = 6.861753e-09)
+Elapsed time (GPU): 0.694 seconds
+[truth] N=30 phi=0.2 seed=7224: 2.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N30_phi0.2_seed7224.npz
+cluster created
+Converged after 71 iterations (max diff = 9.235938e-09)
+Elapsed time (GPU): 0.666 seconds
+[truth] N=30 phi=0.2 seed=7225: 2.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N30_phi0.2_seed7225.npz
+cluster created
+Converged after 63 iterations (max diff = 8.736458e-09)
+Elapsed time (GPU): 0.591 seconds
+[truth] N=30 phi=0.2 seed=7226: 2.4 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N30_phi0.2_seed7226.npz
+cluster created
+Converged after 59 iterations (max diff = 8.291791e-09)
+Elapsed time (GPU): 0.554 seconds
+[truth] N=30 phi=0.2 seed=7227: 2.4 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N30_phi0.2_seed7227.npz
+cluster created
+Converged after 56 iterations (max diff = 7.481718e-09)
+Elapsed time (GPU): 0.526 seconds
+[truth] N=30 phi=0.2 seed=7228: 2.4 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N30_phi0.2_seed7228.npz
+cluster created
+Converged after 64 iterations (max diff = 9.037451e-09)
+Elapsed time (GPU): 0.600 seconds
+[truth] N=30 phi=0.2 seed=7229: 2.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N30_phi0.2_seed7229.npz
+cluster created
+Converged after 49 iterations (max diff = 6.143826e-09)
+Elapsed time (GPU): 0.460 seconds
+[truth] N=30 phi=0.2 seed=7230: 2.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N30_phi0.2_seed7230.npz
+cluster created
+Converged after 66 iterations (max diff = 7.890359e-09)
+Elapsed time (GPU): 0.619 seconds
+[truth] N=30 phi=0.2 seed=7231: 2.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N30_phi0.2_seed7231.npz
+cluster created
+Converged after 70 iterations (max diff = 9.262769e-09)
+Elapsed time (GPU): 0.657 seconds
+[truth] N=30 phi=0.2 seed=7232: 2.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N30_phi0.2_seed7232.npz
+cluster created
+Converged after 68 iterations (max diff = 9.530779e-09)
+Elapsed time (GPU): 0.866 seconds
+[truth] N=40 phi=0.2 seed=7323: 2.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N40_phi0.2_seed7323.npz
+cluster created
+Converged after 70 iterations (max diff = 8.654763e-09)
+Elapsed time (GPU): 0.892 seconds
+[truth] N=40 phi=0.2 seed=7324: 2.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N40_phi0.2_seed7324.npz
+cluster created
+Converged after 72 iterations (max diff = 7.290595e-09)
+Elapsed time (GPU): 0.917 seconds
+[truth] N=40 phi=0.2 seed=7325: 2.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N40_phi0.2_seed7325.npz
+cluster created
+Converged after 66 iterations (max diff = 9.672837e-09)
+Elapsed time (GPU): 0.841 seconds
+[truth] N=40 phi=0.2 seed=7326: 2.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N40_phi0.2_seed7326.npz
+cluster created
+Converged after 67 iterations (max diff = 8.798733e-09)
+Elapsed time (GPU): 0.854 seconds
+[truth] N=40 phi=0.2 seed=7327: 2.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N40_phi0.2_seed7327.npz
+cluster created
+Converged after 73 iterations (max diff = 7.849643e-09)
+Elapsed time (GPU): 0.930 seconds
+[truth] N=40 phi=0.2 seed=7328: 2.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N40_phi0.2_seed7328.npz
+cluster created
+Converged after 62 iterations (max diff = 7.229470e-09)
+Elapsed time (GPU): 0.790 seconds
+[truth] N=40 phi=0.2 seed=7329: 2.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N40_phi0.2_seed7329.npz
+cluster created
+Converged after 60 iterations (max diff = 9.049794e-09)
+Elapsed time (GPU): 0.765 seconds
+[truth] N=40 phi=0.2 seed=7330: 2.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N40_phi0.2_seed7330.npz
+cluster created
+Converged after 70 iterations (max diff = 9.112487e-09)
+Elapsed time (GPU): 0.892 seconds
+[truth] N=40 phi=0.2 seed=7331: 2.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N40_phi0.2_seed7331.npz
+cluster created
+Converged after 73 iterations (max diff = 9.448080e-09)
+Elapsed time (GPU): 0.930 seconds
+[truth] N=40 phi=0.2 seed=7332: 2.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N40_phi0.2_seed7332.npz
+cluster created
+Converged after 60 iterations (max diff = 8.121420e-09)
+Elapsed time (GPU): 0.974 seconds
+[truth] N=50 phi=0.2 seed=7423: 2.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N50_phi0.2_seed7423.npz
+cluster created
+Converged after 63 iterations (max diff = 9.749124e-09)
+Elapsed time (GPU): 1.022 seconds
+[truth] N=50 phi=0.2 seed=7424: 2.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N50_phi0.2_seed7424.npz
+cluster created
+Converged after 69 iterations (max diff = 7.432138e-09)
+Elapsed time (GPU): 1.120 seconds
+[truth] N=50 phi=0.2 seed=7425: 3.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N50_phi0.2_seed7425.npz
+cluster created
+Converged after 76 iterations (max diff = 7.748339e-09)
+Elapsed time (GPU): 1.233 seconds
+[truth] N=50 phi=0.2 seed=7426: 3.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N50_phi0.2_seed7426.npz
+cluster created
+Converged after 62 iterations (max diff = 9.972687e-09)
+Elapsed time (GPU): 1.006 seconds
+[truth] N=50 phi=0.2 seed=7427: 2.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N50_phi0.2_seed7427.npz
+cluster created
+Converged after 61 iterations (max diff = 9.143108e-09)
+Elapsed time (GPU): 0.990 seconds
+[truth] N=50 phi=0.2 seed=7428: 2.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N50_phi0.2_seed7428.npz
+cluster created
+Converged after 63 iterations (max diff = 7.917017e-09)
+Elapsed time (GPU): 1.023 seconds
+[truth] N=50 phi=0.2 seed=7429: 2.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N50_phi0.2_seed7429.npz
+cluster created
+Converged after 67 iterations (max diff = 9.156688e-09)
+Elapsed time (GPU): 1.087 seconds
+[truth] N=50 phi=0.2 seed=7430: 2.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N50_phi0.2_seed7430.npz
+cluster created
+Converged after 51 iterations (max diff = 7.034555e-09)
+Elapsed time (GPU): 0.828 seconds
+[truth] N=50 phi=0.2 seed=7431: 2.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N50_phi0.2_seed7431.npz
+cluster created
+Converged after 69 iterations (max diff = 9.833351e-09)
+Elapsed time (GPU): 1.120 seconds
+[truth] N=50 phi=0.2 seed=7432: 3.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N50_phi0.2_seed7432.npz
+cluster created
+Converged after 72 iterations (max diff = 8.337277e-09)
+Elapsed time (GPU): 1.434 seconds
+[truth] N=60 phi=0.2 seed=7523: 3.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N60_phi0.2_seed7523.npz
+cluster created
+Converged after 63 iterations (max diff = 7.300198e-09)
+Elapsed time (GPU): 1.255 seconds
+[truth] N=60 phi=0.2 seed=7524: 3.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N60_phi0.2_seed7524.npz
+cluster created
+Converged after 70 iterations (max diff = 8.486651e-09)
+Elapsed time (GPU): 1.394 seconds
+[truth] N=60 phi=0.2 seed=7525: 3.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N60_phi0.2_seed7525.npz
+cluster created
+Converged after 72 iterations (max diff = 8.188317e-09)
+Elapsed time (GPU): 1.434 seconds
+[truth] N=60 phi=0.2 seed=7526: 3.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N60_phi0.2_seed7526.npz
+cluster created
+Converged after 65 iterations (max diff = 9.630141e-09)
+Elapsed time (GPU): 1.295 seconds
+[truth] N=60 phi=0.2 seed=7527: 3.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N60_phi0.2_seed7527.npz
+cluster created
+Converged after 62 iterations (max diff = 9.221012e-09)
+Elapsed time (GPU): 1.235 seconds
+[truth] N=60 phi=0.2 seed=7528: 3.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N60_phi0.2_seed7528.npz
+cluster created
+Converged after 75 iterations (max diff = 9.924987e-09)
+Elapsed time (GPU): 1.494 seconds
+[truth] N=60 phi=0.2 seed=7529: 3.4 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N60_phi0.2_seed7529.npz
+cluster created
+Converged after 69 iterations (max diff = 9.339621e-09)
+Elapsed time (GPU): 1.375 seconds
+[truth] N=60 phi=0.2 seed=7530: 3.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N60_phi0.2_seed7530.npz
+cluster created
+Converged after 74 iterations (max diff = 8.009318e-09)
+Elapsed time (GPU): 1.474 seconds
+[truth] N=60 phi=0.2 seed=7531: 3.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N60_phi0.2_seed7531.npz
+cluster created
+Converged after 69 iterations (max diff = 9.336258e-09)
+Elapsed time (GPU): 1.374 seconds
+[truth] N=60 phi=0.2 seed=7532: 3.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N60_phi0.2_seed7532.npz
+cluster created
+Converged after 66 iterations (max diff = 7.757986e-09)
+Elapsed time (GPU): 1.743 seconds
+[truth] N=70 phi=0.2 seed=7623: 3.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N70_phi0.2_seed7623.npz
+cluster created
+Converged after 75 iterations (max diff = 8.933870e-09)
+Elapsed time (GPU): 1.978 seconds
+[truth] N=70 phi=0.2 seed=7624: 3.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N70_phi0.2_seed7624.npz
+cluster created
+Converged after 64 iterations (max diff = 9.408052e-09)
+Elapsed time (GPU): 1.691 seconds
+[truth] N=70 phi=0.2 seed=7625: 3.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N70_phi0.2_seed7625.npz
+cluster created
+Converged after 74 iterations (max diff = 7.479030e-09)
+Elapsed time (GPU): 1.952 seconds
+[truth] N=70 phi=0.2 seed=7626: 3.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N70_phi0.2_seed7626.npz
+cluster created
+Converged after 75 iterations (max diff = 8.536175e-09)
+Elapsed time (GPU): 1.981 seconds
+[truth] N=70 phi=0.2 seed=7627: 3.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N70_phi0.2_seed7627.npz
+cluster created
+Converged after 74 iterations (max diff = 9.204614e-09)
+Elapsed time (GPU): 1.954 seconds
+[truth] N=70 phi=0.2 seed=7628: 3.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N70_phi0.2_seed7628.npz
+cluster created
+Converged after 64 iterations (max diff = 8.752110e-09)
+Elapsed time (GPU): 1.691 seconds
+[truth] N=70 phi=0.2 seed=7629: 3.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N70_phi0.2_seed7629.npz
+cluster created
+Converged after 70 iterations (max diff = 6.150330e-09)
+Elapsed time (GPU): 1.847 seconds
+[truth] N=70 phi=0.2 seed=7630: 3.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N70_phi0.2_seed7630.npz
+cluster created
+Converged after 65 iterations (max diff = 7.734213e-09)
+Elapsed time (GPU): 1.718 seconds
+[truth] N=70 phi=0.2 seed=7631: 3.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N70_phi0.2_seed7631.npz
+cluster created
+Converged after 66 iterations (max diff = 8.923376e-09)
+Elapsed time (GPU): 1.741 seconds
+[truth] N=70 phi=0.2 seed=7632: 3.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N70_phi0.2_seed7632.npz
+cluster created
+Converged after 73 iterations (max diff = 7.822637e-09)
+Elapsed time (GPU): 2.576 seconds
+[truth] N=80 phi=0.2 seed=7723: 4.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N80_phi0.2_seed7723.npz
+cluster created
+Converged after 68 iterations (max diff = 9.972962e-09)
+Elapsed time (GPU): 2.259 seconds
+[truth] N=80 phi=0.2 seed=7724: 4.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N80_phi0.2_seed7724.npz
+cluster created
+Converged after 69 iterations (max diff = 7.900063e-09)
+Elapsed time (GPU): 2.292 seconds
+[truth] N=80 phi=0.2 seed=7725: 4.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N80_phi0.2_seed7725.npz
+cluster created
+Converged after 70 iterations (max diff = 8.263475e-09)
+Elapsed time (GPU): 2.325 seconds
+[truth] N=80 phi=0.2 seed=7726: 4.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N80_phi0.2_seed7726.npz
+cluster created
+Converged after 72 iterations (max diff = 7.956926e-09)
+Elapsed time (GPU): 2.390 seconds
+[truth] N=80 phi=0.2 seed=7727: 4.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N80_phi0.2_seed7727.npz
+cluster created
+Converged after 69 iterations (max diff = 8.924441e-09)
+Elapsed time (GPU): 2.292 seconds
+[truth] N=80 phi=0.2 seed=7728: 4.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N80_phi0.2_seed7728.npz
+cluster created
+Converged after 66 iterations (max diff = 8.065180e-09)
+Elapsed time (GPU): 2.192 seconds
+[truth] N=80 phi=0.2 seed=7729: 4.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N80_phi0.2_seed7729.npz
+cluster created
+Converged after 74 iterations (max diff = 7.456860e-09)
+Elapsed time (GPU): 2.456 seconds
+[truth] N=80 phi=0.2 seed=7730: 4.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N80_phi0.2_seed7730.npz
+cluster created
+Converged after 63 iterations (max diff = 8.989628e-09)
+Elapsed time (GPU): 2.095 seconds
+[truth] N=80 phi=0.2 seed=7731: 4.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N80_phi0.2_seed7731.npz
+cluster created
+Converged after 69 iterations (max diff = 8.104995e-09)
+Elapsed time (GPU): 2.291 seconds
+[truth] N=80 phi=0.2 seed=7732: 4.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N80_phi0.2_seed7732.npz
+cluster created
+Converged after 68 iterations (max diff = 7.789692e-09)
+Elapsed time (GPU): 2.534 seconds
+[truth] N=90 phi=0.2 seed=7823: 4.4 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N90_phi0.2_seed7823.npz
+cluster created
+Converged after 67 iterations (max diff = 9.044955e-09)
+Elapsed time (GPU): 2.499 seconds
+[truth] N=90 phi=0.2 seed=7824: 4.4 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N90_phi0.2_seed7824.npz
+cluster created
+Converged after 74 iterations (max diff = 7.912614e-09)
+Elapsed time (GPU): 2.760 seconds
+[truth] N=90 phi=0.2 seed=7825: 4.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N90_phi0.2_seed7825.npz
+cluster created
+Converged after 69 iterations (max diff = 7.849078e-09)
+Elapsed time (GPU): 2.575 seconds
+[truth] N=90 phi=0.2 seed=7826: 4.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N90_phi0.2_seed7826.npz
+cluster created
+Converged after 67 iterations (max diff = 7.693995e-09)
+Elapsed time (GPU): 2.498 seconds
+[truth] N=90 phi=0.2 seed=7827: 4.4 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N90_phi0.2_seed7827.npz
+cluster created
+Converged after 82 iterations (max diff = 7.905492e-09)
+Elapsed time (GPU): 3.060 seconds
+[truth] N=90 phi=0.2 seed=7828: 4.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N90_phi0.2_seed7828.npz
+cluster created
+Converged after 76 iterations (max diff = 8.845199e-09)
+Elapsed time (GPU): 2.834 seconds
+[truth] N=90 phi=0.2 seed=7829: 4.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N90_phi0.2_seed7829.npz
+cluster created
+Converged after 69 iterations (max diff = 9.254040e-09)
+Elapsed time (GPU): 2.574 seconds
+[truth] N=90 phi=0.2 seed=7830: 4.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N90_phi0.2_seed7830.npz
+cluster created
+Converged after 71 iterations (max diff = 8.360838e-09)
+Elapsed time (GPU): 2.647 seconds
+[truth] N=90 phi=0.2 seed=7831: 4.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N90_phi0.2_seed7831.npz
+cluster created
+Converged after 73 iterations (max diff = 9.980399e-09)
+Elapsed time (GPU): 2.725 seconds
+[truth] N=90 phi=0.2 seed=7832: 4.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N90_phi0.2_seed7832.npz
+cluster created
+Converged after 68 iterations (max diff = 8.236220e-09)
+Elapsed time (GPU): 3.124 seconds
+[truth] N=100 phi=0.2 seed=7923: 5.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N100_phi0.2_seed7923.npz
+cluster created
+Converged after 65 iterations (max diff = 9.087984e-09)
+Elapsed time (GPU): 2.986 seconds
+[truth] N=100 phi=0.2 seed=7924: 4.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N100_phi0.2_seed7924.npz
+cluster created
+Converged after 69 iterations (max diff = 8.264509e-09)
+Elapsed time (GPU): 3.170 seconds
+[truth] N=100 phi=0.2 seed=7925: 5.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N100_phi0.2_seed7925.npz
+cluster created
+Converged after 76 iterations (max diff = 9.064216e-09)
+Elapsed time (GPU): 3.492 seconds
+[truth] N=100 phi=0.2 seed=7926: 5.4 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N100_phi0.2_seed7926.npz
+cluster created
+Converged after 72 iterations (max diff = 8.011524e-09)
+Elapsed time (GPU): 3.308 seconds
+[truth] N=100 phi=0.2 seed=7927: 5.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N100_phi0.2_seed7927.npz
+cluster created
+Converged after 73 iterations (max diff = 9.094938e-09)
+Elapsed time (GPU): 3.354 seconds
+[truth] N=100 phi=0.2 seed=7928: 5.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N100_phi0.2_seed7928.npz
+cluster created
+Converged after 70 iterations (max diff = 7.314414e-09)
+Elapsed time (GPU): 3.215 seconds
+[truth] N=100 phi=0.2 seed=7929: 5.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N100_phi0.2_seed7929.npz
+cluster created
+Converged after 71 iterations (max diff = 7.705474e-09)
+Elapsed time (GPU): 3.261 seconds
+[truth] N=100 phi=0.2 seed=7930: 5.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N100_phi0.2_seed7930.npz
+cluster created
+Converged after 68 iterations (max diff = 8.897394e-09)
+Elapsed time (GPU): 3.124 seconds
+[truth] N=100 phi=0.2 seed=7931: 5.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N100_phi0.2_seed7931.npz
+cluster created
+Converged after 67 iterations (max diff = 7.933785e-09)
+Elapsed time (GPU): 3.078 seconds
+[truth] N=100 phi=0.2 seed=7932: 5.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N100_phi0.2_seed7932.npz
+cluster created
+Converged after 70 iterations (max diff = 8.624608e-09)
+Elapsed time (GPU): 3.708 seconds
+[truth] N=120 phi=0.2 seed=8023: 5.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N120_phi0.2_seed8023.npz
+cluster created
+Converged after 75 iterations (max diff = 7.658969e-09)
+Elapsed time (GPU): 3.974 seconds
+[truth] N=120 phi=0.2 seed=8024: 5.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N120_phi0.2_seed8024.npz
+cluster created
+Converged after 73 iterations (max diff = 7.387107e-09)
+Elapsed time (GPU): 3.867 seconds
+[truth] N=120 phi=0.2 seed=8025: 5.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N120_phi0.2_seed8025.npz
+cluster created
+Converged after 79 iterations (max diff = 9.158116e-09)
+Elapsed time (GPU): 4.184 seconds
+[truth] N=120 phi=0.2 seed=8026: 6.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N120_phi0.2_seed8026.npz
+cluster created
+Converged after 76 iterations (max diff = 9.123252e-09)
+Elapsed time (GPU): 4.024 seconds
+[truth] N=120 phi=0.2 seed=8027: 5.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N120_phi0.2_seed8027.npz
+cluster created
+Converged after 62 iterations (max diff = 9.267588e-09)
+Elapsed time (GPU): 3.285 seconds
+[truth] N=120 phi=0.2 seed=8028: 5.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N120_phi0.2_seed8028.npz
+cluster created
+Converged after 71 iterations (max diff = 9.898696e-09)
+Elapsed time (GPU): 3.758 seconds
+[truth] N=120 phi=0.2 seed=8029: 5.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N120_phi0.2_seed8029.npz
+cluster created
+Converged after 70 iterations (max diff = 9.120510e-09)
+Elapsed time (GPU): 3.708 seconds
+[truth] N=120 phi=0.2 seed=8030: 5.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N120_phi0.2_seed8030.npz
+cluster created
+Converged after 71 iterations (max diff = 8.867105e-09)
+Elapsed time (GPU): 3.761 seconds
+[truth] N=120 phi=0.2 seed=8031: 5.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N120_phi0.2_seed8031.npz
+cluster created
+Converged after 77 iterations (max diff = 9.523592e-09)
+Elapsed time (GPU): 4.079 seconds
+[truth] N=120 phi=0.2 seed=8032: 6.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N120_phi0.2_seed8032.npz
+cluster created
+Converged after 68 iterations (max diff = 9.885623e-09)
+Elapsed time (GPU): 6.954 seconds
+[truth] N=140 phi=0.2 seed=8123: 8.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N140_phi0.2_seed8123.npz
+cluster created
+Converged after 69 iterations (max diff = 7.453640e-09)
+Elapsed time (GPU): 7.056 seconds
+[truth] N=140 phi=0.2 seed=8124: 9.0 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N140_phi0.2_seed8124.npz
+cluster created
+Converged after 68 iterations (max diff = 7.234914e-09)
+Elapsed time (GPU): 6.953 seconds
+[truth] N=140 phi=0.2 seed=8125: 8.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N140_phi0.2_seed8125.npz
+cluster created
+Converged after 74 iterations (max diff = 9.193924e-09)
+Elapsed time (GPU): 7.567 seconds
+[truth] N=140 phi=0.2 seed=8126: 9.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N140_phi0.2_seed8126.npz
+cluster created
+Converged after 76 iterations (max diff = 9.137499e-09)
+Elapsed time (GPU): 7.772 seconds
+[truth] N=140 phi=0.2 seed=8127: 9.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N140_phi0.2_seed8127.npz
+cluster created
+Converged after 70 iterations (max diff = 7.525103e-09)
+Elapsed time (GPU): 7.159 seconds
+[truth] N=140 phi=0.2 seed=8128: 9.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N140_phi0.2_seed8128.npz
+cluster created
+Converged after 70 iterations (max diff = 8.251414e-09)
+Elapsed time (GPU): 7.159 seconds
+[truth] N=140 phi=0.2 seed=8129: 9.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N140_phi0.2_seed8129.npz
+cluster created
+Converged after 76 iterations (max diff = 9.133996e-09)
+Elapsed time (GPU): 7.772 seconds
+[truth] N=140 phi=0.2 seed=8130: 9.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N140_phi0.2_seed8130.npz
+cluster created
+Converged after 72 iterations (max diff = 7.425113e-09)
+Elapsed time (GPU): 7.363 seconds
+[truth] N=140 phi=0.2 seed=8131: 9.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N140_phi0.2_seed8131.npz
+cluster created
+Converged after 71 iterations (max diff = 8.918296e-09)
+Elapsed time (GPU): 7.261 seconds
+[truth] N=140 phi=0.2 seed=8132: 9.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N140_phi0.2_seed8132.npz
+cluster created
+Converged after 78 iterations (max diff = 7.892030e-09)
+Elapsed time (GPU): 9.363 seconds
+[truth] N=160 phi=0.2 seed=8223: 11.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N160_phi0.2_seed8223.npz
+cluster created
+Converged after 73 iterations (max diff = 7.717641e-09)
+Elapsed time (GPU): 8.763 seconds
+[truth] N=160 phi=0.2 seed=8224: 10.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N160_phi0.2_seed8224.npz
+cluster created
+Converged after 71 iterations (max diff = 9.673678e-09)
+Elapsed time (GPU): 8.523 seconds
+[truth] N=160 phi=0.2 seed=8225: 10.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N160_phi0.2_seed8225.npz
+cluster created
+Converged after 74 iterations (max diff = 7.307514e-09)
+Elapsed time (GPU): 8.883 seconds
+[truth] N=160 phi=0.2 seed=8226: 10.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N160_phi0.2_seed8226.npz
+cluster created
+Converged after 69 iterations (max diff = 7.860947e-09)
+Elapsed time (GPU): 8.283 seconds
+[truth] N=160 phi=0.2 seed=8227: 10.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N160_phi0.2_seed8227.npz
+cluster created
+Converged after 71 iterations (max diff = 8.525264e-09)
+Elapsed time (GPU): 8.523 seconds
+[truth] N=160 phi=0.2 seed=8228: 10.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N160_phi0.2_seed8228.npz
+cluster created
+Converged after 72 iterations (max diff = 8.880118e-09)
+Elapsed time (GPU): 8.642 seconds
+[truth] N=160 phi=0.2 seed=8229: 10.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N160_phi0.2_seed8229.npz
+cluster created
+Converged after 72 iterations (max diff = 9.096185e-09)
+Elapsed time (GPU): 8.642 seconds
+[truth] N=160 phi=0.2 seed=8230: 10.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N160_phi0.2_seed8230.npz
+cluster created
+Converged after 70 iterations (max diff = 8.456414e-09)
+Elapsed time (GPU): 8.403 seconds
+[truth] N=160 phi=0.2 seed=8231: 10.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N160_phi0.2_seed8231.npz
+cluster created
+Converged after 71 iterations (max diff = 9.893208e-09)
+Elapsed time (GPU): 8.523 seconds
+[truth] N=160 phi=0.2 seed=8232: 10.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N160_phi0.2_seed8232.npz
+cluster created
+Converged after 73 iterations (max diff = 9.078360e-09)
+Elapsed time (GPU): 10.123 seconds
+[truth] N=180 phi=0.2 seed=8323: 12.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N180_phi0.2_seed8323.npz
+cluster created
+Converged after 74 iterations (max diff = 7.264399e-09)
+Elapsed time (GPU): 10.259 seconds
+[truth] N=180 phi=0.2 seed=8324: 12.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N180_phi0.2_seed8324.npz
+cluster created
+Converged after 71 iterations (max diff = 8.267510e-09)
+Elapsed time (GPU): 9.847 seconds
+[truth] N=180 phi=0.2 seed=8325: 11.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N180_phi0.2_seed8325.npz
+cluster created
+Converged after 74 iterations (max diff = 7.775847e-09)
+Elapsed time (GPU): 10.261 seconds
+[truth] N=180 phi=0.2 seed=8326: 12.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N180_phi0.2_seed8326.npz
+cluster created
+Converged after 73 iterations (max diff = 9.512599e-09)
+Elapsed time (GPU): 10.122 seconds
+[truth] N=180 phi=0.2 seed=8327: 12.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N180_phi0.2_seed8327.npz
+cluster created
+Converged after 71 iterations (max diff = 9.868582e-09)
+Elapsed time (GPU): 9.843 seconds
+[truth] N=180 phi=0.2 seed=8328: 11.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N180_phi0.2_seed8328.npz
+cluster created
+Converged after 74 iterations (max diff = 8.217725e-09)
+Elapsed time (GPU): 10.261 seconds
+[truth] N=180 phi=0.2 seed=8329: 12.2 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N180_phi0.2_seed8329.npz
+cluster created
+Converged after 69 iterations (max diff = 9.280906e-09)
+Elapsed time (GPU): 9.570 seconds
+[truth] N=180 phi=0.2 seed=8330: 11.5 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N180_phi0.2_seed8330.npz
+cluster created
+Converged after 71 iterations (max diff = 8.045439e-09)
+Elapsed time (GPU): 9.848 seconds
+[truth] N=180 phi=0.2 seed=8331: 11.8 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N180_phi0.2_seed8331.npz
+cluster created
+Converged after 75 iterations (max diff = 8.543321e-09)
+Elapsed time (GPU): 10.401 seconds
+[truth] N=180 phi=0.2 seed=8332: 12.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N180_phi0.2_seed8332.npz
+cluster created
+Converged after 75 iterations (max diff = 9.843823e-09)
+Elapsed time (GPU): 11.777 seconds
+[truth] N=200 phi=0.2 seed=8423: 13.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed8423.npz
+cluster created
+Converged after 71 iterations (max diff = 7.939369e-09)
+Elapsed time (GPU): 11.148 seconds
+[truth] N=200 phi=0.2 seed=8424: 13.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed8424.npz
+cluster created
+Converged after 74 iterations (max diff = 9.734685e-09)
+Elapsed time (GPU): 11.620 seconds
+[truth] N=200 phi=0.2 seed=8425: 13.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed8425.npz
+cluster created
+Converged after 75 iterations (max diff = 7.849984e-09)
+Elapsed time (GPU): 11.776 seconds
+[truth] N=200 phi=0.2 seed=8426: 13.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed8426.npz
+cluster created
+Converged after 76 iterations (max diff = 7.790673e-09)
+Elapsed time (GPU): 11.935 seconds
+[truth] N=200 phi=0.2 seed=8427: 13.9 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed8427.npz
+cluster created
+Converged after 71 iterations (max diff = 7.605906e-09)
+Elapsed time (GPU): 11.149 seconds
+[truth] N=200 phi=0.2 seed=8428: 13.1 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed8428.npz
+cluster created
+Converged after 72 iterations (max diff = 9.401192e-09)
+Elapsed time (GPU): 11.306 seconds
+[truth] N=200 phi=0.2 seed=8429: 13.3 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed8429.npz
+cluster created
+Converged after 75 iterations (max diff = 8.152742e-09)
+Elapsed time (GPU): 11.779 seconds
+[truth] N=200 phi=0.2 seed=8430: 13.7 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed8430.npz
+cluster created
+Converged after 68 iterations (max diff = 9.696171e-09)
+Elapsed time (GPU): 10.679 seconds
+[truth] N=200 phi=0.2 seed=8431: 12.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed8431.npz
+cluster created
+Converged after 74 iterations (max diff = 7.354871e-09)
+Elapsed time (GPU): 11.618 seconds
+[truth] N=200 phi=0.2 seed=8432: 13.6 s -> /mnt/ffs24/home/khanmd/pinn-stokes/tmp/nbody_moments_truth/uniform_N200_phi0.2_seed8432.npz
+Loaded geometry: 54 boundary nodes, 47 source points
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+Converged after 37 iterations (max diff = 8.924788e-09)
+Mobility computation time: 684.23 ms
+fig3 N=200 phi=0.2 seed=123 mfs_coarse           rel_rmse=  1.289%  lin=  1.110%  ang=  3.074%  max=   3.08%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+Module src.hashgrid_neighbors b882eb1 load on device 'cuda:0' took 4.31 ms  (cached)
+no of RPY interactions: 33348
+no of NN interactions: 6452
+[Mob_Nbody] Base velocity compute time: 198.584 ms
+[Mob_Nbody] Post-base path time: 79.339 ms
+fig3 N=200 phi=0.2 seed=123 M_nbody_gpu          rel_rmse= 12.355%  lin= 12.311%  ang= 13.117%  max=  27.90%  (0.3 s)
+Converged after 39 iterations (max diff = 6.749931e-09)
+Mobility computation time: 716.73 ms
+fig3 N=200 phi=0.2 seed=124 mfs_coarse           rel_rmse=  1.865%  lin=  1.661%  ang=  2.995%  max=   5.56%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33412
+no of NN interactions: 6388
+[Mob_Nbody] Base velocity compute time: 3.098 ms
+[Mob_Nbody] Post-base path time: 2.212 ms
+fig3 N=200 phi=0.2 seed=124 M_nbody_gpu          rel_rmse= 19.272%  lin= 19.883%  ang= 13.742%  max=  45.39%  (0.0 s)
+Converged after 40 iterations (max diff = 6.541626e-09)
+Mobility computation time: 731.13 ms
+fig3 N=200 phi=0.2 seed=125 mfs_coarse           rel_rmse=  1.303%  lin=  1.085%  ang=  3.141%  max=   5.21%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33386
+no of NN interactions: 6414
+[Mob_Nbody] Base velocity compute time: 2.911 ms
+[Mob_Nbody] Post-base path time: 2.134 ms
+fig3 N=200 phi=0.2 seed=125 M_nbody_gpu          rel_rmse= 13.516%  lin= 13.517%  ang= 13.512%  max=  43.31%  (0.0 s)
+Converged after 36 iterations (max diff = 5.371290e-09)
+Mobility computation time: 658.40 ms
+fig3 N=200 phi=0.2 seed=126 mfs_coarse           rel_rmse=  0.980%  lin=  0.840%  ang=  2.112%  max=   2.91%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33612
+no of NN interactions: 6188
+[Mob_Nbody] Base velocity compute time: 2.931 ms
+[Mob_Nbody] Post-base path time: 2.153 ms
+fig3 N=200 phi=0.2 seed=126 M_nbody_gpu          rel_rmse= 12.583%  lin= 12.678%  ang= 11.196%  max=  28.65%  (0.0 s)
+Converged after 36 iterations (max diff = 8.507917e-09)
+Mobility computation time: 659.47 ms
+fig3 N=200 phi=0.2 seed=127 mfs_coarse           rel_rmse=  0.939%  lin=  0.852%  ang=  1.725%  max=   2.87%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33330
+no of NN interactions: 6470
+[Mob_Nbody] Base velocity compute time: 2.931 ms
+[Mob_Nbody] Post-base path time: 2.150 ms
+fig3 N=200 phi=0.2 seed=127 M_nbody_gpu          rel_rmse= 11.306%  lin= 11.331%  ang= 10.969%  max=  27.14%  (0.0 s)
+Converged after 39 iterations (max diff = 4.080448e-09)
+Mobility computation time: 713.70 ms
+fig3 N=200 phi=0.2 seed=128 mfs_coarse           rel_rmse=  1.171%  lin=  1.055%  ang=  1.887%  max=   5.24%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33370
+no of NN interactions: 6430
+[Mob_Nbody] Base velocity compute time: 2.907 ms
+[Mob_Nbody] Post-base path time: 2.155 ms
+fig3 N=200 phi=0.2 seed=128 M_nbody_gpu          rel_rmse= 14.346%  lin= 14.707%  ang= 10.832%  max=  37.99%  (0.0 s)
+Converged after 35 iterations (max diff = 8.764011e-09)
+Mobility computation time: 639.85 ms
+fig3 N=200 phi=0.2 seed=129 mfs_coarse           rel_rmse=  1.007%  lin=  0.891%  ang=  1.823%  max=   3.35%  (0.6 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33364
+no of NN interactions: 6436
+[Mob_Nbody] Base velocity compute time: 2.927 ms
+[Mob_Nbody] Post-base path time: 2.137 ms
+fig3 N=200 phi=0.2 seed=129 M_nbody_gpu          rel_rmse= 11.725%  lin= 11.816%  ang= 10.721%  max=  27.56%  (0.0 s)
+Converged after 36 iterations (max diff = 7.619105e-09)
+Mobility computation time: 657.03 ms
+fig3 N=200 phi=0.2 seed=130 mfs_coarse           rel_rmse=  1.443%  lin=  1.325%  ang=  2.039%  max=   6.04%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33446
+no of NN interactions: 6354
+[Mob_Nbody] Base velocity compute time: 2.910 ms
+[Mob_Nbody] Post-base path time: 2.134 ms
+fig3 N=200 phi=0.2 seed=130 M_nbody_gpu          rel_rmse= 17.141%  lin= 17.826%  ang= 11.908%  max=  51.94%  (0.0 s)
+Converged after 36 iterations (max diff = 7.596515e-09)
+Mobility computation time: 657.21 ms
+fig3 N=200 phi=0.2 seed=131 mfs_coarse           rel_rmse=  1.527%  lin=  1.415%  ang=  2.082%  max=   4.58%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33384
+no of NN interactions: 6416
+[Mob_Nbody] Base velocity compute time: 2.928 ms
+[Mob_Nbody] Post-base path time: 2.159 ms
+fig3 N=200 phi=0.2 seed=131 M_nbody_gpu          rel_rmse= 15.992%  lin= 16.614%  ang= 11.520%  max=  37.14%  (0.0 s)
+Converged after 36 iterations (max diff = 6.344820e-09)
+Mobility computation time: 658.37 ms
+fig3 N=200 phi=0.2 seed=132 mfs_coarse           rel_rmse=  1.921%  lin=  1.847%  ang=  2.183%  max=  11.90%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33292
+no of NN interactions: 6508
+[Mob_Nbody] Base velocity compute time: 2.891 ms
+[Mob_Nbody] Post-base path time: 2.122 ms
+fig3 N=200 phi=0.2 seed=132 M_nbody_gpu          rel_rmse= 19.504%  lin= 21.053%  ang= 11.716%  max=  44.70%  (0.0 s)
+Converged after 36 iterations (max diff = 4.957019e-09)
+Mobility computation time: 994.21 ms
+fig3 N=300 phi=0.2 seed=123 mfs_coarse           rel_rmse=  1.744%  lin=  1.654%  ang=  2.029%  max=   7.23%  (1.0 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79722
+no of NN interactions: 9978
+[Mob_Nbody] Base velocity compute time: 30.374 ms
+[Mob_Nbody] Post-base path time: 2.328 ms
+fig3 N=300 phi=0.2 seed=123 M_nbody_gpu          rel_rmse= 23.753%  lin= 26.113%  ang= 12.271%  max=  67.17%  (0.0 s)
+Converged after 38 iterations (max diff = 7.007010e-09)
+Mobility computation time: 1042.06 ms
+fig3 N=300 phi=0.2 seed=124 mfs_coarse           rel_rmse=  1.157%  lin=  1.036%  ang=  1.828%  max=   5.09%  (1.0 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79740
+no of NN interactions: 9960
+[Mob_Nbody] Base velocity compute time: 3.472 ms
+[Mob_Nbody] Post-base path time: 2.211 ms
+fig3 N=300 phi=0.2 seed=124 M_nbody_gpu          rel_rmse= 17.619%  lin= 18.228%  ang= 12.048%  max=  43.03%  (0.0 s)
+Converged after 39 iterations (max diff = 8.246951e-09)
+Mobility computation time: 1070.24 ms
+fig3 N=300 phi=0.2 seed=125 mfs_coarse           rel_rmse=  0.967%  lin=  0.853%  ang=  1.819%  max=   3.02%  (1.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79578
+no of NN interactions: 10122
+[Mob_Nbody] Base velocity compute time: 3.219 ms
+[Mob_Nbody] Post-base path time: 2.234 ms
+fig3 N=300 phi=0.2 seed=125 M_nbody_gpu          rel_rmse= 13.524%  lin= 13.714%  ang= 11.127%  max=  35.75%  (0.0 s)
+Converged after 35 iterations (max diff = 6.944148e-09)
+Mobility computation time: 958.70 ms
+fig3 N=300 phi=0.2 seed=126 mfs_coarse           rel_rmse=  1.713%  lin=  1.673%  ang=  1.885%  max=   8.84%  (1.0 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79508
+no of NN interactions: 10192
+[Mob_Nbody] Base velocity compute time: 3.212 ms
+[Mob_Nbody] Post-base path time: 2.200 ms
+fig3 N=300 phi=0.2 seed=126 M_nbody_gpu          rel_rmse= 22.958%  lin= 24.584%  ang= 12.954%  max=  70.79%  (0.0 s)
+Converged after 39 iterations (max diff = 4.743531e-09)
+Mobility computation time: 1070.73 ms
+fig3 N=300 phi=0.2 seed=127 mfs_coarse           rel_rmse=  0.910%  lin=  0.789%  ang=  2.184%  max=   2.58%  (1.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79714
+no of NN interactions: 9986
+[Mob_Nbody] Base velocity compute time: 3.205 ms
+[Mob_Nbody] Post-base path time: 2.179 ms
+fig3 N=300 phi=0.2 seed=127 M_nbody_gpu          rel_rmse= 13.578%  lin= 13.654%  ang= 12.018%  max=  35.57%  (0.0 s)
+Converged after 36 iterations (max diff = 5.960154e-09)
+Mobility computation time: 984.07 ms
+fig3 N=300 phi=0.2 seed=128 mfs_coarse           rel_rmse=  1.064%  lin=  0.958%  ang=  1.813%  max=   5.80%  (1.0 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79578
+no of NN interactions: 10122
+[Mob_Nbody] Base velocity compute time: 3.139 ms
+[Mob_Nbody] Post-base path time: 2.180 ms
+fig3 N=300 phi=0.2 seed=128 M_nbody_gpu          rel_rmse= 18.318%  lin= 18.785%  ang= 12.719%  max=  46.41%  (0.0 s)
+Converged after 35 iterations (max diff = 9.065426e-09)
+Mobility computation time: 967.35 ms
+fig3 N=300 phi=0.2 seed=129 mfs_coarse           rel_rmse=  1.077%  lin=  0.958%  ang=  2.079%  max=   2.92%  (1.0 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79722
+no of NN interactions: 9978
+[Mob_Nbody] Base velocity compute time: 3.304 ms
+[Mob_Nbody] Post-base path time: 2.291 ms
+fig3 N=300 phi=0.2 seed=129 M_nbody_gpu          rel_rmse= 11.368%  lin= 11.421%  ang= 10.659%  max=  24.61%  (0.0 s)
+Converged after 37 iterations (max diff = 7.831390e-09)
+Mobility computation time: 1012.82 ms
+fig3 N=300 phi=0.2 seed=130 mfs_coarse           rel_rmse=  1.264%  lin=  1.166%  ang=  1.913%  max=   6.48%  (1.0 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79670
+no of NN interactions: 10030
+[Mob_Nbody] Base velocity compute time: 3.258 ms
+[Mob_Nbody] Post-base path time: 2.222 ms
+fig3 N=300 phi=0.2 seed=130 M_nbody_gpu          rel_rmse= 21.578%  lin= 22.333%  ang= 13.417%  max=  72.83%  (0.0 s)
+Converged after 40 iterations (max diff = 9.703785e-09)
+Mobility computation time: 1097.78 ms
+fig3 N=300 phi=0.2 seed=131 mfs_coarse           rel_rmse=  1.999%  lin=  1.969%  ang=  2.095%  max=  10.27%  (1.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79516
+no of NN interactions: 10184
+[Mob_Nbody] Base velocity compute time: 3.206 ms
+[Mob_Nbody] Post-base path time: 2.188 ms
+fig3 N=300 phi=0.2 seed=131 M_nbody_gpu          rel_rmse= 20.905%  lin= 22.957%  ang= 11.534%  max=  81.38%  (0.0 s)
+Converged after 37 iterations (max diff = 7.502459e-09)
+Mobility computation time: 1016.94 ms
+fig3 N=300 phi=0.2 seed=132 mfs_coarse           rel_rmse=  1.204%  lin=  1.096%  ang=  2.052%  max=   3.76%  (1.0 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 79928
+no of NN interactions: 9772
+[Mob_Nbody] Base velocity compute time: 3.227 ms
+[Mob_Nbody] Post-base path time: 2.202 ms
+fig3 N=300 phi=0.2 seed=132 M_nbody_gpu          rel_rmse= 15.557%  lin= 15.852%  ang= 11.790%  max=  32.95%  (0.0 s)
+Converged after 28 iterations (max diff = 5.255266e-09)
+Mobility computation time: 54.00 ms
+fig4 N=20 phi=0.2 seed=7123 mfs_coarse           rel_rmse=  1.356%  lin=  1.302%  ang=  1.628%  max=   4.07%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 56
+no of NN interactions: 324
+[Mob_Nbody] Base velocity compute time: 3.032 ms
+[Mob_Nbody] Post-base path time: 2.138 ms
+fig4 N=20 phi=0.2 seed=7123 M_nbody_gpu          rel_rmse=  6.534%  lin=  6.512%  ang=  6.655%  max=  11.45%  (0.0 s)
+Converged after 31 iterations (max diff = 6.432880e-09)
+Mobility computation time: 59.74 ms
+fig4 N=20 phi=0.2 seed=7124 mfs_coarse           rel_rmse=  1.982%  lin=  1.709%  ang=  2.437%  max=   3.69%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 54
+no of NN interactions: 326
+[Mob_Nbody] Base velocity compute time: 2.930 ms
+[Mob_Nbody] Post-base path time: 2.168 ms
+fig4 N=20 phi=0.2 seed=7124 M_nbody_gpu          rel_rmse=  8.850%  lin=  9.989%  ang=  5.957%  max=  17.75%  (0.0 s)
+Converged after 28 iterations (max diff = 4.401214e-09)
+Mobility computation time: 53.79 ms
+fig4 N=20 phi=0.2 seed=7125 mfs_coarse           rel_rmse=  1.130%  lin=  1.127%  ang=  1.141%  max=   2.66%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 54
+no of NN interactions: 326
+[Mob_Nbody] Base velocity compute time: 2.818 ms
+[Mob_Nbody] Post-base path time: 2.115 ms
+fig4 N=20 phi=0.2 seed=7125 M_nbody_gpu          rel_rmse=  7.401%  lin=  7.782%  ang=  6.188%  max=  17.25%  (0.0 s)
+Converged after 31 iterations (max diff = 5.766426e-09)
+Mobility computation time: 59.69 ms
+fig4 N=20 phi=0.2 seed=7126 mfs_coarse           rel_rmse=  1.192%  lin=  1.098%  ang=  1.649%  max=   3.02%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 38
+no of NN interactions: 342
+[Mob_Nbody] Base velocity compute time: 2.867 ms
+[Mob_Nbody] Post-base path time: 2.156 ms
+fig4 N=20 phi=0.2 seed=7126 M_nbody_gpu          rel_rmse=  6.774%  lin=  6.682%  ang=  7.304%  max=  14.37%  (0.0 s)
+Converged after 30 iterations (max diff = 6.766009e-09)
+Mobility computation time: 57.89 ms
+fig4 N=20 phi=0.2 seed=7127 mfs_coarse           rel_rmse=  1.435%  lin=  0.933%  ang=  2.960%  max=   2.96%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 44
+no of NN interactions: 336
+[Mob_Nbody] Base velocity compute time: 2.901 ms
+[Mob_Nbody] Post-base path time: 2.132 ms
+fig4 N=20 phi=0.2 seed=7127 M_nbody_gpu          rel_rmse=  6.254%  lin=  6.203%  ang=  6.532%  max=  12.67%  (0.0 s)
+Converged after 40 iterations (max diff = 6.164196e-09)
+Mobility computation time: 76.64 ms
+fig4 N=20 phi=0.2 seed=7128 mfs_coarse           rel_rmse=  1.720%  lin=  1.477%  ang=  3.037%  max=   5.45%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 38
+no of NN interactions: 342
+[Mob_Nbody] Base velocity compute time: 2.886 ms
+[Mob_Nbody] Post-base path time: 2.163 ms
+fig4 N=20 phi=0.2 seed=7128 M_nbody_gpu          rel_rmse=  7.887%  lin=  7.577%  ang= 10.050%  max=  14.66%  (0.0 s)
+Converged after 30 iterations (max diff = 5.842338e-09)
+Mobility computation time: 57.58 ms
+fig4 N=20 phi=0.2 seed=7129 mfs_coarse           rel_rmse=  1.328%  lin=  1.200%  ang=  2.150%  max=   3.25%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 42
+no of NN interactions: 338
+[Mob_Nbody] Base velocity compute time: 2.880 ms
+[Mob_Nbody] Post-base path time: 2.149 ms
+fig4 N=20 phi=0.2 seed=7129 M_nbody_gpu          rel_rmse=  6.232%  lin=  5.821%  ang=  9.085%  max=  10.00%  (0.0 s)
+Converged after 30 iterations (max diff = 5.500999e-09)
+Mobility computation time: 57.65 ms
+fig4 N=20 phi=0.2 seed=7130 mfs_coarse           rel_rmse=  1.841%  lin=  1.929%  ang=  1.622%  max=   5.17%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 52
+no of NN interactions: 328
+[Mob_Nbody] Base velocity compute time: 2.879 ms
+[Mob_Nbody] Post-base path time: 2.160 ms
+fig4 N=20 phi=0.2 seed=7130 M_nbody_gpu          rel_rmse=  7.947%  lin=  8.652%  ang=  6.054%  max=  19.46%  (0.0 s)
+Converged after 32 iterations (max diff = 8.642800e-09)
+Mobility computation time: 61.52 ms
+fig4 N=20 phi=0.2 seed=7131 mfs_coarse           rel_rmse=  2.180%  lin=  2.274%  ang=  2.012%  max=   5.13%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 34
+no of NN interactions: 346
+[Mob_Nbody] Base velocity compute time: 2.918 ms
+[Mob_Nbody] Post-base path time: 2.156 ms
+fig4 N=20 phi=0.2 seed=7131 M_nbody_gpu          rel_rmse= 14.151%  lin= 16.744%  ang=  8.176%  max=  32.03%  (0.0 s)
+Converged after 33 iterations (max diff = 7.531399e-09)
+Mobility computation time: 64.08 ms
+fig4 N=20 phi=0.2 seed=7132 mfs_coarse           rel_rmse=  2.800%  lin=  2.908%  ang=  2.623%  max=   5.56%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 48
+no of NN interactions: 332
+[Mob_Nbody] Base velocity compute time: 2.915 ms
+[Mob_Nbody] Post-base path time: 2.146 ms
+fig4 N=20 phi=0.2 seed=7132 M_nbody_gpu          rel_rmse= 10.776%  lin= 12.258%  ang=  7.955%  max=  19.34%  (0.0 s)
+Converged after 31 iterations (max diff = 5.520217e-09)
+Mobility computation time: 87.79 ms
+fig4 N=30 phi=0.2 seed=7223 mfs_coarse           rel_rmse=  1.546%  lin=  1.451%  ang=  1.722%  max=   3.38%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 290
+no of NN interactions: 580
+[Mob_Nbody] Base velocity compute time: 2.944 ms
+[Mob_Nbody] Post-base path time: 2.245 ms
+fig4 N=30 phi=0.2 seed=7223 M_nbody_gpu          rel_rmse=  9.005%  lin=  9.762%  ang=  7.223%  max=  22.13%  (0.0 s)
+Converged after 35 iterations (max diff = 5.704100e-09)
+Mobility computation time: 98.82 ms
+fig4 N=30 phi=0.2 seed=7224 mfs_coarse           rel_rmse=  2.590%  lin=  2.435%  ang=  3.282%  max=   8.56%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 252
+no of NN interactions: 618
+[Mob_Nbody] Base velocity compute time: 2.974 ms
+[Mob_Nbody] Post-base path time: 2.162 ms
+fig4 N=30 phi=0.2 seed=7224 M_nbody_gpu          rel_rmse= 10.807%  lin= 10.922%  ang= 10.183%  max=  23.87%  (0.0 s)
+Converged after 32 iterations (max diff = 5.932750e-09)
+Mobility computation time: 90.62 ms
+fig4 N=30 phi=0.2 seed=7225 mfs_coarse           rel_rmse=  1.573%  lin=  1.476%  ang=  1.940%  max=   3.91%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 258
+no of NN interactions: 612
+[Mob_Nbody] Base velocity compute time: 2.948 ms
+[Mob_Nbody] Post-base path time: 2.177 ms
+fig4 N=30 phi=0.2 seed=7225 M_nbody_gpu          rel_rmse= 10.568%  lin= 10.780%  ang=  9.587%  max=  17.68%  (0.0 s)
+Converged after 30 iterations (max diff = 5.557801e-09)
+Mobility computation time: 84.72 ms
+fig4 N=30 phi=0.2 seed=7226 mfs_coarse           rel_rmse=  1.396%  lin=  1.194%  ang=  2.269%  max=   4.87%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 290
+no of NN interactions: 580
+[Mob_Nbody] Base velocity compute time: 2.889 ms
+[Mob_Nbody] Post-base path time: 2.123 ms
+fig4 N=30 phi=0.2 seed=7226 M_nbody_gpu          rel_rmse=  9.282%  lin=  9.306%  ang=  9.138%  max=  30.27%  (0.0 s)
+Converged after 33 iterations (max diff = 5.250696e-09)
+Mobility computation time: 93.73 ms
+fig4 N=30 phi=0.2 seed=7227 mfs_coarse           rel_rmse=  1.891%  lin=  1.821%  ang=  2.090%  max=   4.75%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 268
+no of NN interactions: 602
+[Mob_Nbody] Base velocity compute time: 2.981 ms
+[Mob_Nbody] Post-base path time: 2.183 ms
+fig4 N=30 phi=0.2 seed=7227 M_nbody_gpu          rel_rmse= 11.481%  lin= 12.528%  ang=  7.465%  max=  20.30%  (0.0 s)
+Converged after 32 iterations (max diff = 9.554064e-09)
+Mobility computation time: 90.74 ms
+fig4 N=30 phi=0.2 seed=7228 mfs_coarse           rel_rmse=  0.871%  lin=  0.778%  ang=  1.484%  max=   2.16%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 312
+no of NN interactions: 558
+[Mob_Nbody] Base velocity compute time: 2.977 ms
+[Mob_Nbody] Post-base path time: 2.347 ms
+fig4 N=30 phi=0.2 seed=7228 M_nbody_gpu          rel_rmse=  5.865%  lin=  5.547%  ang=  8.285%  max=  12.60%  (0.0 s)
+Converged after 31 iterations (max diff = 3.815463e-09)
+Mobility computation time: 87.57 ms
+fig4 N=30 phi=0.2 seed=7229 mfs_coarse           rel_rmse=  1.601%  lin=  1.451%  ang=  1.846%  max=   5.18%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 292
+no of NN interactions: 578
+[Mob_Nbody] Base velocity compute time: 2.977 ms
+[Mob_Nbody] Post-base path time: 2.190 ms
+fig4 N=30 phi=0.2 seed=7229 M_nbody_gpu          rel_rmse= 10.587%  lin= 12.186%  ang=  6.727%  max=  20.35%  (0.0 s)
+Converged after 28 iterations (max diff = 4.899334e-09)
+Mobility computation time: 78.67 ms
+fig4 N=30 phi=0.2 seed=7230 mfs_coarse           rel_rmse=  1.573%  lin=  1.460%  ang=  1.813%  max=   4.16%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 276
+no of NN interactions: 594
+[Mob_Nbody] Base velocity compute time: 2.951 ms
+[Mob_Nbody] Post-base path time: 2.188 ms
+fig4 N=30 phi=0.2 seed=7230 M_nbody_gpu          rel_rmse=  9.444%  lin= 10.378%  ang=  6.728%  max=  26.09%  (0.0 s)
+Converged after 32 iterations (max diff = 5.498706e-09)
+Mobility computation time: 90.20 ms
+fig4 N=30 phi=0.2 seed=7231 mfs_coarse           rel_rmse=  2.037%  lin=  2.181%  ang=  1.787%  max=   3.63%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 300
+no of NN interactions: 570
+[Mob_Nbody] Base velocity compute time: 2.947 ms
+[Mob_Nbody] Post-base path time: 2.180 ms
+fig4 N=30 phi=0.2 seed=7231 M_nbody_gpu          rel_rmse= 10.898%  lin= 12.708%  ang=  7.217%  max=  27.24%  (0.0 s)
+Converged after 32 iterations (max diff = 8.837706e-09)
+Mobility computation time: 90.82 ms
+fig4 N=30 phi=0.2 seed=7232 mfs_coarse           rel_rmse=  1.762%  lin=  1.609%  ang=  2.322%  max=   7.06%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 250
+no of NN interactions: 620
+[Mob_Nbody] Base velocity compute time: 2.954 ms
+[Mob_Nbody] Post-base path time: 2.167 ms
+fig4 N=30 phi=0.2 seed=7232 M_nbody_gpu          rel_rmse=  9.823%  lin=  9.814%  ang=  9.862%  max=  28.03%  (0.0 s)
+Converged after 36 iterations (max diff = 6.185320e-09)
+Mobility computation time: 134.89 ms
+fig4 N=40 phi=0.2 seed=7323 mfs_coarse           rel_rmse=  1.218%  lin=  1.029%  ang=  2.224%  max=   2.35%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 658
+no of NN interactions: 902
+[Mob_Nbody] Base velocity compute time: 2.971 ms
+[Mob_Nbody] Post-base path time: 2.191 ms
+fig4 N=40 phi=0.2 seed=7323 M_nbody_gpu          rel_rmse=  7.834%  lin=  7.767%  ang=  8.363%  max=  20.75%  (0.0 s)
+Converged after 37 iterations (max diff = 5.063982e-09)
+Mobility computation time: 137.65 ms
+fig4 N=40 phi=0.2 seed=7324 mfs_coarse           rel_rmse=  1.883%  lin=  1.732%  ang=  2.513%  max=   4.50%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 672
+no of NN interactions: 888
+[Mob_Nbody] Base velocity compute time: 2.942 ms
+[Mob_Nbody] Post-base path time: 2.193 ms
+fig4 N=40 phi=0.2 seed=7324 M_nbody_gpu          rel_rmse= 11.814%  lin= 12.246%  ang=  9.309%  max=  29.93%  (0.0 s)
+Converged after 39 iterations (max diff = 8.930238e-09)
+Mobility computation time: 145.26 ms
+fig4 N=40 phi=0.2 seed=7325 mfs_coarse           rel_rmse=  1.514%  lin=  1.384%  ang=  2.092%  max=   3.29%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 678
+no of NN interactions: 882
+[Mob_Nbody] Base velocity compute time: 2.982 ms
+[Mob_Nbody] Post-base path time: 2.180 ms
+fig4 N=40 phi=0.2 seed=7325 M_nbody_gpu          rel_rmse= 10.052%  lin= 10.113%  ang=  9.707%  max=  25.20%  (0.0 s)
+Converged after 33 iterations (max diff = 9.031019e-09)
+Mobility computation time: 123.61 ms
+fig4 N=40 phi=0.2 seed=7326 mfs_coarse           rel_rmse=  1.058%  lin=  0.840%  ang=  2.072%  max=   2.82%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 662
+no of NN interactions: 898
+[Mob_Nbody] Base velocity compute time: 2.964 ms
+[Mob_Nbody] Post-base path time: 2.183 ms
+fig4 N=40 phi=0.2 seed=7326 M_nbody_gpu          rel_rmse=  6.500%  lin=  6.324%  ang=  7.720%  max=  27.35%  (0.0 s)
+Converged after 33 iterations (max diff = 6.114316e-09)
+Mobility computation time: 123.46 ms
+fig4 N=40 phi=0.2 seed=7327 mfs_coarse           rel_rmse=  2.384%  lin=  2.423%  ang=  2.305%  max=   5.79%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 678
+no of NN interactions: 882
+[Mob_Nbody] Base velocity compute time: 2.894 ms
+[Mob_Nbody] Post-base path time: 2.135 ms
+fig4 N=40 phi=0.2 seed=7327 M_nbody_gpu          rel_rmse= 10.968%  lin= 11.981%  ang=  8.610%  max=  25.46%  (0.0 s)
+Converged after 33 iterations (max diff = 9.329758e-09)
+Mobility computation time: 122.54 ms
+fig4 N=40 phi=0.2 seed=7328 mfs_coarse           rel_rmse=  2.001%  lin=  1.785%  ang=  2.680%  max=   4.44%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 690
+no of NN interactions: 870
+[Mob_Nbody] Base velocity compute time: 2.959 ms
+[Mob_Nbody] Post-base path time: 2.153 ms
+fig4 N=40 phi=0.2 seed=7328 M_nbody_gpu          rel_rmse=  8.775%  lin=  9.075%  ang=  7.498%  max=  20.20%  (0.0 s)
+Converged after 33 iterations (max diff = 8.846566e-09)
+Mobility computation time: 123.10 ms
+fig4 N=40 phi=0.2 seed=7329 mfs_coarse           rel_rmse=  1.849%  lin=  1.770%  ang=  2.236%  max=   3.34%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 640
+no of NN interactions: 920
+[Mob_Nbody] Base velocity compute time: 2.948 ms
+[Mob_Nbody] Post-base path time: 2.198 ms
+fig4 N=40 phi=0.2 seed=7329 M_nbody_gpu          rel_rmse= 10.095%  lin= 10.282%  ang=  8.981%  max=  17.27%  (0.0 s)
+Converged after 32 iterations (max diff = 4.631280e-09)
+Mobility computation time: 119.94 ms
+fig4 N=40 phi=0.2 seed=7330 mfs_coarse           rel_rmse=  1.827%  lin=  1.788%  ang=  1.908%  max=   4.13%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 672
+no of NN interactions: 888
+[Mob_Nbody] Base velocity compute time: 2.885 ms
+[Mob_Nbody] Post-base path time: 2.125 ms
+fig4 N=40 phi=0.2 seed=7330 M_nbody_gpu          rel_rmse= 10.188%  lin= 11.487%  ang=  6.477%  max=  24.22%  (0.0 s)
+Converged after 32 iterations (max diff = 9.596593e-09)
+Mobility computation time: 119.00 ms
+fig4 N=40 phi=0.2 seed=7331 mfs_coarse           rel_rmse=  2.796%  lin=  3.070%  ang=  2.330%  max=   7.61%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 700
+no of NN interactions: 860
+[Mob_Nbody] Base velocity compute time: 2.924 ms
+[Mob_Nbody] Post-base path time: 2.178 ms
+fig4 N=40 phi=0.2 seed=7331 M_nbody_gpu          rel_rmse= 14.018%  lin= 17.043%  ang=  7.531%  max=  25.51%  (0.0 s)
+Converged after 37 iterations (max diff = 8.546277e-09)
+Mobility computation time: 136.79 ms
+fig4 N=40 phi=0.2 seed=7332 mfs_coarse           rel_rmse=  2.242%  lin=  2.268%  ang=  2.197%  max=   7.28%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 662
+no of NN interactions: 898
+[Mob_Nbody] Base velocity compute time: 2.920 ms
+[Mob_Nbody] Post-base path time: 2.162 ms
+fig4 N=40 phi=0.2 seed=7332 M_nbody_gpu          rel_rmse= 13.279%  lin= 15.436%  ang=  8.505%  max=  29.31%  (0.0 s)
+Converged after 32 iterations (max diff = 5.721850e-09)
+Mobility computation time: 148.78 ms
+fig4 N=50 phi=0.2 seed=7423 mfs_coarse           rel_rmse=  1.692%  lin=  1.708%  ang=  1.640%  max=   5.44%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1196
+no of NN interactions: 1254
+[Mob_Nbody] Base velocity compute time: 2.973 ms
+[Mob_Nbody] Post-base path time: 2.178 ms
+fig4 N=50 phi=0.2 seed=7423 M_nbody_gpu          rel_rmse= 13.280%  lin= 13.999%  ang= 10.673%  max=  31.80%  (0.0 s)
+Converged after 36 iterations (max diff = 5.953948e-09)
+Mobility computation time: 166.66 ms
+fig4 N=50 phi=0.2 seed=7424 mfs_coarse           rel_rmse=  1.870%  lin=  1.859%  ang=  1.904%  max=   4.33%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1276
+no of NN interactions: 1174
+[Mob_Nbody] Base velocity compute time: 2.952 ms
+[Mob_Nbody] Post-base path time: 2.167 ms
+fig4 N=50 phi=0.2 seed=7424 M_nbody_gpu          rel_rmse= 12.816%  lin= 13.688%  ang=  9.765%  max=  26.13%  (0.0 s)
+Converged after 33 iterations (max diff = 8.995935e-09)
+Mobility computation time: 153.08 ms
+fig4 N=50 phi=0.2 seed=7425 mfs_coarse           rel_rmse=  0.759%  lin=  0.618%  ang=  1.698%  max=   1.50%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1224
+no of NN interactions: 1226
+[Mob_Nbody] Base velocity compute time: 2.953 ms
+[Mob_Nbody] Post-base path time: 2.161 ms
+fig4 N=50 phi=0.2 seed=7425 M_nbody_gpu          rel_rmse=  7.099%  lin=  6.956%  ang=  8.619%  max=  19.27%  (0.0 s)
+Converged after 33 iterations (max diff = 3.935738e-09)
+Mobility computation time: 153.05 ms
+fig4 N=50 phi=0.2 seed=7426 mfs_coarse           rel_rmse=  1.489%  lin=  1.252%  ang=  2.418%  max=   3.41%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1296
+no of NN interactions: 1154
+[Mob_Nbody] Base velocity compute time: 2.945 ms
+[Mob_Nbody] Post-base path time: 2.167 ms
+fig4 N=50 phi=0.2 seed=7426 M_nbody_gpu          rel_rmse= 10.850%  lin= 11.120%  ang=  9.188%  max=  17.62%  (0.0 s)
+Converged after 33 iterations (max diff = 4.880919e-09)
+Mobility computation time: 153.52 ms
+fig4 N=50 phi=0.2 seed=7427 mfs_coarse           rel_rmse=  1.310%  lin=  1.182%  ang=  1.806%  max=   3.17%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1208
+no of NN interactions: 1242
+[Mob_Nbody] Base velocity compute time: 2.944 ms
+[Mob_Nbody] Post-base path time: 2.145 ms
+fig4 N=50 phi=0.2 seed=7427 M_nbody_gpu          rel_rmse=  8.800%  lin=  8.672%  ang=  9.396%  max=  21.43%  (0.0 s)
+Converged after 39 iterations (max diff = 9.364681e-09)
+Mobility computation time: 180.83 ms
+fig4 N=50 phi=0.2 seed=7428 mfs_coarse           rel_rmse=  1.347%  lin=  1.274%  ang=  1.740%  max=   2.85%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1292
+no of NN interactions: 1158
+[Mob_Nbody] Base velocity compute time: 2.967 ms
+[Mob_Nbody] Post-base path time: 2.149 ms
+fig4 N=50 phi=0.2 seed=7428 M_nbody_gpu          rel_rmse= 11.660%  lin= 11.878%  ang= 10.178%  max=  26.82%  (0.0 s)
+Converged after 34 iterations (max diff = 9.721461e-09)
+Mobility computation time: 157.60 ms
+fig4 N=50 phi=0.2 seed=7429 mfs_coarse           rel_rmse=  1.658%  lin=  1.486%  ang=  2.224%  max=   4.74%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1262
+no of NN interactions: 1188
+[Mob_Nbody] Base velocity compute time: 2.956 ms
+[Mob_Nbody] Post-base path time: 2.164 ms
+fig4 N=50 phi=0.2 seed=7429 M_nbody_gpu          rel_rmse= 10.652%  lin= 10.957%  ang=  9.313%  max=  22.70%  (0.0 s)
+Converged after 34 iterations (max diff = 4.561843e-09)
+Mobility computation time: 157.53 ms
+fig4 N=50 phi=0.2 seed=7430 mfs_coarse           rel_rmse=  2.033%  lin=  2.055%  ang=  1.989%  max=   5.01%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1188
+no of NN interactions: 1262
+[Mob_Nbody] Base velocity compute time: 2.978 ms
+[Mob_Nbody] Post-base path time: 2.183 ms
+fig4 N=50 phi=0.2 seed=7430 M_nbody_gpu          rel_rmse= 12.325%  lin= 14.045%  ang=  7.923%  max=  34.38%  (0.0 s)
+Converged after 31 iterations (max diff = 5.417815e-09)
+Mobility computation time: 143.85 ms
+fig4 N=50 phi=0.2 seed=7431 mfs_coarse           rel_rmse=  0.978%  lin=  0.912%  ang=  1.348%  max=   2.41%  (0.1 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1252
+no of NN interactions: 1198
+[Mob_Nbody] Base velocity compute time: 2.962 ms
+[Mob_Nbody] Post-base path time: 2.156 ms
+fig4 N=50 phi=0.2 seed=7431 M_nbody_gpu          rel_rmse=  9.159%  lin=  9.305%  ang=  8.087%  max=  19.52%  (0.0 s)
+Converged after 36 iterations (max diff = 9.808026e-09)
+Mobility computation time: 166.70 ms
+fig4 N=50 phi=0.2 seed=7432 mfs_coarse           rel_rmse=  1.940%  lin=  1.949%  ang=  1.910%  max=   5.65%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1236
+no of NN interactions: 1214
+[Mob_Nbody] Base velocity compute time: 2.935 ms
+[Mob_Nbody] Post-base path time: 2.177 ms
+fig4 N=50 phi=0.2 seed=7432 M_nbody_gpu          rel_rmse= 11.328%  lin= 12.304%  ang=  7.518%  max=  23.89%  (0.0 s)
+Converged after 34 iterations (max diff = 5.603828e-09)
+Mobility computation time: 188.27 ms
+fig4 N=60 phi=0.2 seed=7523 mfs_coarse           rel_rmse=  1.803%  lin=  1.719%  ang=  2.096%  max=   5.24%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1974
+no of NN interactions: 1566
+[Mob_Nbody] Base velocity compute time: 2.954 ms
+[Mob_Nbody] Post-base path time: 2.169 ms
+fig4 N=60 phi=0.2 seed=7523 M_nbody_gpu          rel_rmse= 10.077%  lin= 10.415%  ang=  8.642%  max=  37.45%  (0.0 s)
+Converged after 33 iterations (max diff = 9.669165e-09)
+Mobility computation time: 182.32 ms
+fig4 N=60 phi=0.2 seed=7524 mfs_coarse           rel_rmse=  1.472%  lin=  1.339%  ang=  1.845%  max=   5.03%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 2000
+no of NN interactions: 1540
+[Mob_Nbody] Base velocity compute time: 2.969 ms
+[Mob_Nbody] Post-base path time: 2.165 ms
+fig4 N=60 phi=0.2 seed=7524 M_nbody_gpu          rel_rmse= 12.133%  lin= 12.974%  ang=  8.796%  max=  29.07%  (0.0 s)
+Converged after 37 iterations (max diff = 7.858435e-09)
+Mobility computation time: 205.48 ms
+fig4 N=60 phi=0.2 seed=7525 mfs_coarse           rel_rmse=  1.537%  lin=  1.191%  ang=  2.427%  max=   4.88%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 2044
+no of NN interactions: 1496
+[Mob_Nbody] Base velocity compute time: 2.963 ms
+[Mob_Nbody] Post-base path time: 2.160 ms
+fig4 N=60 phi=0.2 seed=7525 M_nbody_gpu          rel_rmse= 11.570%  lin= 12.327%  ang=  8.146%  max=  28.83%  (0.0 s)
+Converged after 33 iterations (max diff = 6.552489e-09)
+Mobility computation time: 182.83 ms
+fig4 N=60 phi=0.2 seed=7526 mfs_coarse           rel_rmse=  1.464%  lin=  1.262%  ang=  2.014%  max=   3.29%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1980
+no of NN interactions: 1560
+[Mob_Nbody] Base velocity compute time: 2.948 ms
+[Mob_Nbody] Post-base path time: 2.207 ms
+fig4 N=60 phi=0.2 seed=7526 M_nbody_gpu          rel_rmse= 10.047%  lin= 10.400%  ang=  8.712%  max=  21.06%  (0.0 s)
+Converged after 40 iterations (max diff = 7.162239e-09)
+Mobility computation time: 220.19 ms
+fig4 N=60 phi=0.2 seed=7527 mfs_coarse           rel_rmse=  0.977%  lin=  0.858%  ang=  1.826%  max=   2.85%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1974
+no of NN interactions: 1566
+[Mob_Nbody] Base velocity compute time: 2.887 ms
+[Mob_Nbody] Post-base path time: 2.120 ms
+fig4 N=60 phi=0.2 seed=7527 M_nbody_gpu          rel_rmse=  8.785%  lin=  8.630%  ang= 10.328%  max=  30.04%  (0.0 s)
+Converged after 32 iterations (max diff = 6.323140e-09)
+Mobility computation time: 176.62 ms
+fig4 N=60 phi=0.2 seed=7528 mfs_coarse           rel_rmse=  1.732%  lin=  1.678%  ang=  1.843%  max=   5.19%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 2114
+no of NN interactions: 1426
+[Mob_Nbody] Base velocity compute time: 2.976 ms
+[Mob_Nbody] Post-base path time: 2.172 ms
+fig4 N=60 phi=0.2 seed=7528 M_nbody_gpu          rel_rmse= 10.993%  lin= 12.171%  ang=  7.854%  max=  25.03%  (0.0 s)
+Converged after 36 iterations (max diff = 7.269711e-09)
+Mobility computation time: 198.96 ms
+fig4 N=60 phi=0.2 seed=7529 mfs_coarse           rel_rmse=  1.430%  lin=  1.258%  ang=  2.563%  max=   3.65%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 1988
+no of NN interactions: 1552
+[Mob_Nbody] Base velocity compute time: 2.949 ms
+[Mob_Nbody] Post-base path time: 2.197 ms
+fig4 N=60 phi=0.2 seed=7529 M_nbody_gpu          rel_rmse= 10.436%  lin= 10.305%  ang= 11.641%  max=  19.81%  (0.0 s)
+Converged after 34 iterations (max diff = 9.803615e-09)
+Mobility computation time: 188.72 ms
+fig4 N=60 phi=0.2 seed=7530 mfs_coarse           rel_rmse=  1.572%  lin=  1.468%  ang=  1.975%  max=   4.89%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 2116
+no of NN interactions: 1424
+[Mob_Nbody] Base velocity compute time: 2.957 ms
+[Mob_Nbody] Post-base path time: 2.167 ms
+fig4 N=60 phi=0.2 seed=7530 M_nbody_gpu          rel_rmse=  9.205%  lin=  9.346%  ang=  8.537%  max=  21.75%  (0.0 s)
+Converged after 33 iterations (max diff = 9.919371e-09)
+Mobility computation time: 182.56 ms
+fig4 N=60 phi=0.2 seed=7531 mfs_coarse           rel_rmse=  1.311%  lin=  1.123%  ang=  2.057%  max=   8.03%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 2034
+no of NN interactions: 1506
+[Mob_Nbody] Base velocity compute time: 2.985 ms
+[Mob_Nbody] Post-base path time: 2.167 ms
+fig4 N=60 phi=0.2 seed=7531 M_nbody_gpu          rel_rmse=  9.994%  lin= 10.210%  ang=  8.715%  max=  24.71%  (0.0 s)
+Converged after 33 iterations (max diff = 4.136124e-09)
+Mobility computation time: 182.66 ms
+fig4 N=60 phi=0.2 seed=7532 mfs_coarse           rel_rmse=  1.340%  lin=  1.219%  ang=  2.118%  max=   4.69%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 2072
+no of NN interactions: 1468
+[Mob_Nbody] Base velocity compute time: 2.957 ms
+[Mob_Nbody] Post-base path time: 2.173 ms
+fig4 N=60 phi=0.2 seed=7532 M_nbody_gpu          rel_rmse=  9.302%  lin=  9.401%  ang=  8.387%  max=  32.11%  (0.0 s)
+Converged after 34 iterations (max diff = 9.268557e-09)
+Mobility computation time: 219.22 ms
+fig4 N=70 phi=0.2 seed=7623 mfs_coarse           rel_rmse=  1.930%  lin=  1.860%  ang=  2.098%  max=   8.20%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 3002
+no of NN interactions: 1828
+[Mob_Nbody] Base velocity compute time: 2.967 ms
+[Mob_Nbody] Post-base path time: 2.173 ms
+fig4 N=70 phi=0.2 seed=7623 M_nbody_gpu          rel_rmse= 13.699%  lin= 15.322%  ang=  8.218%  max=  33.25%  (0.0 s)
+Converged after 35 iterations (max diff = 7.670384e-09)
+Mobility computation time: 225.91 ms
+fig4 N=70 phi=0.2 seed=7624 mfs_coarse           rel_rmse=  1.866%  lin=  1.737%  ang=  2.317%  max=   5.96%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 2894
+no of NN interactions: 1936
+[Mob_Nbody] Base velocity compute time: 2.924 ms
+[Mob_Nbody] Post-base path time: 2.217 ms
+fig4 N=70 phi=0.2 seed=7624 M_nbody_gpu          rel_rmse=  9.929%  lin= 10.158%  ang=  8.932%  max=  27.63%  (0.0 s)
+Converged after 36 iterations (max diff = 3.842760e-09)
+Mobility computation time: 231.28 ms
+fig4 N=70 phi=0.2 seed=7625 mfs_coarse           rel_rmse=  1.117%  lin=  0.983%  ang=  2.147%  max=   3.03%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 2982
+no of NN interactions: 1848
+[Mob_Nbody] Base velocity compute time: 2.959 ms
+[Mob_Nbody] Post-base path time: 2.143 ms
+fig4 N=70 phi=0.2 seed=7625 M_nbody_gpu          rel_rmse=  8.844%  lin=  8.672%  ang= 10.692%  max=  20.10%  (0.0 s)
+Converged after 38 iterations (max diff = 6.404744e-09)
+Mobility computation time: 244.31 ms
+fig4 N=70 phi=0.2 seed=7626 mfs_coarse           rel_rmse=  1.409%  lin=  1.277%  ang=  2.608%  max=   2.55%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 2958
+no of NN interactions: 1872
+[Mob_Nbody] Base velocity compute time: 2.979 ms
+[Mob_Nbody] Post-base path time: 2.182 ms
+fig4 N=70 phi=0.2 seed=7626 M_nbody_gpu          rel_rmse= 11.253%  lin= 11.190%  ang= 12.084%  max=  19.69%  (0.0 s)
+Converged after 38 iterations (max diff = 8.719727e-09)
+Mobility computation time: 248.02 ms
+fig4 N=70 phi=0.2 seed=7627 mfs_coarse           rel_rmse=  1.727%  lin=  1.623%  ang=  2.251%  max=   3.83%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 2946
+no of NN interactions: 1884
+[Mob_Nbody] Base velocity compute time: 3.395 ms
+[Mob_Nbody] Post-base path time: 2.462 ms
+fig4 N=70 phi=0.2 seed=7627 M_nbody_gpu          rel_rmse= 14.343%  lin= 14.838%  ang= 10.910%  max=  27.02%  (0.0 s)
+Converged after 34 iterations (max diff = 8.547751e-09)
+Mobility computation time: 218.69 ms
+fig4 N=70 phi=0.2 seed=7628 mfs_coarse           rel_rmse=  2.071%  lin=  2.009%  ang=  2.235%  max=   7.30%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 2988
+no of NN interactions: 1842
+[Mob_Nbody] Base velocity compute time: 3.008 ms
+[Mob_Nbody] Post-base path time: 2.165 ms
+fig4 N=70 phi=0.2 seed=7628 M_nbody_gpu          rel_rmse= 13.570%  lin= 14.809%  ang=  9.266%  max=  30.01%  (0.0 s)
+Converged after 34 iterations (max diff = 4.601427e-09)
+Mobility computation time: 219.67 ms
+fig4 N=70 phi=0.2 seed=7629 mfs_coarse           rel_rmse=  1.354%  lin=  1.279%  ang=  1.654%  max=   2.75%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 3054
+no of NN interactions: 1776
+[Mob_Nbody] Base velocity compute time: 2.960 ms
+[Mob_Nbody] Post-base path time: 2.190 ms
+fig4 N=70 phi=0.2 seed=7629 M_nbody_gpu          rel_rmse=  9.672%  lin=  9.794%  ang=  9.091%  max=  30.25%  (0.0 s)
+Converged after 35 iterations (max diff = 9.579734e-09)
+Mobility computation time: 225.23 ms
+fig4 N=70 phi=0.2 seed=7630 mfs_coarse           rel_rmse=  0.974%  lin=  0.838%  ang=  1.956%  max=   2.53%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 3048
+no of NN interactions: 1782
+[Mob_Nbody] Base velocity compute time: 2.979 ms
+[Mob_Nbody] Post-base path time: 2.194 ms
+fig4 N=70 phi=0.2 seed=7630 M_nbody_gpu          rel_rmse=  7.022%  lin=  6.836%  ang=  8.905%  max=  22.68%  (0.0 s)
+Converged after 33 iterations (max diff = 9.335824e-09)
+Mobility computation time: 212.09 ms
+fig4 N=70 phi=0.2 seed=7631 mfs_coarse           rel_rmse=  1.467%  lin=  1.341%  ang=  1.945%  max=   3.33%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 2954
+no of NN interactions: 1876
+[Mob_Nbody] Base velocity compute time: 2.946 ms
+[Mob_Nbody] Post-base path time: 2.167 ms
+fig4 N=70 phi=0.2 seed=7631 M_nbody_gpu          rel_rmse= 11.991%  lin= 12.333%  ang= 10.257%  max=  32.22%  (0.0 s)
+Converged after 39 iterations (max diff = 8.103679e-09)
+Mobility computation time: 251.25 ms
+fig4 N=70 phi=0.2 seed=7632 mfs_coarse           rel_rmse=  1.524%  lin=  1.313%  ang=  2.508%  max=   3.88%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 3016
+no of NN interactions: 1814
+[Mob_Nbody] Base velocity compute time: 2.968 ms
+[Mob_Nbody] Post-base path time: 2.196 ms
+fig4 N=70 phi=0.2 seed=7632 M_nbody_gpu          rel_rmse= 10.358%  lin= 10.523%  ang=  9.195%  max=  24.68%  (0.0 s)
+Converged after 34 iterations (max diff = 6.878062e-09)
+Mobility computation time: 247.86 ms
+fig4 N=80 phi=0.2 seed=7723 mfs_coarse           rel_rmse=  1.205%  lin=  1.088%  ang=  2.219%  max=   3.01%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 4178
+no of NN interactions: 2142
+[Mob_Nbody] Base velocity compute time: 2.987 ms
+[Mob_Nbody] Post-base path time: 2.183 ms
+fig4 N=80 phi=0.2 seed=7723 M_nbody_gpu          rel_rmse= 10.120%  lin= 10.099%  ang= 10.395%  max=  20.28%  (0.0 s)
+Converged after 35 iterations (max diff = 7.955201e-09)
+Mobility computation time: 254.95 ms
+fig4 N=80 phi=0.2 seed=7724 mfs_coarse           rel_rmse=  1.670%  lin=  1.542%  ang=  2.249%  max=   4.33%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 4172
+no of NN interactions: 2148
+[Mob_Nbody] Base velocity compute time: 2.969 ms
+[Mob_Nbody] Post-base path time: 2.168 ms
+fig4 N=80 phi=0.2 seed=7724 M_nbody_gpu          rel_rmse= 14.342%  lin= 14.849%  ang= 11.132%  max=  34.01%  (0.0 s)
+Converged after 33 iterations (max diff = 7.980890e-09)
+Mobility computation time: 241.55 ms
+fig4 N=80 phi=0.2 seed=7725 mfs_coarse           rel_rmse=  1.113%  lin=  0.940%  ang=  1.947%  max=   2.72%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 4208
+no of NN interactions: 2112
+[Mob_Nbody] Base velocity compute time: 2.981 ms
+[Mob_Nbody] Post-base path time: 2.175 ms
+fig4 N=80 phi=0.2 seed=7725 M_nbody_gpu          rel_rmse=  9.866%  lin=  9.981%  ang=  8.993%  max=  20.41%  (0.0 s)
+Converged after 37 iterations (max diff = 7.606249e-09)
+Mobility computation time: 271.25 ms
+fig4 N=80 phi=0.2 seed=7726 mfs_coarse           rel_rmse=  1.492%  lin=  1.295%  ang=  2.082%  max=   4.22%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 4100
+no of NN interactions: 2220
+[Mob_Nbody] Base velocity compute time: 2.962 ms
+[Mob_Nbody] Post-base path time: 2.169 ms
+fig4 N=80 phi=0.2 seed=7726 M_nbody_gpu          rel_rmse= 14.839%  lin= 15.982%  ang=  9.191%  max=  36.11%  (0.0 s)
+Converged after 33 iterations (max diff = 6.261352e-09)
+Mobility computation time: 239.87 ms
+fig4 N=80 phi=0.2 seed=7727 mfs_coarse           rel_rmse=  2.468%  lin=  2.514%  ang=  2.371%  max=   6.93%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 4116
+no of NN interactions: 2204
+[Mob_Nbody] Base velocity compute time: 2.974 ms
+[Mob_Nbody] Post-base path time: 2.182 ms
+fig4 N=80 phi=0.2 seed=7727 M_nbody_gpu          rel_rmse= 18.315%  lin= 21.234%  ang=  9.718%  max=  57.55%  (0.0 s)
+Converged after 33 iterations (max diff = 7.419727e-09)
+Mobility computation time: 239.85 ms
+fig4 N=80 phi=0.2 seed=7728 mfs_coarse           rel_rmse=  1.369%  lin=  1.197%  ang=  2.127%  max=   3.47%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 4150
+no of NN interactions: 2170
+[Mob_Nbody] Base velocity compute time: 2.970 ms
+[Mob_Nbody] Post-base path time: 2.186 ms
+fig4 N=80 phi=0.2 seed=7728 M_nbody_gpu          rel_rmse=  9.956%  lin= 10.141%  ang=  8.763%  max=  25.40%  (0.0 s)
+Converged after 32 iterations (max diff = 5.853471e-09)
+Mobility computation time: 232.83 ms
+fig4 N=80 phi=0.2 seed=7729 mfs_coarse           rel_rmse=  0.928%  lin=  0.800%  ang=  1.702%  max=   3.43%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 4208
+no of NN interactions: 2112
+[Mob_Nbody] Base velocity compute time: 2.908 ms
+[Mob_Nbody] Post-base path time: 2.129 ms
+fig4 N=80 phi=0.2 seed=7729 M_nbody_gpu          rel_rmse=  9.849%  lin=  9.860%  ang=  9.746%  max=  21.35%  (0.0 s)
+Converged after 34 iterations (max diff = 5.418078e-09)
+Mobility computation time: 248.46 ms
+fig4 N=80 phi=0.2 seed=7730 mfs_coarse           rel_rmse=  2.114%  lin=  2.048%  ang=  2.251%  max=   5.19%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 4174
+no of NN interactions: 2146
+[Mob_Nbody] Base velocity compute time: 2.960 ms
+[Mob_Nbody] Post-base path time: 2.198 ms
+fig4 N=80 phi=0.2 seed=7730 M_nbody_gpu          rel_rmse= 13.637%  lin= 15.404%  ang=  8.598%  max=  32.98%  (0.0 s)
+Converged after 33 iterations (max diff = 5.787468e-09)
+Mobility computation time: 240.52 ms
+fig4 N=80 phi=0.2 seed=7731 mfs_coarse           rel_rmse=  1.725%  lin=  1.605%  ang=  1.995%  max=   4.55%  (0.2 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 4314
+no of NN interactions: 2006
+[Mob_Nbody] Base velocity compute time: 2.956 ms
+[Mob_Nbody] Post-base path time: 2.194 ms
+fig4 N=80 phi=0.2 seed=7731 M_nbody_gpu          rel_rmse= 14.783%  lin= 16.830%  ang=  7.581%  max=  55.64%  (0.0 s)
+Converged after 36 iterations (max diff = 6.975335e-09)
+Mobility computation time: 263.48 ms
+fig4 N=80 phi=0.2 seed=7732 mfs_coarse           rel_rmse=  1.427%  lin=  1.314%  ang=  1.975%  max=   3.97%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 4156
+no of NN interactions: 2164
+[Mob_Nbody] Base velocity compute time: 2.965 ms
+[Mob_Nbody] Post-base path time: 2.190 ms
+fig4 N=80 phi=0.2 seed=7732 M_nbody_gpu          rel_rmse= 12.323%  lin= 12.660%  ang= 10.068%  max=  22.88%  (0.0 s)
+Converged after 36 iterations (max diff = 6.391089e-09)
+Mobility computation time: 298.24 ms
+fig4 N=90 phi=0.2 seed=7823 mfs_coarse           rel_rmse=  0.982%  lin=  0.858%  ang=  1.880%  max=   2.41%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 5534
+no of NN interactions: 2476
+[Mob_Nbody] Base velocity compute time: 2.973 ms
+[Mob_Nbody] Post-base path time: 2.174 ms
+fig4 N=90 phi=0.2 seed=7823 M_nbody_gpu          rel_rmse= 11.797%  lin= 11.788%  ang= 11.899%  max=  26.31%  (0.0 s)
+Converged after 35 iterations (max diff = 4.559925e-09)
+Mobility computation time: 289.96 ms
+fig4 N=90 phi=0.2 seed=7824 mfs_coarse           rel_rmse=  1.256%  lin=  1.108%  ang=  2.103%  max=   2.80%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 5526
+no of NN interactions: 2484
+[Mob_Nbody] Base velocity compute time: 2.979 ms
+[Mob_Nbody] Post-base path time: 2.169 ms
+fig4 N=90 phi=0.2 seed=7824 M_nbody_gpu          rel_rmse= 10.789%  lin= 10.946%  ang=  9.422%  max=  22.36%  (0.0 s)
+Converged after 36 iterations (max diff = 4.401215e-09)
+Mobility computation time: 296.24 ms
+fig4 N=90 phi=0.2 seed=7825 mfs_coarse           rel_rmse=  1.795%  lin=  1.719%  ang=  2.043%  max=   8.14%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 5588
+no of NN interactions: 2422
+[Mob_Nbody] Base velocity compute time: 2.988 ms
+[Mob_Nbody] Post-base path time: 2.195 ms
+fig4 N=90 phi=0.2 seed=7825 M_nbody_gpu          rel_rmse= 14.735%  lin= 15.866%  ang=  9.706%  max=  38.18%  (0.0 s)
+Converged after 34 iterations (max diff = 5.166796e-09)
+Mobility computation time: 281.68 ms
+fig4 N=90 phi=0.2 seed=7826 mfs_coarse           rel_rmse=  0.973%  lin=  0.845%  ang=  1.836%  max=   2.34%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 5512
+no of NN interactions: 2498
+[Mob_Nbody] Base velocity compute time: 2.955 ms
+[Mob_Nbody] Post-base path time: 2.198 ms
+fig4 N=90 phi=0.2 seed=7826 M_nbody_gpu          rel_rmse=  9.028%  lin=  8.961%  ang=  9.699%  max=  17.34%  (0.0 s)
+Converged after 33 iterations (max diff = 9.637803e-09)
+Mobility computation time: 273.25 ms
+fig4 N=90 phi=0.2 seed=7827 mfs_coarse           rel_rmse=  1.863%  lin=  1.783%  ang=  2.043%  max=   6.33%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 5556
+no of NN interactions: 2454
+[Mob_Nbody] Base velocity compute time: 2.991 ms
+[Mob_Nbody] Post-base path time: 2.158 ms
+fig4 N=90 phi=0.2 seed=7827 M_nbody_gpu          rel_rmse= 16.349%  lin= 18.540%  ang=  9.052%  max=  43.60%  (0.0 s)
+Converged after 38 iterations (max diff = 9.104427e-09)
+Mobility computation time: 313.54 ms
+fig4 N=90 phi=0.2 seed=7828 mfs_coarse           rel_rmse=  2.389%  lin=  2.484%  ang=  2.108%  max=   7.63%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 5502
+no of NN interactions: 2508
+[Mob_Nbody] Base velocity compute time: 2.981 ms
+[Mob_Nbody] Post-base path time: 2.186 ms
+fig4 N=90 phi=0.2 seed=7828 M_nbody_gpu          rel_rmse= 18.899%  lin= 21.242%  ang= 10.041%  max=  46.57%  (0.0 s)
+Converged after 38 iterations (max diff = 6.039152e-09)
+Mobility computation time: 312.04 ms
+fig4 N=90 phi=0.2 seed=7829 mfs_coarse           rel_rmse=  1.367%  lin=  1.231%  ang=  2.499%  max=   4.37%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 5492
+no of NN interactions: 2518
+[Mob_Nbody] Base velocity compute time: 2.990 ms
+[Mob_Nbody] Post-base path time: 2.182 ms
+fig4 N=90 phi=0.2 seed=7829 M_nbody_gpu          rel_rmse= 10.770%  lin= 10.708%  ang= 11.507%  max=  22.25%  (0.0 s)
+Converged after 35 iterations (max diff = 8.669884e-09)
+Mobility computation time: 289.69 ms
+fig4 N=90 phi=0.2 seed=7830 mfs_coarse           rel_rmse=  1.044%  lin=  0.890%  ang=  2.175%  max=   3.34%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 5404
+no of NN interactions: 2606
+[Mob_Nbody] Base velocity compute time: 2.987 ms
+[Mob_Nbody] Post-base path time: 2.180 ms
+fig4 N=90 phi=0.2 seed=7830 M_nbody_gpu          rel_rmse=  9.159%  lin=  9.092%  ang=  9.935%  max=  25.48%  (0.0 s)
+Converged after 39 iterations (max diff = 9.998894e-09)
+Mobility computation time: 320.78 ms
+fig4 N=90 phi=0.2 seed=7831 mfs_coarse           rel_rmse=  1.124%  lin=  0.992%  ang=  2.063%  max=   2.77%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 5488
+no of NN interactions: 2522
+[Mob_Nbody] Base velocity compute time: 2.961 ms
+[Mob_Nbody] Post-base path time: 2.183 ms
+fig4 N=90 phi=0.2 seed=7831 M_nbody_gpu          rel_rmse= 10.527%  lin= 10.531%  ang= 10.483%  max=  25.85%  (0.0 s)
+Converged after 37 iterations (max diff = 9.041098e-09)
+Mobility computation time: 306.09 ms
+fig4 N=90 phi=0.2 seed=7832 mfs_coarse           rel_rmse=  1.662%  lin=  1.487%  ang=  2.285%  max=   5.18%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 5536
+no of NN interactions: 2474
+[Mob_Nbody] Base velocity compute time: 2.971 ms
+[Mob_Nbody] Post-base path time: 2.198 ms
+fig4 N=90 phi=0.2 seed=7832 M_nbody_gpu          rel_rmse= 13.581%  lin= 14.299%  ang=  9.736%  max=  35.28%  (0.0 s)
+Converged after 34 iterations (max diff = 5.935408e-09)
+Mobility computation time: 311.85 ms
+fig4 N=100 phi=0.2 seed=7923 mfs_coarse           rel_rmse=  1.770%  lin=  1.702%  ang=  1.966%  max=   4.44%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 7180
+no of NN interactions: 2720
+[Mob_Nbody] Base velocity compute time: 2.960 ms
+[Mob_Nbody] Post-base path time: 2.179 ms
+fig4 N=100 phi=0.2 seed=7923 M_nbody_gpu          rel_rmse= 17.210%  lin= 18.842%  ang= 10.745%  max=  42.47%  (0.0 s)
+Converged after 35 iterations (max diff = 7.416221e-09)
+Mobility computation time: 322.53 ms
+fig4 N=100 phi=0.2 seed=7924 mfs_coarse           rel_rmse=  2.401%  lin=  2.394%  ang=  2.418%  max=   9.57%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 7048
+no of NN interactions: 2852
+[Mob_Nbody] Base velocity compute time: 2.983 ms
+[Mob_Nbody] Post-base path time: 2.180 ms
+fig4 N=100 phi=0.2 seed=7924 M_nbody_gpu          rel_rmse= 20.260%  lin= 23.674%  ang=  9.830%  max=  50.32%  (0.0 s)
+Converged after 34 iterations (max diff = 6.121676e-09)
+Mobility computation time: 311.86 ms
+fig4 N=100 phi=0.2 seed=7925 mfs_coarse           rel_rmse=  1.332%  lin=  1.155%  ang=  2.093%  max=   4.50%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 7082
+no of NN interactions: 2818
+[Mob_Nbody] Base velocity compute time: 2.977 ms
+[Mob_Nbody] Post-base path time: 2.186 ms
+fig4 N=100 phi=0.2 seed=7925 M_nbody_gpu          rel_rmse= 12.354%  lin= 12.659%  ang= 10.349%  max=  37.24%  (0.0 s)
+Converged after 38 iterations (max diff = 6.387434e-09)
+Mobility computation time: 347.72 ms
+fig4 N=100 phi=0.2 seed=7926 mfs_coarse           rel_rmse=  1.876%  lin=  1.758%  ang=  2.303%  max=   5.25%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 7034
+no of NN interactions: 2866
+[Mob_Nbody] Base velocity compute time: 2.955 ms
+[Mob_Nbody] Post-base path time: 2.192 ms
+fig4 N=100 phi=0.2 seed=7926 M_nbody_gpu          rel_rmse= 13.851%  lin= 14.634%  ang=  9.984%  max=  31.19%  (0.0 s)
+Converged after 37 iterations (max diff = 7.479031e-09)
+Mobility computation time: 338.63 ms
+fig4 N=100 phi=0.2 seed=7927 mfs_coarse           rel_rmse=  1.595%  lin=  1.440%  ang=  2.268%  max=   6.29%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 6924
+no of NN interactions: 2976
+[Mob_Nbody] Base velocity compute time: 2.966 ms
+[Mob_Nbody] Post-base path time: 2.187 ms
+fig4 N=100 phi=0.2 seed=7927 M_nbody_gpu          rel_rmse= 12.136%  lin= 12.554%  ang=  9.498%  max=  43.99%  (0.0 s)
+Converged after 34 iterations (max diff = 9.159520e-09)
+Mobility computation time: 311.42 ms
+fig4 N=100 phi=0.2 seed=7928 mfs_coarse           rel_rmse=  1.746%  lin=  1.617%  ang=  2.158%  max=   4.87%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 7074
+no of NN interactions: 2826
+[Mob_Nbody] Base velocity compute time: 2.975 ms
+[Mob_Nbody] Post-base path time: 2.191 ms
+fig4 N=100 phi=0.2 seed=7928 M_nbody_gpu          rel_rmse= 13.123%  lin= 14.133%  ang=  8.369%  max=  29.62%  (0.0 s)
+Converged after 37 iterations (max diff = 7.836291e-09)
+Mobility computation time: 338.65 ms
+fig4 N=100 phi=0.2 seed=7929 mfs_coarse           rel_rmse=  1.766%  lin=  1.677%  ang=  2.025%  max=   6.23%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 7062
+no of NN interactions: 2838
+[Mob_Nbody] Base velocity compute time: 2.971 ms
+[Mob_Nbody] Post-base path time: 2.167 ms
+fig4 N=100 phi=0.2 seed=7929 M_nbody_gpu          rel_rmse= 20.014%  lin= 21.966%  ang= 11.794%  max=  58.11%  (0.0 s)
+Converged after 36 iterations (max diff = 5.748447e-09)
+Mobility computation time: 329.70 ms
+fig4 N=100 phi=0.2 seed=7930 mfs_coarse           rel_rmse=  1.932%  lin=  1.817%  ang=  2.256%  max=   7.40%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 7064
+no of NN interactions: 2836
+[Mob_Nbody] Base velocity compute time: 2.982 ms
+[Mob_Nbody] Post-base path time: 2.157 ms
+fig4 N=100 phi=0.2 seed=7930 M_nbody_gpu          rel_rmse= 16.828%  lin= 18.329%  ang= 10.819%  max=  44.61%  (0.0 s)
+Converged after 39 iterations (max diff = 8.510607e-09)
+Mobility computation time: 357.06 ms
+fig4 N=100 phi=0.2 seed=7931 mfs_coarse           rel_rmse=  1.910%  lin=  1.917%  ang=  1.890%  max=   8.18%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 7118
+no of NN interactions: 2782
+[Mob_Nbody] Base velocity compute time: 2.976 ms
+[Mob_Nbody] Post-base path time: 2.199 ms
+fig4 N=100 phi=0.2 seed=7931 M_nbody_gpu          rel_rmse= 12.553%  lin= 13.684%  ang=  8.582%  max=  43.41%  (0.0 s)
+Converged after 35 iterations (max diff = 7.985039e-09)
+Mobility computation time: 320.34 ms
+fig4 N=100 phi=0.2 seed=7932 mfs_coarse           rel_rmse=  1.796%  lin=  1.668%  ang=  2.261%  max=   9.67%  (0.3 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 6984
+no of NN interactions: 2916
+[Mob_Nbody] Base velocity compute time: 2.988 ms
+[Mob_Nbody] Post-base path time: 2.186 ms
+fig4 N=100 phi=0.2 seed=7932 M_nbody_gpu          rel_rmse= 17.874%  lin= 19.068%  ang= 11.507%  max=  59.98%  (0.0 s)
+Converged after 33 iterations (max diff = 7.593646e-09)
+Mobility computation time: 362.97 ms
+fig4 N=120 phi=0.2 seed=8023 mfs_coarse           rel_rmse=  1.153%  lin=  1.043%  ang=  2.054%  max=   3.14%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 10776
+no of NN interactions: 3504
+[Mob_Nbody] Base velocity compute time: 2.973 ms
+[Mob_Nbody] Post-base path time: 2.203 ms
+fig4 N=120 phi=0.2 seed=8023 M_nbody_gpu          rel_rmse= 13.193%  lin= 13.300%  ang= 11.828%  max=  25.10%  (0.0 s)
+Converged after 39 iterations (max diff = 5.669939e-09)
+Mobility computation time: 428.56 ms
+fig4 N=120 phi=0.2 seed=8024 mfs_coarse           rel_rmse=  2.344%  lin=  2.396%  ang=  2.255%  max=   5.66%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 10760
+no of NN interactions: 3520
+[Mob_Nbody] Base velocity compute time: 2.963 ms
+[Mob_Nbody] Post-base path time: 2.184 ms
+fig4 N=120 phi=0.2 seed=8024 M_nbody_gpu          rel_rmse= 16.280%  lin= 19.382%  ang=  8.985%  max=  58.70%  (0.0 s)
+Converged after 37 iterations (max diff = 6.664080e-09)
+Mobility computation time: 404.90 ms
+fig4 N=120 phi=0.2 seed=8025 mfs_coarse           rel_rmse=  1.074%  lin=  0.897%  ang=  2.165%  max=   5.16%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 10798
+no of NN interactions: 3482
+[Mob_Nbody] Base velocity compute time: 2.989 ms
+[Mob_Nbody] Post-base path time: 2.188 ms
+fig4 N=120 phi=0.2 seed=8025 M_nbody_gpu          rel_rmse=  9.089%  lin=  8.984%  ang= 10.094%  max=  28.34%  (0.0 s)
+Converged after 36 iterations (max diff = 4.736468e-09)
+Mobility computation time: 395.77 ms
+fig4 N=120 phi=0.2 seed=8026 mfs_coarse           rel_rmse=  1.380%  lin=  1.312%  ang=  1.741%  max=   4.48%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 10784
+no of NN interactions: 3496
+[Mob_Nbody] Base velocity compute time: 3.100 ms
+[Mob_Nbody] Post-base path time: 2.261 ms
+fig4 N=120 phi=0.2 seed=8026 M_nbody_gpu          rel_rmse= 12.079%  lin= 12.449%  ang=  9.514%  max=  39.53%  (0.0 s)
+Converged after 36 iterations (max diff = 5.316927e-09)
+Mobility computation time: 396.15 ms
+fig4 N=120 phi=0.2 seed=8027 mfs_coarse           rel_rmse=  1.293%  lin=  1.146%  ang=  2.409%  max=   4.10%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 10732
+no of NN interactions: 3548
+[Mob_Nbody] Base velocity compute time: 2.967 ms
+[Mob_Nbody] Post-base path time: 2.192 ms
+fig4 N=120 phi=0.2 seed=8027 M_nbody_gpu          rel_rmse= 14.068%  lin= 14.172%  ang= 12.807%  max=  24.76%  (0.0 s)
+Converged after 35 iterations (max diff = 6.193347e-09)
+Mobility computation time: 385.61 ms
+fig4 N=120 phi=0.2 seed=8028 mfs_coarse           rel_rmse=  1.258%  lin=  1.108%  ang=  1.636%  max=   4.03%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 10794
+no of NN interactions: 3486
+[Mob_Nbody] Base velocity compute time: 3.007 ms
+[Mob_Nbody] Post-base path time: 2.208 ms
+fig4 N=120 phi=0.2 seed=8028 M_nbody_gpu          rel_rmse= 13.889%  lin= 15.085%  ang=  9.243%  max=  54.14%  (0.0 s)
+Converged after 37 iterations (max diff = 8.543373e-09)
+Mobility computation time: 406.80 ms
+fig4 N=120 phi=0.2 seed=8029 mfs_coarse           rel_rmse=  1.173%  lin=  0.990%  ang=  2.131%  max=   3.79%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 10760
+no of NN interactions: 3520
+[Mob_Nbody] Base velocity compute time: 2.897 ms
+[Mob_Nbody] Post-base path time: 2.146 ms
+fig4 N=120 phi=0.2 seed=8029 M_nbody_gpu          rel_rmse= 14.294%  lin= 14.650%  ang= 11.055%  max=  29.63%  (0.0 s)
+Converged after 33 iterations (max diff = 8.989969e-09)
+Mobility computation time: 363.44 ms
+fig4 N=120 phi=0.2 seed=8030 mfs_coarse           rel_rmse=  1.583%  lin=  1.476%  ang=  2.128%  max=   4.87%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 10600
+no of NN interactions: 3680
+[Mob_Nbody] Base velocity compute time: 2.982 ms
+[Mob_Nbody] Post-base path time: 2.174 ms
+fig4 N=120 phi=0.2 seed=8030 M_nbody_gpu          rel_rmse= 17.837%  lin= 18.634%  ang= 11.842%  max=  40.05%  (0.0 s)
+Converged after 34 iterations (max diff = 7.158176e-09)
+Mobility computation time: 375.06 ms
+fig4 N=120 phi=0.2 seed=8031 mfs_coarse           rel_rmse=  1.515%  lin=  1.350%  ang=  1.928%  max=   5.97%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 10706
+no of NN interactions: 3574
+[Mob_Nbody] Base velocity compute time: 2.963 ms
+[Mob_Nbody] Post-base path time: 2.203 ms
+fig4 N=120 phi=0.2 seed=8031 M_nbody_gpu          rel_rmse= 14.259%  lin= 15.604%  ang=  9.084%  max=  35.35%  (0.0 s)
+Converged after 40 iterations (max diff = 8.374327e-09)
+Mobility computation time: 439.54 ms
+fig4 N=120 phi=0.2 seed=8032 mfs_coarse           rel_rmse=  1.647%  lin=  1.446%  ang=  2.339%  max=   3.47%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 10718
+no of NN interactions: 3562
+[Mob_Nbody] Base velocity compute time: 2.991 ms
+[Mob_Nbody] Post-base path time: 2.177 ms
+fig4 N=120 phi=0.2 seed=8032 M_nbody_gpu          rel_rmse= 16.991%  lin= 17.995%  ang= 11.501%  max=  62.76%  (0.0 s)
+Converged after 34 iterations (max diff = 5.775698e-09)
+Mobility computation time: 436.00 ms
+fig4 N=140 phi=0.2 seed=8123 mfs_coarse           rel_rmse=  1.397%  lin=  1.249%  ang=  2.091%  max=   4.95%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 15316
+no of NN interactions: 4144
+[Mob_Nbody] Base velocity compute time: 2.967 ms
+[Mob_Nbody] Post-base path time: 2.223 ms
+fig4 N=140 phi=0.2 seed=8123 M_nbody_gpu          rel_rmse= 15.191%  lin= 15.710%  ang= 11.460%  max=  35.58%  (0.0 s)
+Converged after 33 iterations (max diff = 9.380215e-09)
+Mobility computation time: 422.40 ms
+fig4 N=140 phi=0.2 seed=8124 mfs_coarse           rel_rmse=  2.050%  lin=  2.073%  ang=  1.977%  max=  10.21%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 15368
+no of NN interactions: 4092
+[Mob_Nbody] Base velocity compute time: 2.955 ms
+[Mob_Nbody] Post-base path time: 2.182 ms
+fig4 N=140 phi=0.2 seed=8124 M_nbody_gpu          rel_rmse= 18.965%  lin= 21.108%  ang=  9.838%  max=  47.25%  (0.0 s)
+Converged after 35 iterations (max diff = 8.653797e-09)
+Mobility computation time: 447.62 ms
+fig4 N=140 phi=0.2 seed=8125 mfs_coarse           rel_rmse=  1.731%  lin=  1.704%  ang=  1.823%  max=  10.80%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 15302
+no of NN interactions: 4158
+[Mob_Nbody] Base velocity compute time: 2.944 ms
+[Mob_Nbody] Post-base path time: 2.168 ms
+fig4 N=140 phi=0.2 seed=8125 M_nbody_gpu          rel_rmse= 15.318%  lin= 16.636%  ang=  9.472%  max=  55.99%  (0.0 s)
+Converged after 36 iterations (max diff = 8.059604e-09)
+Mobility computation time: 462.14 ms
+fig4 N=140 phi=0.2 seed=8126 mfs_coarse           rel_rmse=  0.791%  lin=  0.707%  ang=  1.798%  max=   2.46%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 15154
+no of NN interactions: 4306
+[Mob_Nbody] Base velocity compute time: 2.945 ms
+[Mob_Nbody] Post-base path time: 2.169 ms
+fig4 N=140 phi=0.2 seed=8126 M_nbody_gpu          rel_rmse=  9.484%  lin=  9.385%  ang= 11.356%  max=  19.17%  (0.0 s)
+Converged after 35 iterations (max diff = 6.339465e-09)
+Mobility computation time: 448.21 ms
+fig4 N=140 phi=0.2 seed=8127 mfs_coarse           rel_rmse=  1.927%  lin=  1.835%  ang=  2.290%  max=  12.28%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 15244
+no of NN interactions: 4216
+[Mob_Nbody] Base velocity compute time: 2.988 ms
+[Mob_Nbody] Post-base path time: 2.201 ms
+fig4 N=140 phi=0.2 seed=8127 M_nbody_gpu          rel_rmse= 17.281%  lin= 18.408%  ang= 10.925%  max=  76.61%  (0.0 s)
+Converged after 34 iterations (max diff = 6.991659e-09)
+Mobility computation time: 432.70 ms
+fig4 N=140 phi=0.2 seed=8128 mfs_coarse           rel_rmse=  1.148%  lin=  1.021%  ang=  1.823%  max=   4.93%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 15276
+no of NN interactions: 4184
+[Mob_Nbody] Base velocity compute time: 2.969 ms
+[Mob_Nbody] Post-base path time: 2.209 ms
+fig4 N=140 phi=0.2 seed=8128 M_nbody_gpu          rel_rmse= 11.591%  lin= 11.805%  ang=  9.906%  max=  27.08%  (0.0 s)
+Converged after 36 iterations (max diff = 5.561980e-09)
+Mobility computation time: 461.63 ms
+fig4 N=140 phi=0.2 seed=8129 mfs_coarse           rel_rmse=  1.205%  lin=  0.969%  ang=  2.222%  max=   3.35%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 15212
+no of NN interactions: 4248
+[Mob_Nbody] Base velocity compute time: 2.945 ms
+[Mob_Nbody] Post-base path time: 2.165 ms
+fig4 N=140 phi=0.2 seed=8129 M_nbody_gpu          rel_rmse= 13.085%  lin= 13.479%  ang= 10.005%  max=  34.06%  (0.0 s)
+Converged after 36 iterations (max diff = 8.637727e-09)
+Mobility computation time: 459.86 ms
+fig4 N=140 phi=0.2 seed=8130 mfs_coarse           rel_rmse=  1.604%  lin=  1.517%  ang=  1.895%  max=   5.85%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 14974
+no of NN interactions: 4486
+[Mob_Nbody] Base velocity compute time: 2.942 ms
+[Mob_Nbody] Post-base path time: 2.167 ms
+fig4 N=140 phi=0.2 seed=8130 M_nbody_gpu          rel_rmse= 17.214%  lin= 18.588%  ang= 10.654%  max=  52.16%  (0.0 s)
+Converged after 34 iterations (max diff = 8.942327e-09)
+Mobility computation time: 433.69 ms
+fig4 N=140 phi=0.2 seed=8131 mfs_coarse           rel_rmse=  0.984%  lin=  0.860%  ang=  1.818%  max=   2.46%  (0.4 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 15240
+no of NN interactions: 4220
+[Mob_Nbody] Base velocity compute time: 2.981 ms
+[Mob_Nbody] Post-base path time: 2.184 ms
+fig4 N=140 phi=0.2 seed=8131 M_nbody_gpu          rel_rmse= 11.566%  lin= 11.673%  ang= 10.412%  max=  33.21%  (0.0 s)
+Converged after 36 iterations (max diff = 4.878033e-09)
+Mobility computation time: 464.37 ms
+fig4 N=140 phi=0.2 seed=8132 mfs_coarse           rel_rmse=  1.246%  lin=  1.108%  ang=  2.054%  max=   3.23%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 15230
+no of NN interactions: 4230
+[Mob_Nbody] Base velocity compute time: 2.942 ms
+[Mob_Nbody] Post-base path time: 2.172 ms
+fig4 N=140 phi=0.2 seed=8132 M_nbody_gpu          rel_rmse= 13.521%  lin= 13.800%  ang= 10.975%  max=  30.07%  (0.0 s)
+Converged after 39 iterations (max diff = 6.930085e-09)
+Mobility computation time: 571.41 ms
+fig4 N=160 phi=0.2 seed=8223 mfs_coarse           rel_rmse=  1.218%  lin=  1.067%  ang=  2.044%  max=   3.57%  (0.6 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 20384
+no of NN interactions: 5056
+[Mob_Nbody] Base velocity compute time: 2.947 ms
+[Mob_Nbody] Post-base path time: 2.172 ms
+fig4 N=160 phi=0.2 seed=8223 M_nbody_gpu          rel_rmse= 11.571%  lin= 11.768%  ang=  9.897%  max=  31.94%  (0.0 s)
+Converged after 37 iterations (max diff = 9.104847e-09)
+Mobility computation time: 542.35 ms
+fig4 N=160 phi=0.2 seed=8224 mfs_coarse           rel_rmse=  1.452%  lin=  1.312%  ang=  2.167%  max=   4.71%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 20452
+no of NN interactions: 4988
+[Mob_Nbody] Base velocity compute time: 2.965 ms
+[Mob_Nbody] Post-base path time: 2.168 ms
+fig4 N=160 phi=0.2 seed=8224 M_nbody_gpu          rel_rmse= 11.117%  lin= 11.308%  ang=  9.746%  max=  36.36%  (0.0 s)
+Converged after 34 iterations (max diff = 5.660407e-09)
+Mobility computation time: 495.97 ms
+fig4 N=160 phi=0.2 seed=8225 mfs_coarse           rel_rmse=  0.945%  lin=  0.848%  ang=  1.801%  max=   2.79%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 20598
+no of NN interactions: 4842
+[Mob_Nbody] Base velocity compute time: 2.941 ms
+[Mob_Nbody] Post-base path time: 2.182 ms
+fig4 N=160 phi=0.2 seed=8225 M_nbody_gpu          rel_rmse= 10.496%  lin= 10.517%  ang= 10.211%  max=  25.96%  (0.0 s)
+Converged after 36 iterations (max diff = 6.453589e-09)
+Mobility computation time: 526.32 ms
+fig4 N=160 phi=0.2 seed=8226 mfs_coarse           rel_rmse=  1.127%  lin=  0.994%  ang=  1.881%  max=   3.93%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 20598
+no of NN interactions: 4842
+[Mob_Nbody] Base velocity compute time: 2.854 ms
+[Mob_Nbody] Post-base path time: 2.134 ms
+fig4 N=160 phi=0.2 seed=8226 M_nbody_gpu          rel_rmse= 12.567%  lin= 12.825%  ang= 10.273%  max=  35.39%  (0.0 s)
+Converged after 35 iterations (max diff = 5.101064e-09)
+Mobility computation time: 511.78 ms
+fig4 N=160 phi=0.2 seed=8227 mfs_coarse           rel_rmse=  1.490%  lin=  1.307%  ang=  2.161%  max=   3.79%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 20510
+no of NN interactions: 4930
+[Mob_Nbody] Base velocity compute time: 2.964 ms
+[Mob_Nbody] Post-base path time: 2.191 ms
+fig4 N=160 phi=0.2 seed=8227 M_nbody_gpu          rel_rmse= 16.283%  lin= 17.235%  ang= 10.588%  max=  47.17%  (0.0 s)
+Converged after 33 iterations (max diff = 7.673449e-09)
+Mobility computation time: 484.81 ms
+fig4 N=160 phi=0.2 seed=8228 mfs_coarse           rel_rmse=  0.947%  lin=  0.762%  ang=  2.172%  max=   3.25%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 20658
+no of NN interactions: 4782
+[Mob_Nbody] Base velocity compute time: 2.940 ms
+[Mob_Nbody] Post-base path time: 2.212 ms
+fig4 N=160 phi=0.2 seed=8228 M_nbody_gpu          rel_rmse=  7.213%  lin=  7.157%  ang=  7.866%  max=  20.86%  (0.0 s)
+Converged after 36 iterations (max diff = 9.815896e-09)
+Mobility computation time: 528.93 ms
+fig4 N=160 phi=0.2 seed=8229 mfs_coarse           rel_rmse=  1.498%  lin=  1.367%  ang=  2.265%  max=   7.93%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 20554
+no of NN interactions: 4886
+[Mob_Nbody] Base velocity compute time: 2.975 ms
+[Mob_Nbody] Post-base path time: 2.182 ms
+fig4 N=160 phi=0.2 seed=8229 M_nbody_gpu          rel_rmse= 15.332%  lin= 15.741%  ang= 11.719%  max=  42.97%  (0.0 s)
+Converged after 35 iterations (max diff = 8.774865e-09)
+Mobility computation time: 510.86 ms
+fig4 N=160 phi=0.2 seed=8230 mfs_coarse           rel_rmse=  1.368%  lin=  1.264%  ang=  1.925%  max=   4.11%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 20484
+no of NN interactions: 4956
+[Mob_Nbody] Base velocity compute time: 2.970 ms
+[Mob_Nbody] Post-base path time: 2.184 ms
+fig4 N=160 phi=0.2 seed=8230 M_nbody_gpu          rel_rmse= 16.990%  lin= 17.573%  ang= 12.364%  max=  33.34%  (0.0 s)
+Converged after 36 iterations (max diff = 5.611920e-09)
+Mobility computation time: 527.44 ms
+fig4 N=160 phi=0.2 seed=8231 mfs_coarse           rel_rmse=  1.495%  lin=  1.353%  ang=  2.116%  max=   5.69%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 20688
+no of NN interactions: 4752
+[Mob_Nbody] Base velocity compute time: 2.945 ms
+[Mob_Nbody] Post-base path time: 2.168 ms
+fig4 N=160 phi=0.2 seed=8231 M_nbody_gpu          rel_rmse= 14.994%  lin= 15.559%  ang= 11.349%  max=  54.69%  (0.0 s)
+Converged after 35 iterations (max diff = 6.907402e-09)
+Mobility computation time: 515.77 ms
+fig4 N=160 phi=0.2 seed=8232 mfs_coarse           rel_rmse=  1.322%  lin=  1.253%  ang=  1.824%  max=   5.38%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 20620
+no of NN interactions: 4820
+[Mob_Nbody] Base velocity compute time: 3.173 ms
+[Mob_Nbody] Post-base path time: 2.264 ms
+fig4 N=160 phi=0.2 seed=8232 M_nbody_gpu          rel_rmse= 12.654%  lin= 12.787%  ang= 11.386%  max=  30.71%  (0.0 s)
+Converged after 42 iterations (max diff = 6.740135e-09)
+Mobility computation time: 691.40 ms
+fig4 N=180 phi=0.2 seed=8323 mfs_coarse           rel_rmse=  0.738%  lin=  0.656%  ang=  1.946%  max=   1.76%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 26632
+no of NN interactions: 5588
+[Mob_Nbody] Base velocity compute time: 2.963 ms
+[Mob_Nbody] Post-base path time: 2.172 ms
+fig4 N=180 phi=0.2 seed=8323 M_nbody_gpu          rel_rmse= 11.392%  lin= 11.284%  ang= 14.123%  max=  23.65%  (0.0 s)
+Converged after 36 iterations (max diff = 9.202250e-09)
+Mobility computation time: 592.35 ms
+fig4 N=180 phi=0.2 seed=8324 mfs_coarse           rel_rmse=  1.228%  lin=  1.112%  ang=  1.804%  max=   6.65%  (0.6 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 26692
+no of NN interactions: 5528
+[Mob_Nbody] Base velocity compute time: 2.944 ms
+[Mob_Nbody] Post-base path time: 2.190 ms
+fig4 N=180 phi=0.2 seed=8324 M_nbody_gpu          rel_rmse= 12.351%  lin= 12.624%  ang= 10.427%  max=  79.18%  (0.0 s)
+Converged after 38 iterations (max diff = 7.014401e-09)
+Mobility computation time: 623.11 ms
+fig4 N=180 phi=0.2 seed=8325 mfs_coarse           rel_rmse=  1.806%  lin=  1.760%  ang=  1.973%  max=   6.07%  (0.6 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 26490
+no of NN interactions: 5730
+[Mob_Nbody] Base velocity compute time: 2.936 ms
+[Mob_Nbody] Post-base path time: 2.195 ms
+fig4 N=180 phi=0.2 seed=8325 M_nbody_gpu          rel_rmse= 15.837%  lin= 16.969%  ang= 10.278%  max=  43.07%  (0.0 s)
+Converged after 33 iterations (max diff = 8.163289e-09)
+Mobility computation time: 542.91 ms
+fig4 N=180 phi=0.2 seed=8326 mfs_coarse           rel_rmse=  1.454%  lin=  1.362%  ang=  1.787%  max=   6.79%  (0.5 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 26584
+no of NN interactions: 5636
+[Mob_Nbody] Base velocity compute time: 2.927 ms
+[Mob_Nbody] Post-base path time: 2.219 ms
+fig4 N=180 phi=0.2 seed=8326 M_nbody_gpu          rel_rmse= 16.917%  lin= 18.243%  ang=  9.536%  max=  44.66%  (0.0 s)
+Converged after 38 iterations (max diff = 5.616653e-09)
+Mobility computation time: 621.12 ms
+fig4 N=180 phi=0.2 seed=8327 mfs_coarse           rel_rmse=  1.395%  lin=  1.268%  ang=  2.067%  max=   3.85%  (0.6 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 26640
+no of NN interactions: 5580
+[Mob_Nbody] Base velocity compute time: 2.934 ms
+[Mob_Nbody] Post-base path time: 2.189 ms
+fig4 N=180 phi=0.2 seed=8327 M_nbody_gpu          rel_rmse= 18.271%  lin= 18.930%  ang= 12.868%  max=  37.71%  (0.0 s)
+Converged after 37 iterations (max diff = 5.426160e-09)
+Mobility computation time: 610.58 ms
+fig4 N=180 phi=0.2 seed=8328 mfs_coarse           rel_rmse=  1.276%  lin=  1.106%  ang=  2.151%  max=   5.84%  (0.6 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 26536
+no of NN interactions: 5684
+[Mob_Nbody] Base velocity compute time: 2.962 ms
+[Mob_Nbody] Post-base path time: 2.157 ms
+fig4 N=180 phi=0.2 seed=8328 M_nbody_gpu          rel_rmse= 13.622%  lin= 13.917%  ang= 11.210%  max=  43.33%  (0.0 s)
+Converged after 38 iterations (max diff = 6.344098e-09)
+Mobility computation time: 623.34 ms
+fig4 N=180 phi=0.2 seed=8329 mfs_coarse           rel_rmse=  1.971%  lin=  2.015%  ang=  1.855%  max=   9.82%  (0.6 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 26788
+no of NN interactions: 5432
+[Mob_Nbody] Base velocity compute time: 2.938 ms
+[Mob_Nbody] Post-base path time: 2.190 ms
+fig4 N=180 phi=0.2 seed=8329 M_nbody_gpu          rel_rmse= 19.877%  lin= 22.743%  ang=  9.150%  max=  64.11%  (0.0 s)
+Converged after 36 iterations (max diff = 5.324145e-09)
+Mobility computation time: 592.07 ms
+fig4 N=180 phi=0.2 seed=8330 mfs_coarse           rel_rmse=  1.385%  lin=  1.263%  ang=  2.090%  max=   4.10%  (0.6 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 26654
+no of NN interactions: 5566
+[Mob_Nbody] Base velocity compute time: 2.956 ms
+[Mob_Nbody] Post-base path time: 2.187 ms
+fig4 N=180 phi=0.2 seed=8330 M_nbody_gpu          rel_rmse= 13.434%  lin= 13.786%  ang= 10.348%  max=  35.56%  (0.0 s)
+Converged after 38 iterations (max diff = 7.814081e-09)
+Mobility computation time: 623.45 ms
+fig4 N=180 phi=0.2 seed=8331 mfs_coarse           rel_rmse=  1.674%  lin=  1.587%  ang=  1.920%  max=   7.71%  (0.6 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 26460
+no of NN interactions: 5760
+[Mob_Nbody] Base velocity compute time: 2.954 ms
+[Mob_Nbody] Post-base path time: 2.163 ms
+fig4 N=180 phi=0.2 seed=8331 M_nbody_gpu          rel_rmse= 17.106%  lin= 18.687%  ang= 10.818%  max=  44.86%  (0.0 s)
+Converged after 37 iterations (max diff = 6.388525e-09)
+Mobility computation time: 605.03 ms
+fig4 N=180 phi=0.2 seed=8332 mfs_coarse           rel_rmse=  1.762%  lin=  1.621%  ang=  2.178%  max=   6.78%  (0.6 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 26600
+no of NN interactions: 5620
+[Mob_Nbody] Base velocity compute time: 2.921 ms
+[Mob_Nbody] Post-base path time: 2.193 ms
+fig4 N=180 phi=0.2 seed=8332 M_nbody_gpu          rel_rmse= 17.293%  lin= 18.862%  ang= 10.213%  max=  41.83%  (0.0 s)
+Converged after 36 iterations (max diff = 5.119997e-09)
+Mobility computation time: 657.14 ms
+fig4 N=200 phi=0.2 seed=8423 mfs_coarse           rel_rmse=  1.877%  lin=  1.789%  ang=  2.206%  max=   8.06%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33258
+no of NN interactions: 6542
+[Mob_Nbody] Base velocity compute time: 2.891 ms
+[Mob_Nbody] Post-base path time: 2.145 ms
+fig4 N=200 phi=0.2 seed=8423 M_nbody_gpu          rel_rmse= 17.278%  lin= 18.643%  ang=  9.808%  max=  56.80%  (0.0 s)
+Converged after 36 iterations (max diff = 8.256657e-09)
+Mobility computation time: 659.64 ms
+fig4 N=200 phi=0.2 seed=8424 mfs_coarse           rel_rmse=  1.001%  lin=  0.901%  ang=  1.902%  max=   2.92%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33298
+no of NN interactions: 6502
+[Mob_Nbody] Base velocity compute time: 2.915 ms
+[Mob_Nbody] Post-base path time: 2.134 ms
+fig4 N=200 phi=0.2 seed=8424 M_nbody_gpu          rel_rmse= 11.799%  lin= 11.792%  ang= 11.894%  max=  28.73%  (0.0 s)
+Converged after 37 iterations (max diff = 5.298599e-09)
+Mobility computation time: 674.82 ms
+fig4 N=200 phi=0.2 seed=8425 mfs_coarse           rel_rmse=  1.254%  lin=  1.110%  ang=  2.150%  max=   3.16%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33392
+no of NN interactions: 6408
+[Mob_Nbody] Base velocity compute time: 2.935 ms
+[Mob_Nbody] Post-base path time: 2.152 ms
+fig4 N=200 phi=0.2 seed=8425 M_nbody_gpu          rel_rmse= 12.755%  lin= 12.923%  ang= 11.142%  max=  42.31%  (0.0 s)
+Converged after 36 iterations (max diff = 6.722656e-09)
+Mobility computation time: 660.09 ms
+fig4 N=200 phi=0.2 seed=8426 mfs_coarse           rel_rmse=  1.396%  lin=  1.260%  ang=  1.893%  max=   5.23%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33468
+no of NN interactions: 6332
+[Mob_Nbody] Base velocity compute time: 2.924 ms
+[Mob_Nbody] Post-base path time: 2.165 ms
+fig4 N=200 phi=0.2 seed=8426 M_nbody_gpu          rel_rmse= 14.494%  lin= 15.272%  ang= 10.232%  max=  73.59%  (0.0 s)
+Converged after 35 iterations (max diff = 8.221354e-09)
+Mobility computation time: 641.14 ms
+fig4 N=200 phi=0.2 seed=8427 mfs_coarse           rel_rmse=  1.154%  lin=  1.005%  ang=  2.067%  max=   2.90%  (0.6 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33586
+no of NN interactions: 6214
+[Mob_Nbody] Base velocity compute time: 2.917 ms
+[Mob_Nbody] Post-base path time: 2.159 ms
+fig4 N=200 phi=0.2 seed=8427 M_nbody_gpu          rel_rmse= 13.606%  lin= 13.870%  ang= 10.889%  max=  35.60%  (0.0 s)
+Converged after 37 iterations (max diff = 7.388863e-09)
+Mobility computation time: 680.75 ms
+fig4 N=200 phi=0.2 seed=8428 mfs_coarse           rel_rmse=  1.093%  lin=  0.979%  ang=  1.793%  max=   3.48%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33336
+no of NN interactions: 6464
+[Mob_Nbody] Base velocity compute time: 2.924 ms
+[Mob_Nbody] Post-base path time: 2.149 ms
+fig4 N=200 phi=0.2 seed=8428 M_nbody_gpu          rel_rmse= 11.366%  lin= 11.496%  ang= 10.184%  max=  35.07%  (0.0 s)
+Converged after 38 iterations (max diff = 4.725238e-09)
+Mobility computation time: 694.26 ms
+fig4 N=200 phi=0.2 seed=8429 mfs_coarse           rel_rmse=  2.224%  lin=  2.236%  ang=  2.191%  max=   8.02%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33438
+no of NN interactions: 6362
+[Mob_Nbody] Base velocity compute time: 2.927 ms
+[Mob_Nbody] Post-base path time: 2.134 ms
+fig4 N=200 phi=0.2 seed=8429 M_nbody_gpu          rel_rmse= 20.243%  lin= 22.784%  ang= 10.832%  max=  73.56%  (0.0 s)
+Converged after 37 iterations (max diff = 6.391308e-09)
+Mobility computation time: 681.32 ms
+fig4 N=200 phi=0.2 seed=8430 mfs_coarse           rel_rmse=  0.898%  lin=  0.758%  ang=  2.287%  max=   2.84%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33438
+no of NN interactions: 6362
+[Mob_Nbody] Base velocity compute time: 2.996 ms
+[Mob_Nbody] Post-base path time: 2.214 ms
+fig4 N=200 phi=0.2 seed=8430 M_nbody_gpu          rel_rmse= 10.031%  lin=  9.977%  ang= 11.011%  max=  21.81%  (0.0 s)
+Converged after 37 iterations (max diff = 6.452975e-09)
+Mobility computation time: 676.07 ms
+fig4 N=200 phi=0.2 seed=8431 mfs_coarse           rel_rmse=  1.059%  lin=  0.878%  ang=  2.146%  max=   3.27%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33580
+no of NN interactions: 6220
+[Mob_Nbody] Base velocity compute time: 2.898 ms
+[Mob_Nbody] Post-base path time: 2.165 ms
+fig4 N=200 phi=0.2 seed=8431 M_nbody_gpu          rel_rmse= 11.915%  lin= 12.035%  ang= 10.649%  max=  33.96%  (0.0 s)
+Converged after 36 iterations (max diff = 5.254147e-09)
+Mobility computation time: 659.34 ms
+fig4 N=200 phi=0.2 seed=8432 mfs_coarse           rel_rmse=  1.863%  lin=  1.795%  ang=  2.032%  max=   6.15%  (0.7 s)
+Computing neighbor pairs for n-body correction...
+no of RPY interactions: 33282
+no of NN interactions: 6518
+[Mob_Nbody] Base velocity compute time: 2.933 ms
+[Mob_Nbody] Post-base path time: 2.141 ms
+fig4 N=200 phi=0.2 seed=8432 M_nbody_gpu          rel_rmse= 21.265%  lin= 24.052%  ang= 10.936%  max=  70.99%  (0.0 s)
+task 7 finished Sun Aug 30 02:14:22 PM EDT 2026
