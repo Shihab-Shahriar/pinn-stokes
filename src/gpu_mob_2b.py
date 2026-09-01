@@ -10,6 +10,7 @@ so diagnostics (SPD checks, matrix assembly, etc.) are omitted.
 
 from __future__ import annotations
 
+import copy
 import math
 import os
 import time
@@ -24,7 +25,63 @@ from src.hashgrid_neighbors import HashGridNeighborSearch
 
 
 
+import warp as wp
+
 TensorLike = Union[torch.Tensor, float]
+
+
+@wp.func
+def _skew2b(u: wp.vec3) -> wp.mat33:
+    """model_archs.L3: E(u)_ab = eps_abc u_c."""
+    return wp.mat33(0.0, u[2], -u[1],
+                    -u[2], 0.0, u[0],
+                    u[1], -u[0], 0.0)
+
+
+@wp.kernel
+def two_body_pair_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    t_idx: wp.array(dtype=wp.int32),
+    s_idx: wp.array(dtype=wp.int32),
+    coef: wp.array2d(dtype=wp.float32),   # (P, 10): FtModel(5) | FsModel(5)
+    force: wp.array2d(dtype=wp.float32),  # (N, 6)
+    inv_mu: float,
+    vel: wp.array2d(dtype=wp.float32),    # (N, 6), accumulated atomically
+):
+    """TwoBodyCombined.predict_velocity in registers: per ordered pair (t, s),
+    v_t += (K_s F_t + K_t F_s) / mu with K_* assembled from the 5 + 5 predicted
+    scalars on the L1/L2/L3 bases of d = (x_t - x_s)/r. K_s is symmetric (its
+    TR block is RT^T), K_t is not (TR = RT) -- exactly make_mobility(is_Ms).
+    Replaces the torch path's two (P, 6, 6) materializations + bmms."""
+    tid = wp.tid()
+    t = t_idx[tid]
+    s = s_idx[tid]
+    rel = positions[s] - positions[t]
+    r = wp.max(wp.length(rel), 1.0e-8)
+    d = -rel / r
+    I3 = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+    dd = wp.outer(d, d)
+    pp = I3 - dd
+    E = _skew2b(d)
+
+    TT_t = coef[tid, 0] * dd + coef[tid, 1] * pp
+    RT_t = coef[tid, 2] * E
+    RR_t = coef[tid, 3] * dd + coef[tid, 4] * pp
+    TT_s = coef[tid, 5] * dd + coef[tid, 6] * pp
+    RT_s = coef[tid, 7] * E
+    RR_s = coef[tid, 8] * dd + coef[tid, 9] * pp
+
+    Ft_f = wp.vec3(force[t, 0], force[t, 1], force[t, 2])
+    Ft_t = wp.vec3(force[t, 3], force[t, 4], force[t, 5])
+    Fs_f = wp.vec3(force[s, 0], force[s, 1], force[s, 2])
+    Fs_t = wp.vec3(force[s, 3], force[s, 4], force[s, 5])
+
+    # K_s @ F_t: rows [TT_s, RT_s^T; RT_s, RR_s]; K_t @ F_s: [TT_t, RT_t; RT_t, RR_t]
+    u = TT_s * Ft_f + wp.transpose(RT_s) * Ft_t + TT_t * Fs_f + RT_t * Fs_t
+    w = RT_s * Ft_f + RR_s * Ft_t + RT_t * Fs_f + RR_t * Fs_t
+    for j in range(3):
+        wp.atomic_add(vel, t, j, u[j] * inv_mu)
+        wp.atomic_add(vel, t, 3 + j, w[j] * inv_mu)
 
 # Pairs per chunk in the two-body NN path. The whole edge list at once is what set
 # peak VRAM at N=1M (10.34 GiB of a 15.4 GiB total); chunking here is what makes
@@ -54,6 +111,92 @@ def _ensure_device(device: Union[str, torch.device, None]) -> torch.device:
 
 def _as_float_tensor(data, device: torch.device) -> torch.Tensor:
     return torch.as_tensor(data, dtype=torch.float32, device=device)
+
+
+@wp.kernel
+def two_body_pair_lut_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    t_idx: wp.array(dtype=wp.int32),
+    s_idx: wp.array(dtype=wp.int32),
+    lut: wp.array2d(dtype=wp.float32),    # (n+1, 10) coefficients over distance
+    lut_inv_dd: float,                    # n / d_max  (table spans [0, d_max])
+    lut_n: int,                           # last interval index = n - 1
+    force: wp.array2d(dtype=wp.float32),  # (N, 6)
+    inv_mu: float,
+    vel: wp.array2d(dtype=wp.float32),    # (N, 6), accumulated atomically
+):
+    """two_body_pair_kernel with the TwoBodyCombined heads evaluated in-kernel.
+
+    All four head inputs are functions of the pair distance alone, so the two
+    MLPs are a 1-D map d -> 10 coefficients; the ctor tabulates it densely
+    (init-time self-check pins the interpolation against the exact heads) and
+    this kernel linearly interpolates -- no GEMMs, no activation traffic, and
+    the whole 2b pair pass becomes this single launch."""
+    tid = wp.tid()
+    t = t_idx[tid]
+    s = s_idx[tid]
+    rel = positions[s] - positions[t]
+    r = wp.max(wp.length(rel), 1.0e-8)
+    d = -rel / r
+
+    tt = wp.clamp(r * lut_inv_dd, 0.0, float(lut_n))
+    i0 = wp.min(int(wp.floor(tt)), lut_n - 1)
+    f = tt - float(i0)
+    i1 = i0 + 1
+
+    I3 = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+    dd = wp.outer(d, d)
+    pp = I3 - dd
+    E = _skew2b(d)
+
+    c0 = lut[i0, 0] + f * (lut[i1, 0] - lut[i0, 0])
+    c1 = lut[i0, 1] + f * (lut[i1, 1] - lut[i0, 1])
+    c2 = lut[i0, 2] + f * (lut[i1, 2] - lut[i0, 2])
+    c3 = lut[i0, 3] + f * (lut[i1, 3] - lut[i0, 3])
+    c4 = lut[i0, 4] + f * (lut[i1, 4] - lut[i0, 4])
+    c5 = lut[i0, 5] + f * (lut[i1, 5] - lut[i0, 5])
+    c6 = lut[i0, 6] + f * (lut[i1, 6] - lut[i0, 6])
+    c7 = lut[i0, 7] + f * (lut[i1, 7] - lut[i0, 7])
+    c8 = lut[i0, 8] + f * (lut[i1, 8] - lut[i0, 8])
+    c9 = lut[i0, 9] + f * (lut[i1, 9] - lut[i0, 9])
+
+    TT_t = c0 * dd + c1 * pp
+    RT_t = c2 * E
+    RR_t = c3 * dd + c4 * pp
+    TT_s = c5 * dd + c6 * pp
+    RT_s = c7 * E
+    RR_s = c8 * dd + c9 * pp
+
+    Ft_f = wp.vec3(force[t, 0], force[t, 1], force[t, 2])
+    Ft_t = wp.vec3(force[t, 3], force[t, 4], force[t, 5])
+    Fs_f = wp.vec3(force[s, 0], force[s, 1], force[s, 2])
+    Fs_t = wp.vec3(force[s, 3], force[s, 4], force[s, 5])
+
+    u = TT_s * Ft_f + wp.transpose(RT_s) * Ft_t + TT_t * Fs_f + RT_t * Fs_t
+    w = RT_s * Ft_f + RR_s * Ft_t + RT_t * Fs_f + RR_t * Fs_t
+    for j in range(3):
+        wp.atomic_add(vel, t, j, u[j] * inv_mu)
+        wp.atomic_add(vel, t, 3 + j, w[j] * inv_mu)
+
+
+class TwoBodyCoeffKernel(torch.nn.Module):
+    """Pair features + both TwoBodyCombined heads -> (P, 10) coefficients.
+    The geometry-to-velocity part runs in two_body_pair_kernel (warp)."""
+
+    def __init__(self, model: torch.nn.Module, median: torch.Tensor,
+                 contact_distance: torch.Tensor) -> None:
+        super().__init__()
+        self.model = model
+        self.register_buffer("median", median.detach().clone())
+        self.register_buffer("contact_distance", contact_distance.detach().clone())
+
+    def forward(self, positions, t_c, s_c):
+        rel = positions[s_c] - positions[t_c]
+        dist = torch.linalg.norm(rel, dim=-1, keepdim=True).clamp_min(1e-8)
+        r_shift = dist - self.median
+        r_sq = r_shift * r_shift
+        X4 = torch.cat([dist, r_sq, r_sq * r_sq, dist - self.contact_distance], -1)
+        return torch.cat([self.model.FtModel(X4), self.model.FsModel(X4)], -1)
 
 
 class PairVelKernel(torch.nn.Module):
@@ -119,6 +262,7 @@ class NNMobTorch:
         switch_dist: float = 6.0,
         device: Union[str, torch.device, None] = None,
         two_body_chunk_size: int = DEFAULT_TWO_BODY_CHUNK,
+        two_body_backend: str = "lut",
     ) -> None:
         if near_field not in ["nn", "rpy"]:
             raise ValueError(f"Invalid near_field: {near_field}")
@@ -158,6 +302,22 @@ class NNMobTorch:
         self._pair_kernel_compiled = torch.compile(
             self._pair_kernel, mode="max-autotune", backend="inductor", dynamic=True
         )
+        # "lut" (default): the heads collapse to a 1-D function of distance,
+        # tabulated at init and interpolated inside the warp kernel;
+        # "fused": coefficients in torch, K assembly + force products in warp;
+        # "torch": the original all-torch path.
+        assert two_body_backend in ("lut", "fused", "torch"), two_body_backend
+        self.two_body_backend = two_body_backend
+        # torch.compile returns a wrapper around the same module; keep the plain
+        # module so the coeff kernel traces the raw heads without nesting.
+        self._coeff_kernel = TwoBodyCoeffKernel(
+            model._orig_mod if hasattr(model, "_orig_mod") else model,
+            self.median, self.contact_distance).to(self.device)
+        self._coeff_kernel_compiled = torch.compile(
+            self._coeff_kernel, mode="max-autotune", backend="inductor", dynamic=True
+        )
+        if self.two_body_backend == "lut":
+            self._build_two_body_lut()
         self.self_nn_path = self_nn_path  # kept for API compatibility; not used.
 
         # Optionally compile the RPY velocity computation. We wrap the existing
@@ -334,6 +494,13 @@ class NNMobTorch:
         num_pairs = int(t_idx.shape[0])
         chunk = self.two_body_chunk_size
 
+        if self.two_body_backend == "lut":
+            return self._two_body_velocity_lut(
+                positions, t_idx, s_idx, force, viscosity)
+        if self.two_body_backend == "fused":
+            return self._two_body_velocity_fused(
+                positions, t_idx, s_idx, force, viscosity)
+
         if chunk <= 0 or num_pairs <= chunk:
             rel = positions[s_idx] - positions[t_idx]
             return self._pair_kernel_compiled(rel, t_idx, s_idx, force, viscosity)
@@ -350,6 +517,121 @@ class NNMobTorch:
             # returns a full (N,6) carrying only its own targets.
             velocities += self._pair_kernel_compiled(
                 rel_c, t_c, s_c, force, viscosity)
+        return velocities
+
+    # Table resolution: 16384 intervals over [0, 8.01] (interval 4.9e-4). The
+    # heads are tanh-smooth, so linear interpolation lands ~1e-7 from the exact
+    # MLPs; the init self-check enforces 1e-4 (relative to each coefficient's
+    # scale) at interval midpoints, the worst case for linear interpolation.
+    TWO_BODY_LUT_N = 16384
+    TWO_BODY_LUT_DMAX = 8.01
+
+    @torch.no_grad()
+    def _two_body_lut_coeffs(self, heads64, dist: torch.Tensor) -> torch.Tensor:
+        """float64 head evaluation (P, 10) at distances (P,).
+
+        Deliberately double precision through a copied model: the global matmul
+        precision is \'high\' (TF32) in the benchmarks, which would bake ~1e-3
+        of GEMM noise into both the table and its \'exact\' reference -- the
+        self-check tripped on exactly that. Built this way the table is *more*
+        accurate than the TF32 GEMM path it replaces."""
+        d = dist.unsqueeze(1).double()
+        r_shift = d - self.median.double()
+        r_sq = r_shift * r_shift
+        X4 = torch.cat([d, r_sq, r_sq * r_sq, d - self.contact_distance.double()], 1)
+        return torch.cat([heads64.FtModel(X4), heads64.FsModel(X4)], 1)
+
+    @torch.no_grad()
+    def _build_two_body_lut(self) -> None:
+        n, dmax = self.TWO_BODY_LUT_N, self.TWO_BODY_LUT_DMAX
+        heads64 = copy.deepcopy(self._coeff_kernel.model).double()
+        grid = torch.linspace(0.0, dmax, n + 1, device=self.device)
+        tab64 = self._two_body_lut_coeffs(heads64, grid)
+        self._two_body_lut = tab64.float().contiguous()
+        self._two_body_lut_inv_dd = n / dmax
+        # Self-check at interval midpoints (worst case for linear interpolation).
+        mids = 0.5 * (grid[:-1] + grid[1:])
+        exact = self._two_body_lut_coeffs(heads64, mids)
+        interp = 0.5 * (tab64[:-1] + tab64[1:])
+        scale = exact.abs().amax(0).clamp_min(1e-6)
+        err = ((interp - exact).abs() / scale).amax().item()
+        print(f"[NNMobTorch] 2b LUT self-check: max rel deviation {err:.3e} "
+              f"({n} intervals over [0, {dmax}])")
+        assert err < 1e-4, f"2b coefficient table too coarse: {err:.3e}"
+
+    @torch.no_grad()
+    def _two_body_velocity_lut(
+        self,
+        positions: torch.Tensor,
+        t_idx: torch.Tensor,
+        s_idx: torch.Tensor,
+        force: torch.Tensor,
+        viscosity: TensorLike,
+    ) -> torch.Tensor:
+        """Whole 2b pair pass as one warp launch (no torch work per pair)."""
+        velocities = torch.zeros_like(force)
+        num_pairs = int(t_idx.shape[0])
+        if num_pairs == 0:
+            return velocities
+        mu = torch.as_tensor(viscosity, dtype=torch.float32, device=self.device)
+        if mu.ndim >= 1 and mu.numel() > 1:
+            mu = mu[0]
+        inv_mu = float(1.0 / mu)
+        stream = wp.stream_from_torch(torch.cuda.current_stream(self.device))
+        with wp.ScopedStream(stream):
+            wp.launch(
+                two_body_pair_lut_kernel, dim=num_pairs,
+                inputs=(wp.from_torch(positions.contiguous(), dtype=wp.vec3),
+                        wp.from_torch(t_idx.contiguous(), dtype=wp.int32),
+                        wp.from_torch(s_idx.contiguous(), dtype=wp.int32),
+                        wp.from_torch(self._two_body_lut),
+                        float(self._two_body_lut_inv_dd),
+                        int(self.TWO_BODY_LUT_N),
+                        wp.from_torch(force.contiguous()), inv_mu,
+                        wp.from_torch(velocities)),
+                stream=stream)
+        return velocities
+
+    @torch.no_grad()
+    def _two_body_velocity_fused(
+        self,
+        positions: torch.Tensor,
+        t_idx: torch.Tensor,
+        s_idx: torch.Tensor,
+        force: torch.Tensor,
+        viscosity: TensorLike,
+    ) -> torch.Tensor:
+        """Fused two-body path: chunked compiled MLP -> warp assembly kernel
+        accumulating atomically into the returned (N, 6) buffer."""
+        velocities = torch.zeros_like(force)
+        num_pairs = int(t_idx.shape[0])
+        if num_pairs == 0:
+            return velocities
+        mu = torch.as_tensor(viscosity, dtype=torch.float32, device=self.device)
+        if mu.ndim >= 1 and mu.numel() > 1:
+            mu = mu[0]
+        inv_mu = float(1.0 / mu)
+        force_c = force.contiguous()
+        pos_c = positions.contiguous()
+        chunk = self.two_body_chunk_size if self.two_body_chunk_size > 0 else num_pairs
+        stream = wp.stream_from_torch(torch.cuda.current_stream(self.device))
+        with wp.ScopedStream(stream):
+            p_w = wp.from_torch(pos_c, dtype=wp.vec3)
+            f_w = wp.from_torch(force_c)
+            v_w = wp.from_torch(velocities)
+            for start in range(0, num_pairs, chunk):
+                end = min(start + chunk, num_pairs)
+                t_c, s_c = t_idx[start:end], s_idx[start:end]
+                torch._dynamo.mark_dynamic(t_c, 0)
+                torch._dynamo.mark_dynamic(s_c, 0)
+                coef = self._coeff_kernel_compiled(pos_c, t_c, s_c).contiguous()
+                wp.launch(
+                    two_body_pair_kernel, dim=end - start,
+                    inputs=(p_w,
+                            wp.from_torch(t_c.contiguous(), dtype=wp.int32),
+                            wp.from_torch(s_c.contiguous(), dtype=wp.int32),
+                            wp.from_torch(coef), f_w, inv_mu, v_w),
+                    stream=stream)
         return velocities
 
     @torch.no_grad()

@@ -109,7 +109,14 @@ def main():
         shape="sphere", self_nn_path=SELF_PT, two_nn_path=TWO_WT,
         moments_nn_path=PAIR_WT, diag_nn_path=DIAG_WT,
         near_field_2b="nn", far_field_2b="rpy", switch_dist=8.0,
-        moments_backend="warp")
+        moments_backend="warp", moments_mlp_fp16=False)
+    # Production configuration: fp16 MLP. Checked against the CPU reference with
+    # its own budget (half-precision coefficients, ~1e-3 of the correction).
+    mob_gpu_fp16 = Mob_Nbody_Moments_Torch(
+        shape="sphere", self_nn_path=SELF_PT, two_nn_path=TWO_WT,
+        moments_nn_path=PAIR_WT, diag_nn_path=DIAG_WT,
+        near_field_2b="nn", far_field_2b="rpy", switch_dist=8.0,
+        moments_backend="warp", moments_mlp_fp16=True)
 
     mob_cpu = Mob_Op_Nbody_Moments(
         shape="sphere", self_nn_path=SELF_PT, two_nn_path=TWO_PT,
@@ -141,6 +148,10 @@ def main():
 
         v_pair_warp = mob_gpu_warp.get_moments_velocity(pos_t, force_t, t_idx, s_idx).cpu().numpy()
         worst = max(worst, report("pair moments (warp fused)", v_pair_warp, v_pair_cpu))
+
+        v_pair_h = mob_gpu_fp16.get_moments_velocity(pos_t, force_t, t_idx, s_idx).cpu().numpy()
+        fp16_rel = report("pair moments (fp16 MLP)", v_pair_h, v_pair_cpu)
+        assert fp16_rel < 1e-2, "fp16 MLP drifted: %.3e" % fp16_rel
 
         v_diag_gpu = mob_gpu.get_diag_velocity(pos_t, force_t, t_idx, s_idx, visc).cpu().numpy()
         v_diag_cpu = mob_cpu.get_diag_velocity(pos, force, visc)

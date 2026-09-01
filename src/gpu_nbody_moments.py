@@ -49,6 +49,8 @@ Semantics matched to the CPU operator:
 """
 from __future__ import annotations
 
+import copy
+import os
 import time
 from typing import Optional, Tuple
 
@@ -353,7 +355,7 @@ class MidpointNeighborSearch:
     scans ~40% less volume than h = r) and then queried per pair chunk. Edge buffers
     are grow-only to avoid per-chunk allocation."""
 
-    def __init__(self, device: torch.device, grid_dim: int = 128) -> None:
+    def __init__(self, device: torch.device, grid_dim: int = 160) -> None:
         self.device = torch.device(device)
         self.grid = wp.HashGrid(grid_dim, grid_dim, grid_dim, device=str(self.device))
         self._edge_pair: Optional[torch.Tensor] = None
@@ -368,12 +370,16 @@ class MidpointNeighborSearch:
         self._edge_nbr = torch.empty(new_size, dtype=torch.int32, device=self.device)
         self._capacity = new_size
 
-    def build(self, positions: torch.Tensor, radius: float) -> None:
+    def build(self, positions: torch.Tensor, radius: float,
+              cell_scale: float = 0.5) -> None:
+        """cell_scale sets the grid cell edge as a fraction of the query radius:
+        a query of radius r over cells h scans a ((2r+h)/h)^3-cell box, so smaller
+        cells trade wasted candidate volume against per-cell probe overhead."""
         assert positions.is_cuda and positions.dtype == torch.float32
         stream = wp.stream_from_torch(torch.cuda.current_stream(positions.device))
         with wp.ScopedStream(stream):
             p = wp.from_torch(positions.contiguous(), dtype=wp.vec3)
-            self.grid.build(points=p, radius=0.5 * float(radius))
+            self.grid.build(points=p, radius=float(cell_scale) * float(radius))
 
     def query(
         self,
@@ -541,13 +547,22 @@ class _CoeffKernel(torch.nn.Module):
     """Standardisation + MLP + per-basis rescaling (MultiBodyMoments.coefficients
     minus the invariant construction, which the warp kernel already did)."""
 
-    def __init__(self, model: torch.nn.Module) -> None:
+    def __init__(self, model: torch.nn.Module, fp16: bool = False) -> None:
         super().__init__()
         self.model = model
+        # fp16 GEMMs (tensor cores): the MLP input is standardised O(1) and the
+        # activations are tanh-bounded, so half evaluation perturbs the predicted
+        # coefficients by ~1e-3 relative -- two orders below the model's own
+        # residual. Standardisation and the basis_scale division stay fp32.
+        self.fp16 = bool(fp16)
+        if self.fp16:
+            self.net_h = copy.deepcopy(model.net).half()
 
     def forward(self, X76: torch.Tensor) -> torch.Tensor:
         m = self.model
         x = (X76 - m.inv_mean) / m.inv_std
+        if self.fp16:
+            return self.net_h(x.half()).float() / m.basis_scale
         return m.net(x) / m.basis_scale
 
 
@@ -606,6 +621,8 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
         diag_row_chunk: int = DEFAULT_DIAG_ROW_CHUNK,
         compile_kernels: bool = True,
         moments_backend: str = "warp",
+        moments_mlp_fp16: bool = True,
+        mid_cell_scale: float = 0.5,
     ) -> None:
         super().__init__(
             shape=shape,
@@ -630,6 +647,9 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
         # "torch": two-pass edge list + index_add scatter (reference/fallback).
         assert moments_backend in ("warp", "torch"), moments_backend
         self.moments_backend = moments_backend
+        self.moments_mlp_fp16 = bool(moments_mlp_fp16)
+        self.mid_cell_scale = float(
+            os.environ.get("NEMO_MID_CELL_SCALE", mid_cell_scale))
 
         self.moments_nn = self._load_model(
             moments_nn_path, lambda: MultiBodyMoments(self.mean_dist_s))
@@ -656,7 +676,8 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
             # invariants; inv_norm models would need it taught the s_a division.
             assert not getattr(self.moments_nn, "inv_norm", False), \
                 "warp backend does not implement inv_norm invariants"
-            self._coeff_k = _maybe_compile(_CoeffKernel(self.moments_nn))
+            self._coeff_k = _maybe_compile(
+                _CoeffKernel(self.moments_nn, fp16=self.moments_mlp_fp16))
         if self.diag_nn is not None:
             self._diag_scatter_k = _maybe_compile(_DiagScatterKernel())
             self._diag_finish_k = _maybe_compile(_DiagFinishKernel(self.diag_nn))
@@ -714,7 +735,7 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
         P = int(t_u.shape[0])
         if P == 0:
             return v
-        self._mid_search.build(pos, self.neighbor_cutoff)
+        self._mid_search.build(pos, self.neighbor_cutoff, self.mid_cell_scale)
         n_edges = 0
         for start in range(0, P, self.moments_pair_chunk):
             end = min(start + self.moments_pair_chunk, P)

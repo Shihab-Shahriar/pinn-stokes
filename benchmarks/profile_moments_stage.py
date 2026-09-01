@@ -68,7 +68,9 @@ def main():
     keep = t_idx < s_idx
     t_u, s_u = t_idx[keep].contiguous(), s_idx[keep].contiguous()
     P = int(t_u.shape[0])
-    ms_build, _ = sync_ms(lambda: mob._mid_search.build(pos, mob.neighbor_cutoff))
+    print(f"mid_cell_scale = {mob.mid_cell_scale}, mlp_fp16 = {mob.moments_mlp_fp16}")
+    ms_build, _ = sync_ms(lambda: mob._mid_search.build(
+        pos, mob.neighbor_cutoff, mob.mid_cell_scale))
 
     acc_ms = fin_ms = inv_ms = mlp_ms = 0.0
     for start in range(0, P, mob.moments_pair_chunk):
