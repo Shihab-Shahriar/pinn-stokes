@@ -40,6 +40,8 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--pair-cutoff", type=float, default=6.0,
                     help="corrected-pair cutoff; must equal the cache's (near = cached R rows, far = d > this)")
+    ap.add_argument("--diag-model", type=str, default=None,
+                    help="TorchScript SelfBlockMoments: adds a learned-diagonal column e_diag_nn between e_near and e_diag")
     args = ap.parse_args()
     from src.mob_op_2b_combined import NNMob
     cfg = np.load(args.cache / "configs.npz")
@@ -52,6 +54,17 @@ def main():
     shards = sorted(glob.glob("data/multibody_v2/*/*/shard_*.npz"))
     op = NNMob("sphere", "data/models/self_interaction_model.pt", "data/models/two_body_combined_model.pt",
                switch_dist=max(6.0, args.pair_cutoff))
+    diag = None
+    diag_cutoff = 8.0
+    if args.diag_model:
+        import torch
+        from src import nbody_features as nf
+        side_p = Path(args.diag_model).with_suffix(".json")
+        if side_p.exists():
+            side = json.load(open(side_p))
+            assert float(side["pair_cutoff"]) == args.pair_cutoff, (side["pair_cutoff"], args.pair_cutoff)
+            diag_cutoff = float(side.get("diag_cutoff", 8.0))
+        diag = torch.jit.load(args.diag_model).eval()
     rng = np.random.default_rng(args.seed)
     keys = list(zip(cfg["family"], cfg["param"].round(4), cfg["P"]))
     groups = {}
@@ -77,6 +90,14 @@ def main():
             t = pair_t[r].astype(np.int64); s = pair_s[r].astype(np.int64)
             v_near = v_2b.copy()
             np.add.at(v_near, t, np.einsum("nij,nj->ni", R, F[s])); np.add.at(v_near, s, np.einsum("nji,nj->ni", R, F[t]))
+            if diag is not None:
+                indptr, indices = nf.select_particle_neighbours(pos, diag_cutoff)
+                nbr, mask = nf.pad_neighbours(pos, np.arange(P), indptr, indices)
+                with torch.no_grad():
+                    Kd = diag.predict_mobility(torch.as_tensor(nf.self_moment_features(nbr, mask))).numpy().astype(np.float64)
+                v_diag_nn = v_near + np.einsum("nij,nj->ni", Kd, F)
+            else:
+                v_diag_nn = v_near
             v_diag = v_near + np.einsum("nij,nj->ni", np.asarray(Mtt_res[c, :P]).astype(np.float64).reshape(P, 6, 6), F)
             D = np.linalg.norm(pos[:, None] - pos[None], axis=-1)
             far = np.argwhere(D > args.pair_cutoff)
@@ -88,20 +109,20 @@ def main():
             ea = lambda v: float(np.linalg.norm((v - v_true)[:, 3:]) / np.linalg.norm(v_true[:, 3:]) * 100)
             rows.append({"family": FAMILIES[int(cfg["family"][c])], "param": float(cfg["param"][c]), "P": P, "cfg": int(c),
                          "n_near": int(len(r)), "n_far": int(len(far)) // 2,
-                         "e_2b": e(v_2b), "e_near": e(v_near), "e_diag": e(v_diag), "e_far": e(v_far),
-                         "lin_2b": el(v_2b), "lin_near": el(v_near), "lin_diag": el(v_diag),
-                         "ang_2b": ea(v_2b), "ang_near": ea(v_near), "ang_diag": ea(v_diag)})
+                         "e_2b": e(v_2b), "e_near": e(v_near), "e_diag_nn": e(v_diag_nn), "e_diag": e(v_diag), "e_far": e(v_far),
+                         "lin_2b": el(v_2b), "lin_near": el(v_near), "lin_diag_nn": el(v_diag_nn), "lin_diag": el(v_diag),
+                         "ang_2b": ea(v_2b), "ang_near": ea(v_near), "ang_diag_nn": ea(v_diag_nn), "ang_diag": ea(v_diag)})
         print(f"  {FAMILIES[int(k[0])]:8s} param {k[1]:<6g} P {k[2]:3d}: " + "  ".join(
-            f"{x}={np.mean([rw[x] for rw in rows[-len(pick):]]):6.2f}" for x in ["e_2b", "e_near", "e_diag", "e_far"]) + f"  [{time.time() - t0:.0f} s]", flush=True)
+            f"{x}={np.mean([rw[x] for rw in rows[-len(pick):]]):6.2f}" for x in ["e_2b", "e_near", "e_diag_nn", "e_diag", "e_far"]) + f"  [{time.time() - t0:.0f} s]", flush=True)
     df = pd.DataFrame(rows)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(args.out, index=False, float_format="%.5g")
-    g = df.groupby(["family", "param"])[["e_2b", "e_near", "e_diag", "e_far", "lin_2b", "lin_near", "ang_2b", "ang_near", "n_near", "n_far"]].mean()
+    g = df.groupby(["family", "param"])[["e_2b", "e_near", "e_diag_nn", "e_diag", "e_far", "lin_2b", "lin_near", "lin_diag_nn", "ang_2b", "ang_near", "ang_diag_nn", "n_near", "n_far"]].mean()
     print("\nmean over P and configs (rel L2 % of the velocity):")
     print(g.round(2).to_string())
-    md = ["| family | param | e_2b | e_near (floor of any pairwise correction) | e_diag | e_far | lin 2b -> near | ang 2b -> near |", "|---|---|---:|---:|---:|---:|---:|---:|"]
+    md = ["| family | param | e_2b | e_near (floor of any pairwise correction) | e_diag_nn (learned) | e_diag (exact) | e_far | lin 2b -> near -> nn | ang 2b -> near -> nn |", "|---|---|---:|---:|---:|---:|---:|---:|---:|"]
     for (fam, par), rr in g.iterrows():
-        md.append(f"| {fam} | {par:g} | {rr['e_2b']:.2f} | {rr['e_near']:.2f} | {rr['e_diag']:.2f} | {rr['e_far']:.3f} | {rr['lin_2b']:.2f} -> {rr['lin_near']:.2f} | {rr['ang_2b']:.2f} -> {rr['ang_near']:.2f} |")
+        md.append(f"| {fam} | {par:g} | {rr['e_2b']:.2f} | {rr['e_near']:.2f} | {rr['e_diag_nn']:.2f} | {rr['e_diag']:.2f} | {rr['e_far']:.3f} | {rr['lin_2b']:.2f} -> {rr['lin_near']:.2f} -> {rr['lin_diag_nn']:.2f} | {rr['ang_2b']:.2f} -> {rr['ang_near']:.2f} -> {rr['ang_diag_nn']:.2f} |")
     args.out.with_suffix(".md").write_text("\n".join(md) + "\n")
     print(f"-> {args.out}, {args.out.with_suffix('.md')}")
 

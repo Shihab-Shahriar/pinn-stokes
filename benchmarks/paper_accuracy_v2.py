@@ -56,6 +56,7 @@ MODELS = {
     "mom_v2_kinf_rc6": "data/models/nbody_moments_v2_kinf_rc6.pt",
     "mom_v2_kinf_rc8": "data/models/nbody_moments_v2_kinf_rc8.pt",
     "mom_v2_kinf_rc8_pc8": "data/models/nbody_moments_v2_kinf_rc8_pc8.pt",  # pair_cutoff 8 ablation
+    "diag_v2_pc8": "data/models/nbody_diag_v2_pc8.pt",         # per-particle diagonal correction (pc8 labels)
     "gpu_wt": "data/models/nbody_cross_tmp.wt",                # paper Fig 4 (GPU operator)
 }
 PHIS = [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2]
@@ -81,14 +82,19 @@ VEL_COLS = ["v_x", "v_y", "v_z", "w_x", "w_y", "w_z"]
 # The operator gets switch_dist=max(6, pair_cutoff): the 2b NN (trained to d=8) is the base wherever pairs are corrected.
 SELECTION = {"mom_old": (10, 6.0, 6.0), "mom_v2_k10_rc6": (10, 6.0, 6.0), "mom_v2_kinf_rc6": (None, 6.0, 6.0),
              "mom_v2_kinf_rc8": (None, 8.0, 6.0), "mom_v2_kinf_rc8_pc8": (None, 8.0, 8.0)}
+# ops that stack a per-particle diagonal model on a pair moments model: op -> (pair model key, diag model key).
+# The diag model's labels subtract K_s over d <= its sidecar pair_cutoff, so it may only run at that pair_cutoff.
+DIAG_OPS = {"M_mom_v2_kinf_rc8_pc8_diag": ("mom_v2_kinf_rc8_pc8", "diag_v2_pc8")}
 PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summations", "M_nbody_b1": "NeMO n-body (b1)",
                 "M_nbody_gpu": "NeMO n-body (GPU, Fig 4)", "mfs_coarse": "MFS coarse",
                 "M_nbody_b1_v2": "b1 retrained on v2", "M_mom_old": "moments (old data)",
                 "M_mom_v2_k10_rc6": "moments v2 (K=10, r_c=6)", "M_mom_v2_kinf_rc6": "moments v2 (all, r_c=6)",
                 "M_mom_v2_kinf_rc8": "moments v2 (all, r_c=8)",
-                "M_mom_v2_kinf_rc8_pc8": "moments v2 (all, r_c=8, pairs<=8)"}
+                "M_mom_v2_kinf_rc8_pc8": "moments v2 (all, r_c=8, pairs<=8)",
+                "M_mom_v2_kinf_rc8_pc8_diag": "moments v2 (pairs<=8) + learned diagonal"}
 OP_ORDER = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_gpu", "M_nbody_b1_v2", "M_mom_old",
-            "M_mom_v2_k10_rc6", "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8", "mfs_coarse"]
+            "M_mom_v2_k10_rc6", "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8",
+            "M_mom_v2_kinf_rc8_pc8_diag", "mfs_coarse"]
 
 
 # ----------------------------------------------------------------------------- cases
@@ -167,6 +173,19 @@ def _selection_for(key: str):
     return want
 
 
+def _diag_sidecar_for(key: str) -> float:
+    """The diag model's sidecar is mandatory: it pins the label convention (the pair_cutoff of the K_s
+    subtraction -- running it at any other switch_dist double-counts K_s) and the selection/band layout.
+    Returns diag_cutoff."""
+    side = Path(MODELS[key]).with_suffix(".json")
+    assert side.exists(), f"{MODELS[key]}: missing sidecar (required for a diag model)"
+    meta = json.load(open(side))
+    assert float(meta["pair_cutoff"]) == 8.0, f"diag model labelled at pair_cutoff {meta['pair_cutoff']}, op runs at 8"
+    assert float(meta.get("diag_cutoff", 8.0)) == 8.0 and int(meta.get("nb", 8)) == 8, meta
+    assert float(meta.get("band_lo", 2.0)) == 2.0 and float(meta.get("band_hi", 8.0)) == 8.0, meta
+    return float(meta.get("diag_cutoff", 8.0))
+
+
 def build_op(name: str):
     if name == "M_rpy" or name == "M_2b":
         from src.mob_op_2b_combined import NNMob
@@ -180,6 +199,15 @@ def build_op(name: str):
         return Mob_Op_Nbody(shape=SHAPE, self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_PATH,
                             nbody_nn_path=MODELS["b1" if name == "M_nbody_b1" else "b1_v2"],
                             nn_only=False, rpy_only=False, switch_dist=6.0)
+    if name in DIAG_OPS:
+        from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
+        pair_key, diag_key = DIAG_OPS[name]
+        max_neighbors, cutoff, pc = _selection_for(pair_key)
+        return Mob_Op_Nbody_Moments(shape=SHAPE, self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_PATH,
+                                    nbody_nn_path=MODELS[pair_key], nn_only=False, rpy_only=False,
+                                    switch_dist=max(6.0, pc), pair_cutoff=pc, neighbor_cutoff=cutoff,
+                                    max_neighbors=max_neighbors, diag_nn_path=MODELS[diag_key],
+                                    diag_cutoff=_diag_sidecar_for(diag_key))
     if name.startswith("M_mom_"):
         from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
         key = name[len("M_"):]
@@ -200,11 +228,12 @@ def build_op(name: str):
 
 
 CPU_OPS = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_b1_v2", "M_mom_old", "M_mom_v2_k10_rc6",
-           "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8"]
+           "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8", "M_mom_v2_kinf_rc8_pc8_diag"]
 GPU_OPS = ["mfs_coarse", "M_nbody_gpu"]
 OP_MODEL = {"M_3b": "3b", "M_nbody_b1": "b1", "M_nbody_b1_v2": "b1_v2", "M_mom_old": "mom_old",
             "M_mom_v2_k10_rc6": "mom_v2_k10_rc6", "M_mom_v2_kinf_rc6": "mom_v2_kinf_rc6",
             "M_mom_v2_kinf_rc8": "mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8": "mom_v2_kinf_rc8_pc8",
+            "M_mom_v2_kinf_rc8_pc8_diag": ("mom_v2_kinf_rc8_pc8", "diag_v2_pc8"),
             "M_nbody_gpu": "gpu_wt"}
 
 
@@ -212,8 +241,10 @@ def available(names: list[str]) -> list[str]:
     out = []
     for n in names:
         key = OP_MODEL.get(n)
-        if key is not None and not Path(MODELS[key]).exists():
-            print(f"[ops] skipping {n}: {MODELS[key]} not found", flush=True)
+        keys = key if isinstance(key, tuple) else ((key,) if key is not None else ())
+        missing = [k for k in keys if not Path(MODELS[k]).exists()]
+        if missing:
+            print(f"[ops] skipping {n}: {MODELS[missing[0]]} not found", flush=True)
             continue
         out.append(n)
     return out

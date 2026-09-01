@@ -25,7 +25,7 @@ import torch
 sys.path.append(os.path.dirname(__file__))
 
 from src.mob_op_nbody import Mob_Op_Nbody
-from src.model_archs import MultiBodyMoments
+from src.model_archs import MultiBodyMoments, SelfBlockMoments
 from src import nbody_features as nf
 
 
@@ -46,6 +46,8 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 		neighbor_cutoff: float = Mob_Op_Nbody.DEFAULT_NEIGHBOR_CUTOFF,
 		max_neighbors: Optional[int] = Mob_Op_Nbody.DEFAULT_MAX_NEIGHBORS,
 		mean_dist_s: float = Mob_Op_Nbody.DEFAULT_MEAN_DIST_S,
+		diag_nn_path: Optional[str] = None,
+		diag_cutoff: float = 8.0,
 	) -> None:
 		super().__init__(
 			shape=shape,
@@ -62,6 +64,14 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 		self.max_neighbors = None if max_neighbors is None else int(max_neighbors)
 		self.pair_cutoff = float(pair_cutoff)
 		assert self.pair_cutoff <= float(switch_dist), "n-body correction must not be applied to RPY pairs"
+		self.diag_cutoff = float(diag_cutoff)
+		self.diag_nn = self._load_diag_model(diag_nn_path) if diag_nn_path else None
+		if self.diag_nn is not None:
+			# The diagonal labels subtract the two-body self correction K_s of every pair with
+			# d <= the training cache's pair_cutoff, while the operator adds K_s for every pair
+			# with d <= switch_dist.  Both ranges must equal the corrected-pair range, or K_s is
+			# double-counted / missed in the shell between them (the published pc8 sidecar pins 8).
+			assert self.pair_cutoff == float(switch_dist), "diag correction needs pair_cutoff == switch_dist"
 
 	def _load_nbody_model(self, model_path: str, mean_dist_s: float):
 		if model_path.endswith(".pt"):
@@ -73,6 +83,19 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 		else:
 			raise ValueError(f"Unsupported n-body model format for '{model_path}'. Expected '.pt' or '.wt'.")
 		assert hasattr(model, "predict_mobility"), "not a MultiBodyMoments model"
+		assert float(model.inv_std.min()) > 0 and float(model.basis_scale.min()) > 0
+		return model
+
+	def _load_diag_model(self, model_path: str):
+		if model_path.endswith(".pt"):
+			model = torch.jit.load(model_path, map_location=self.device).eval()
+		elif model_path.endswith(".wt"):
+			model = SelfBlockMoments().to(self.device)
+			model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
+			model = model.eval()
+		else:
+			raise ValueError(f"Unsupported diag model format for '{model_path}'. Expected '.pt' or '.wt'.")
+		assert hasattr(model, "predict_mobility"), "not a SelfBlockMoments model"
 		assert float(model.inv_std.min()) > 0 and float(model.basis_scale.min()) > 0
 		return model
 
@@ -165,6 +188,46 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 		ordered = pairs + [(s, t) for (t, s) in pairs]
 		K = self._predict(np.concatenate([X_ts, X_st], 0), None, blocks=True)
 		return ordered, K
+
+	# ------------------------------------------------------------------
+	# Per-particle diagonal (self-block) correction
+	# ------------------------------------------------------------------
+	def _diag_rows(self, pos: np.ndarray) -> np.ndarray:
+		"""Self-model rows (N, 104) via the shared selection path (training == inference):
+		all k != t within ``diag_cutoff`` of particle t (nf.select_particle_neighbours)."""
+		indptr, indices = nf.select_particle_neighbours(pos, self.diag_cutoff)
+		nbr, mask = nf.pad_neighbours(pos, np.arange(len(pos)), indptr, indices)
+		return nf.self_moment_features(nbr, mask)
+
+	def diag_blocks(self, pos: np.ndarray) -> np.ndarray:
+		"""(N, 6, 6) learned symmetric diagonal corrections (viscosity 1), for tests/diagnostics."""
+		assert self.diag_nn is not None
+		X = self._diag_rows(pos)
+		out = []
+		with torch.no_grad():
+			for i in range(0, X.shape[0], self.PREDICT_CHUNK):
+				Xc = torch.as_tensor(X[i:i + self.PREDICT_CHUNK], dtype=torch.float32, device=self.device)
+				out.append(self.diag_nn.predict_mobility(Xc).cpu().numpy().astype(np.float64))
+		return np.concatenate(out, 0)
+
+	def get_diag_velocity(self, pos: np.ndarray, force: np.ndarray, viscosity: float) -> np.ndarray:
+		"""v_t += K_diag(t) F_t / mu -- the labels are at viscosity 1 and mobility scales as 1/mu."""
+		assert self.diag_nn is not None
+		X = self._diag_rows(pos)
+		out = []
+		with torch.no_grad():
+			for i in range(0, X.shape[0], self.PREDICT_CHUNK):
+				Xc = torch.as_tensor(X[i:i + self.PREDICT_CHUNK], dtype=torch.float32, device=self.device)
+				Fc = torch.as_tensor(force[i:i + self.PREDICT_CHUNK], dtype=torch.float32, device=self.device)
+				out.append(self.diag_nn.predict_velocity(Xc, Fc).cpu().numpy().astype(np.float64))
+		return np.concatenate(out, 0) / float(viscosity)
+
+	def apply(self, config: np.ndarray, force: np.ndarray, viscosity: float) -> np.ndarray:
+		"""Base (self + 2b/RPY) + pair moments correction + optional learned diagonal correction."""
+		v = super().apply(config, force, viscosity)
+		if self.diag_nn is not None:
+			v = v + self.get_diag_velocity(config[:, :3], force, viscosity)
+		return v
 
 
 if __name__ == "__main__":

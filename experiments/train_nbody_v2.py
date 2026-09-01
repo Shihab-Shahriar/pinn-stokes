@@ -213,10 +213,10 @@ def fmt(m: dict) -> str:
             f"block {m['rel_2b']:.2f}%")
 
 
-def load_model(path: str, features: str, device, inv_norm=False):
+def load_model(path: str, features: str, device, inv_norm=False, hidden=None):
     if path.endswith(".pt"):
         return torch.jit.load(path, map_location=device).eval()
-    model = (MultiBodyMoments(MEAN_DIST_S, inv_norm=inv_norm) if features == "moments" else MultiBodyCorrectionB1(MEAN_DIST_S)).to(device)
+    model = (MultiBodyMoments(MEAN_DIST_S, inv_norm=inv_norm, hidden=hidden) if features == "moments" else MultiBodyCorrectionB1(MEAN_DIST_S)).to(device)
     model.load_state_dict(torch.load(path, map_location=device, weights_only=True))
     return model.eval()
 
@@ -246,6 +246,8 @@ def main():
     ap.add_argument("--families", nargs="+", default=None, choices=FAMILIES)
     ap.add_argument("--family-weights", type=float, nargs=3, default=None, metavar=("W_UNIFORM", "W_GROWN", "W_LATTICE"),
                     help="relative sampling weight per row of each family (default: uniform over rows)")
+    ap.add_argument("--hidden", type=int, nargs="+", default=None,
+                    help="MLP hidden widths for the moments model (default 128 64 128 64)")
     ap.add_argument("--inv-norm", action="store_true")
     ap.add_argument("--zero-init-head", choices=["auto", "on", "off"], default="auto")
     ap.add_argument("--out", type=Path, required=True)
@@ -270,7 +272,7 @@ def main():
 
     # ---------------------------------------------------------------- eval-only
     if args.eval_only:
-        model = load_model(args.eval_only, features, device, args.inv_norm)
+        model = load_model(args.eval_only, features, device, args.inv_norm, args.hidden)
         t0 = time.time()
         m = evaluate(model, cache, val_all, features)
         m.update({"model_path": args.eval_only, "features": features, "variant": args.variant, "eval_s": time.time() - t0})
@@ -283,7 +285,7 @@ def main():
     # ---------------------------------------------------------------- model + recipe
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     zero_init = (args.model == "moments") if args.zero_init_head == "auto" else (args.zero_init_head == "on")
-    model = (MultiBodyMoments(MEAN_DIST_S, zero_init_head=zero_init, inv_norm=args.inv_norm) if args.model == "moments"
+    model = (MultiBodyMoments(MEAN_DIST_S, zero_init_head=zero_init, inv_norm=args.inv_norm, hidden=args.hidden) if args.model == "moments"
              else MultiBodyCorrectionB1(MEAN_DIST_S, zero_init_head=zero_init)).to(device)
     train_idx = cache.train_idx
     fit_idx = np.sort(rng.choice(train_idx, size=min(args.fit_rows, len(train_idx)), replace=False))
@@ -360,7 +362,8 @@ def main():
               "epochs": epoch, "steps": step, "batch": args.batch, "lr": args.lr, "loss": args.loss, "loss_form": args.loss_form,
               "block_weights": args.block_weights, "scale": args.scale, "seed": args.seed, "n_params": n_params, "n_train": n_train,
               "n_val": int(len(val_all)), "zero_init_head": zero_init, "inv_norm": args.inv_norm, "families": args.families,
-              "family_weights": args.family_weights, "train_time_s": time.time() - t_start, "device": str(device), "cache": str(args.cache)})
+              "family_weights": args.family_weights, "hidden": args.hidden,
+              "train_time_s": time.time() - t_start, "device": str(device), "cache": str(args.cache)})
     print(f"[final] {fmt(m)}")
     for name, mm in m["by_family"].items():
         print(f"   {name:8s} {fmt(mm)}")
@@ -385,7 +388,8 @@ def main():
         shutil.copy(args.out / "model.pt", Path("data/models") / f"{name}.pt")
         shutil.copy(args.out / "model.wt", Path("experiments") / f"{name}.wt")
         side = {"name": name, "model": args.model, "features": features, "variant": args.variant, "max_neighbors": cache.K,
-                "neighbor_cutoff": cache.cutoff, "pair_cutoff": cache.meta["pair_cutoff"], "mean_dist_s": MEAN_DIST_S,
+                "neighbor_cutoff": cache.cutoff, "pair_cutoff": cache.meta["pair_cutoff"], "hidden": args.hidden,
+                "mean_dist_s": MEAN_DIST_S,
                 "median_2b": cache.meta["median_2b"], "run": str(args.out), "prmse_lin": m["prmse_lin"], "prmse_ang": m["prmse_ang"],
                 "rel_total": m["rel_total"], "created": time.strftime("%Y-%m-%d %H:%M:%S")}
         json.dump(side, open(Path("data/models") / f"{name}.json", "w"), indent=1)

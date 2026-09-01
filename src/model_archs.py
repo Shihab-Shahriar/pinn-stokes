@@ -522,19 +522,17 @@ class MultiBodyMoments(nn.Module):
     Reciprocity M_ji = M_ij^T and O(3) equivariance hold by construction; the buffers are fitted
     with ``fit_normalisation`` on the training split and travel with the state dict."""
 
-    def __init__(self, mean_dist_s: float, zero_init_head: bool = True, inv_norm: bool = False):
+    def __init__(self, mean_dist_s: float, zero_init_head: bool = True, inv_norm: bool = False,
+                 hidden=None):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(nbm.N_IN, 128),
-            nn.Tanh(),
-            nn.Linear(128, 64),
-            nn.Tanh(),
-            nn.Linear(64, 128),
-            nn.Tanh(),
-            nn.Linear(128, 64),
-            nn.Tanh(),
-            nn.Linear(64, nbm.N_COEF),
-        )
+        widths = [128, 64, 128, 64] if hidden is None else [int(h) for h in hidden]
+        layers = []
+        last = nbm.N_IN
+        for w in widths:
+            layers += [nn.Linear(last, w), nn.Tanh()]
+            last = w
+        layers.append(nn.Linear(last, nbm.N_COEF))
+        self.net = nn.Sequential(*layers)
         self.register_buffer("inv_mean", torch.zeros(nbm.N_IN))
         self.register_buffer("inv_std", torch.ones(nbm.N_IN))
         self.register_buffer("basis_scale", torch.ones(nbm.N_COEF))
@@ -589,6 +587,90 @@ class MultiBodyMoments(nn.Module):
                 invs.append(self._invariants(Xc))
                 s_vec, pair, s, v, Q = nbm.unpack_features(Xc)
                 tt, tr = nbm.bases(nbm.pair_axis(s_vec), v, Q)
+                fro_tt = fro_tt + (tt * tt).sum((-1, -2)).sum(0)
+                fro_tr = fro_tr + (tr * tr).sum((-1, -2)).sum(0)
+                n += Xc.shape[0]
+            inv = torch.cat(invs, 0)
+            self.inv_mean.copy_(inv.mean(0))
+            self.inv_std.copy_(inv.std(0).clamp_min(1e-6))
+            scale = torch.cat([torch.sqrt(fro_tt / n), torch.sqrt(fro_tt / n), torch.sqrt(fro_tr / n)])
+            self.basis_scale.copy_(scale.clamp_min(1e-6))
+
+
+class SelfBlockMoments(nn.Module):
+    """Per-particle diagonal (self-block) correction to M_tt (the learned n-body diagonal).
+
+    Input row X[:, 104] = [s_a(8) | v_a(24) | Q_a(72)] (``nbody_moments.self_moment_features``):
+    band moments of the particle's neighbourhood over 8 tent bands on [2, 8].  Inside: the 48
+    rotation invariants (no pseudoscalars), standardisation (``inv_mean``/``inv_std`` buffers),
+    MLP 48 -> 128 -> 64 -> 128 -> 64 -> 90 (the pair model's hidden widths), per-basis rescaling
+    (``basis_scale``), and assembly onto 33 TT + 33 RR + 24 TR bases with RT = TR^T -- the output
+    is a *symmetric* 6x6, so the grand mobility stays symmetric, and O(3) equivariance holds by
+    construction.  With zero moments the block reduces to diag(c0 I3, c33 I3) with TR = 0
+    (isolated particle).  Trained on the pc8 diagonal residual (experiments/train_diag_v2.py);
+    labels at viscosity 1, so the operator divides the applied velocity by mu."""
+
+    def __init__(self, zero_init_head: bool = True, inv_norm: bool = False):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(nbm.N_INV_SELF, 128),
+            nn.Tanh(),
+            nn.Linear(128, 64),
+            nn.Tanh(),
+            nn.Linear(64, 128),
+            nn.Tanh(),
+            nn.Linear(128, 64),
+            nn.Tanh(),
+            nn.Linear(64, nbm.N_COEF_SELF),
+        )
+        self.register_buffer("inv_mean", torch.zeros(nbm.N_INV_SELF))
+        self.register_buffer("inv_std", torch.ones(nbm.N_INV_SELF))
+        self.register_buffer("basis_scale", torch.ones(nbm.N_COEF_SELF))
+        # inv_norm: intensive invariants (v_a, Q_a divided by max(s_a, 1)), as in MultiBodyMoments.
+        self.inv_norm = bool(inv_norm)
+        if zero_init_head:  # the correction starts at exactly zero (= the shipped pc8 operator)
+            nn.init.zeros_(self.net[-1].weight)
+            nn.init.zeros_(self.net[-1].bias)
+
+    def forward(self, X):
+        return self.coefficients(X)
+
+    def _invariants(self, X):
+        s, v, Q = nbm.self_unpack_features(X)
+        if self.inv_norm:
+            n = s.clamp_min(1.0)
+            v = v / n.unsqueeze(-1)
+            Q = Q / n.unsqueeze(-1).unsqueeze(-1)
+        return nbm.self_invariants(s, v, Q)
+
+    @torch.jit.export
+    def coefficients(self, X):
+        """[P, 90] scaled coefficients (TT 0:33, RR 33:66, TR 66:90)."""
+        x = (self._invariants(X) - self.inv_mean) / self.inv_std
+        return self.net(x) / self.basis_scale
+
+    @torch.jit.export
+    def predict_mobility(self, X):
+        s, v, Q = nbm.self_unpack_features(X)
+        c = self.coefficients(X)
+        tt, tr = nbm.self_bases(v, Q)
+        return nbm.self_assemble_block(c, tt, tr)
+
+    @torch.jit.export
+    def predict_velocity(self, X, force):
+        K = self.predict_mobility(X)
+        return torch.einsum('bij,bj->bi', K, force)
+
+    @torch.jit.ignore
+    def fit_normalisation(self, X, chunk: int = 8192):
+        """Fit inv_mean / inv_std / basis_scale from training rows X[N, 104] (python only)."""
+        with torch.no_grad():
+            invs, fro_tt, fro_tr, n = [], 0.0, 0.0, 0
+            for i in range(0, X.shape[0], chunk):
+                Xc = X[i:i + chunk]
+                invs.append(self._invariants(Xc))
+                s, v, Q = nbm.self_unpack_features(Xc)
+                tt, tr = nbm.self_bases(v, Q)
                 fro_tt = fro_tt + (tt * tt).sum((-1, -2)).sum(0)
                 fro_tr = fro_tr + (tr * tr).sum((-1, -2)).sum(0)
                 n += Xc.shape[0]

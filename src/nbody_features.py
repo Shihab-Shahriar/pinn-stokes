@@ -439,3 +439,34 @@ def v2_is_val(seed, val_every: int = 10):
     """Configuration-level validation flag for dataset v2: seeds are unique per configuration, so
     ``seed % val_every == 0`` is an order-independent, family-stratified 1/val_every split."""
     return (np.asarray(seed, dtype=np.int64) % val_every) == 0
+
+
+# ----------------------------------------------------------------------------- per-particle diagonal (self-block) helpers
+def select_particle_neighbours(pos: np.ndarray, cutoff: float = 8.0):
+    """Neighbourhoods of every particle of one configuration: all k != t with |x_k - x_t| <= cutoff,
+    in ascending index order.  THE single code path shared by the diagonal trainer
+    (experiments/train_diag_v2.py), the operator (``Mob_Op_Nbody_Moments._diag_rows``) and the
+    ceiling script.  Returns CSR indptr (N+1,) int64, indices (nnz,) int16.  Zero-neighbour
+    particles keep an empty list (their moments are zero and the model output reduces to its
+    constant coefficients); ``pad_neighbours(pos, np.arange(N), indptr, indices)`` builds the
+    padded particle-relative tensor."""
+    pos = np.asarray(pos, dtype=np.float64)
+    N = pos.shape[0]
+    assert N < 32768, "int16 neighbour indices"
+    D = np.linalg.norm(pos[:, None, :] - pos[None, :, :], axis=-1)
+    cand = D <= cutoff
+    np.fill_diagonal(cand, False)
+    indptr = np.zeros(N + 1, dtype=np.int64)
+    indptr[1:] = np.cumsum(cand.sum(1))
+    indices = np.nonzero(cand)[1].astype(np.int16)   # row-major -> ascending index per particle
+    return indptr, indices
+
+
+def self_moment_features(nbr: np.ndarray, mask: np.ndarray, chunk: int = 65536) -> np.ndarray:
+    """Self-model input rows X[N, 104] (float32) from particle-relative geometry, moments in float64."""
+    out = []
+    for i in range(0, len(nbr), chunk):
+        Nb = torch.as_tensor(nbr[i:i + chunk], dtype=torch.float64)
+        Mk = torch.as_tensor(mask[i:i + chunk], dtype=torch.float64)
+        out.append(nbm.self_moment_features(Nb, Mk).to(torch.float32).numpy())
+    return np.concatenate(out, 0)
