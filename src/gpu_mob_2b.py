@@ -176,7 +176,9 @@ class NNMobTorch:
 
     @torch.no_grad()
     def get_neighbor_pairs(self, pos):
-        assert self.switch_dist == 6.0
+        # 6 is the classic operating point; 8 is the moments/pc8 stack's, where the
+        # 2b NN (trained to d = 8) is the base out to the far-field switch.
+        assert self.switch_dist in (6.0, 8.0), self.switch_dist
         pos = pos.contiguous()
         t_idx, s_idx = self._neighbor_search.get_edge_indexes(
             pos, self.switch_dist, verbose=False

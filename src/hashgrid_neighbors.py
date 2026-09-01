@@ -12,7 +12,7 @@ wp.init()
 def count_neighbors_kernel(
     grid: wp.uint64,
     positions: wp.array(dtype=wp.vec3),
-    no_of_nn: wp.array(dtype=wp.uint8),
+    no_of_nn: wp.array(dtype=wp.int32),
     radius: float,
     radius_sq: float,
 ):
@@ -21,7 +21,7 @@ def count_neighbors_kernel(
     # order threads by cell
     i = wp.hash_grid_point_id(grid, tid)
     x = positions[i]
-    count = wp.uint8(0)
+    count = wp.int32(0)
 
     neighbors = wp.hash_grid_query(grid, x, radius)
 
@@ -30,7 +30,7 @@ def count_neighbors_kernel(
             n = x - positions[index]
             d = wp.length_sq(n)
             if d < radius_sq:
-                count += wp.uint8(1)
+                count += wp.int32(1)
     no_of_nn[i] = count
 
 
@@ -72,7 +72,7 @@ class HashGridNeighborSearch:
         self.device = torch.device(device)
         self.device_str = str(self.device)
         self.grid = wp.HashGrid(*grid_dim, device=self.device_str)
-        self.no_of_nn = None   # WARNING: wp.uint8 array. max 255.
+        self.no_of_nn = None   # int32: at radius 8 dense clusters exceed uint8's 255.
 
         self.edge_indexes_s = None
         self.edge_indexes_t = None
@@ -135,7 +135,7 @@ class HashGridNeighborSearch:
             if self.no_of_nn is None or self.no_of_nn.shape[0] != N:
                 self.no_of_nn = wp.zeros(
                     shape=[N],
-                    dtype=wp.uint8,
+                    dtype=wp.int32,
                     device=str(positions_t.device),
                     requires_grad=False,
                 )
@@ -156,9 +156,12 @@ class HashGridNeighborSearch:
             )
             wp.synchronize()
 
-            nn_count_torch_uint8 = wp.to_torch(self.no_of_nn)
-            nn_count_torch = torch.cumsum(nn_count_torch_uint8, dim=0, dtype=torch.int32)
+            nn_count_torch_i32 = wp.to_torch(self.no_of_nn)
+            nn_count_torch = torch.cumsum(nn_count_torch_i32, dim=0, dtype=torch.int32)
             total_pairs = int(nn_count_torch[-1].item())
+            # int32 edge offsets: fine to ~2.1e9 pairs (1M @ radius 8 is ~5e7);
+            # a 65M-particle radius-8 run would overflow and needs int64 first.
+            assert total_pairs < 2**31 - 1
             if verbose:
                 print(f"Total near-field pairs found: {total_pairs}")
 
@@ -170,7 +173,7 @@ class HashGridNeighborSearch:
 
             self._ensure_edge_capacity(total_pairs, positions_t.device)
 
-            nn_count_torch = nn_count_torch - nn_count_torch_uint8
+            nn_count_torch = nn_count_torch - nn_count_torch_i32
             if verbose:
                 print("Collecting neighbor edge indexes...")
             wp_edges_t = wp.from_torch(self.edge_indexes_t, dtype=wp.int32)

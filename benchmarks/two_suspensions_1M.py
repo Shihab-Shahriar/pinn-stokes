@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 #from src.fmm_stkfmm import MobStkFMM
 from src.gpu_nbody_mob import Mob_Nbody_Torch
+from src.gpu_nbody_moments import Mob_Nbody_Moments_Torch
 from src.treecode import WarpFMM
 from src.treecode_widebvh import (
     WidebvhFMM, DEFAULT_MAC, DEFAULT_MAX_LEAF, DEFAULT_CART_MAC,
@@ -157,7 +158,7 @@ def main(theta, benchmark_mode=True, t_final=0.5, *, mac=None,
          max_leaf=DEFAULT_MAX_LEAF, hilbert_q=None, seed=0,
          out_dir="figures/drop_1M/", pdeg=7, fp32_level=0,
          pair_budget_gb=None, two_body_chunk=DEFAULT_TWO_BODY_CHUNK,
-         pair_chunk=DEFAULT_PAIR_CHUNK, log_csv=None):
+         pair_chunk=DEFAULT_PAIR_CHUNK, log_csv=None, near_op="baseline"):
     # --- Simulation Parameters ---
     R_drop = 175.0
     r_particle = 1.0
@@ -200,21 +201,43 @@ def main(theta, benchmark_mode=True, t_final=0.5, *, mac=None,
     two_body_model = os.path.join(project_root, "data/models/combined_2body.wt")
     nbody_path = os.path.join(project_root, "data/models/nbody_cross_tmp.wt")
 
-    print("Initializing Mob_Nbody_Torch...")
-    mob_fmm = Mob_Nbody_Torch(
-        shape=shape,
-        self_nn_path=self_model,
-        two_nn_path=two_body_model,
-        nbody_nn_path=nbody_path,
-        near_field_2b="nn",
-        far_field_2b=None,
-        near_far_switch=6.0,
-        # Both pair paths are chunked (two-body 4M, n-body 2M by default), which
-        # is what keeps this case inside a 20 GB card (4.1 GiB vs 15.4 GiB
-        # process footprint at N=1M). Exposed as CLI knobs for smaller cards.
-        two_body_chunk_size=two_body_chunk,
-        pair_chunk_size=pair_chunk,
-    )
+    # "baseline" is the published operator (old K=10 n-body, switch 6);
+    # "moments" is the dataset-v2 stack (moments pair model kinf_rc8_pc8 + learned
+    # diagonal, both locked to switch_dist = pair_cutoff = 8, so the near/far
+    # switch -- and with it the treecode's nearCutoff -- moves to 8 as well).
+    if near_op == "moments":
+        print("Initializing Mob_Nbody_Moments_Torch (pc8 moments + diag)...")
+        near_cutoff = 8.0
+        mob_fmm = Mob_Nbody_Moments_Torch(
+            shape=shape,
+            self_nn_path=self_model,
+            two_nn_path=two_body_model,
+            moments_nn_path=os.path.join(
+                project_root, "experiments/nbody_moments_v2_kinf_rc8_pc8.wt"),
+            diag_nn_path=os.path.join(
+                project_root, "experiments/nbody_diag_v2_pc8.wt"),
+            near_field_2b="nn",
+            far_field_2b=None,
+            switch_dist=near_cutoff,
+            two_body_chunk_size=two_body_chunk,
+        )
+    else:
+        print("Initializing Mob_Nbody_Torch...")
+        near_cutoff = 6.0
+        mob_fmm = Mob_Nbody_Torch(
+            shape=shape,
+            self_nn_path=self_model,
+            two_nn_path=two_body_model,
+            nbody_nn_path=nbody_path,
+            near_field_2b="nn",
+            far_field_2b=None,
+            near_far_switch=6.0,
+            # Both pair paths are chunked (two-body 4M, n-body 2M by default), which
+            # is what keeps this case inside a 20 GB card (4.1 GiB vs 15.4 GiB
+            # process footprint at N=1M). Exposed as CLI knobs for smaller cards.
+            two_body_chunk_size=two_body_chunk,
+            pair_chunk_size=pair_chunk,
+        )
     
     print("Initializing MobStkFMM...")
     # fmm_solver = MobStkFMM(
@@ -243,7 +266,7 @@ def main(theta, benchmark_mode=True, t_final=0.5, *, mac=None,
             hilbert_q = None          # explicit request for the engine's auto
         warp_solver = WidebvhFMM(
             near_field_operator=mob_fmm,
-            near_field_cutoff=6.0,
+            near_field_cutoff=near_cutoff,
             device="cuda",
             policy="cart" if cart else "bary",
             mac=mac,
@@ -264,7 +287,7 @@ def main(theta, benchmark_mode=True, t_final=0.5, *, mac=None,
             near_field_operator=mob_fmm,
             theta=theta,
             leaf_size=16,
-            near_field_cutoff=6.0,
+            near_field_cutoff=near_cutoff,
             device="cuda",
             block_dim=256,
         )
@@ -359,7 +382,8 @@ def main(theta, benchmark_mode=True, t_final=0.5, *, mac=None,
 
     if log_csv is not None and step_rows:
         _write_step_csv(log_csv, step_rows, dict(
-            n=n_particles, mac=mac, max_leaf=max_leaf, pdeg=pdeg,
+            n=n_particles, near_op=near_op, near_cutoff=near_cutoff,
+            mac=mac, max_leaf=max_leaf, pdeg=pdeg,
             fp32_level=fp32_level, two_body_chunk=two_body_chunk,
             pair_chunk=pair_chunk, backend=FAR_FIELD_BACKEND,
             gpu=torch.cuda.get_device_name(0)))
@@ -459,6 +483,12 @@ if __name__ == "__main__":
                     help="pairs per two-body NN chunk (default %(default)s)")
     ap.add_argument("--pair-chunk", type=int, default=DEFAULT_PAIR_CHUNK,
                     help="pairs per n-body NN chunk (default %(default)s)")
+    ap.add_argument("--near-op", choices=("baseline", "moments"),
+                    default="baseline",
+                    help="near-field operator: 'baseline' = published stack "
+                         "(old n-body, switch 6), 'moments' = pc8 moments pair "
+                         "model + learned diagonal (switch 8, far field cutoff "
+                         "8 to match)")
     ap.add_argument("--log-csv", default=None,
                     help="write a per-step breakdown CSV (far/near/nsearch/"
                          "self2b/nbody/total ms, wall s, peak memory) parsed "
@@ -469,4 +499,4 @@ if __name__ == "__main__":
          mac=a.mac, max_leaf=a.max_leaf, hilbert_q=a.hilbert_q, seed=a.seed,
          out_dir=a.out_dir, pdeg=a.pdeg, fp32_level=a.fp32_level,
          pair_budget_gb=a.pair_budget_gb, two_body_chunk=a.two_body_chunk,
-         pair_chunk=a.pair_chunk, log_csv=a.log_csv)
+         pair_chunk=a.pair_chunk, log_csv=a.log_csv, near_op=a.near_op)
