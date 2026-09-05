@@ -1,6 +1,8 @@
 figures/gpu_scaling
 figures/drop_1M
 figures/runtime_breakdown
+figures/archive
+logs/
 tmp/
 data/*.npy
 data/**/*.npy 
