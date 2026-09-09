@@ -80,6 +80,34 @@ Each operator has an `apply(config, force, viscosity) -> velocity` interface:
    protocol (0.08 → 0.77 %). Same ordering for the translational block of the random-wrench protocol (φ = 0.1: far field
    2.8, NeMO 4.3, SD 8.7, RPY 12.2 % PRMSE); SD's lubrication does make its rotational velocities the best there.
 
+4d. **FTS stresslet single reflection (2026-09-08, `artifacts/fts_reflection_report.md`):** `src/fts_rpy.py` — the
+   RPY-with-Faxén force–torque–**stresslet** blocks of Stokesian Dynamics' `generate_Minfinity` (reproduced to 5e-16)
+   and the leading many-body term they generate, `M_ref1 = −(20πμ/3) Σ_k G_tk G_skᵀ` (strain rate from all
+   Stokeslets/rotlets → induced stresslet `S = −E/D`, `D = 3/(20πμ)` → velocity), as a global analytic term:
+   `reflection_velocity(pos, force, mu, order="1", diag_exclude_within=…)` (matrix-free O(N²), any device) and
+   `reflection_blocks` (dense, batched configs, for labels). `RPY + order "full"` **is** `SD_Minf`. This is the lever
+   for the far-field floor of `fig3_n300_investigation.md`: on the N=200 gravity/random-wrench ladder
+   (`benchmarks/fts_reflection_ladder.py`, fine grand M in `tmp/fts_ladder/M_cache`) the shipped stack is 70–80 % far-field
+   floor, RPY + one reflection alone (0.30/0.55 % lin at φ=0.1/0.2, gravity) matches or beats SD's converged series
+   (0.26/0.75), the two-reflection Jacobi sweep overshoots (use order 1), and the retrain floor is 0.26/0.54 (gravity) and
+   0.62/1.51 (random wrench, vs the shipped 3.35/7.71).
+   **Label convention (load-bearing):** pair labels subtract the in-configuration all-k reflection
+   (`build_nbody_v2_cache.py --out … --add-fts refl1` → `Mref_refl1_{ts,tt}.npy`; trainers `--label-base refl1`; sidecar
+   key `fts_base`, asserted by the harness `_fts_base_for`), and the operator adds the global term
+   (`Mob_Op_Nbody_Moments(fts_reflection="refl1")`, GPU twin the same, dense torch — treecode port pending). The **diagonal**
+   path t→k→t is a two-body effect already inside the 2b model's K_s for d ≤ pair_cutoff, so `diag_exclude_within = pair_cutoff`
+   everywhere (subtracting it from the diagonal labels too made that residual 4.4× larger); pair labels shrink 2.5× in every
+   block. Models: `nbody_moments_v2_kinf_rc8_pc8c_fts.pt` + `nbody_diag_v2_pc8c_fts.pt` (harness op
+   `M_mom_v2_kinf_rc8_pc8c_fts_diag`, GPU `M_mom_gpu_pc8c_fts_diag`), locked to `pair_cutoff = switch_dist = 8` like the diagonal.
+   **Harness (N=200, 10 seeds):** gravity translational PRMSE 0.66/1.73/3.19 → **0.10/0.31/0.57 %** at φ=0.025/0.1/0.2
+   (SD_Minf 0.08/0.27/0.77, beaten at φ ≥ 0.15; HIGNN full 1.0/3.7/–); Fig 3 PRMSE φ=0.2: 7.51 → 3.22 (N=200), 10.29 → 3.46
+   (N=300) — the N-growth is gone; clustered δ ≥ 2: 4–9× lower. Cost: CPU op +0.14 s at N=200 (dense, chunked, fp64);
+   the widebvh treecode port (gradient + stresslet kernels at loose accuracy, budget ≤ 15–20 %/step) is pending.
+   Config-level velocity fine-tune of pair+diag (`experiments/finetune_config_velocity.py`, residual-space velocity L1 over
+   whole configurations under random-wrench + gravity patterns + block L1 anchor; publishes `<parent>_ft`) was a wash on
+   gravity and a Fig 3 regression (3.22 → 3.44) — not shipped. Never read `data/paper_accuracy_v2.csv` while a harness
+   sweep runs (it is rewritten after every configuration; a kill mid-write truncates it — restore with git).
+
 7a. **`mfs_batched.py` → `BatchedMFS`**: the **batched multi-right-hand-side MFS solver** (Triton + torch; the reference solvers below are single-RHS Gauss–Seidel). Solves R right-hand sides of n_sys equal-size configurations at once in boundary-velocity space (`T W = b`, `T = I + Ŵ K_f`) with batched restarted GMRES; `solve_mobility_matrix(positions)` returns the full grand mobility matrix M (6P×6P) from all 6P unit force/torque columns. Backends: `torch64` (exact fp64, one cuBLAS dgemm per target over all partners — **production on the H200**, fp64 at half the fp32 rate there; 50–70× slower on GeForce) and `triton32` (fp32 `tl.dot` kernel in `mfs_batched_kernels.py`, 4–5 TFLOPS on the 4060, ~1e-5 relative accuracy: the MFS strengths cancel by ~1e3, so fp32 storage of the strengths alone costs 6e-6). Two things are load-bearing: **the pseudo-inverse is always applied in fp64** (an fp32 GEMM carries a 2e-3 net-force error into the labels), and **convergence is judged on the velocities** (`tol_v`, per column, checked at every Krylov step), never on strengths or on the W residual — the fp32 kernel's W residual stalls at 1e-4 while its velocities are converged. Defaults `tol_v` = 1e-7 (torch64) / 1e-5 (triton32); 17–26 Krylov steps. Validated by `tests/test_mfs_batched.py` against `src/mfs.py` (2e-12 in fp64), the old dataset rows and the cached Xfine truths; `benchmarks/bench_mfs_batched.py` measures throughput. `tf32x3`/`tf32` `tl.dot` crash Triton 3.2 on register operands; fp64 `tl.dot` is unsupported.
 
    **Dataset v2 generator** `src/create_dataset_multibody_v2.py`: full M per configuration for `uniform` (RSA box, gap ≥ 0.1), `grown` (cluster growth at gap δ) and `lattice` (jittered cubic drop patch) families, sharded `.npz` under `data/multibody_v2/` (gitignored) with per-worker manifests, deterministic seeds, resume, `--time-budget`, `--worker/--num-workers`. Cluster recipe: `source ~/warp_env.sh`, then per GPU `CUDA_VISIBLE_DEVICES=k python src/create_dataset_multibody_v2.py --plan default --acc fine --backend torch64 --mem-budget-gb 40 --time-budget 28800 --num-workers 4 --worker k`. Consumer: `nbody_features.iter_multibody_v2_configs` + `pairs_from_config` (lazy, for full passes), `load_multibody_v2` (eager ordered-pair table with `M_ts`, `M_st`, `M_tt`, all-neighbour positions — ~2.4 KB per pair, subsets only) and `pair_rows_from_M` (old-convention rows with random forces, `Y = M_ts [F;T]_s`, `+s_vec`). **Generated 2026-08-30** (SLURM array 16539317, `slurm/gen_multibody_v2.sbatch`, 4 × H200 ≈ 4.5 GPU-h): 56,048 configurations, 12.7 M ordered pairs within 6 radii, 4.4 GB, in `data/multibody_v2/` on the cluster and the laptop; see `artifacts/mfs_batched_report.md` §5.

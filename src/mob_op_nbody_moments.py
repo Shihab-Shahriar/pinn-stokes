@@ -51,6 +51,7 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 		mean_dist_s: float = Mob_Op_Nbody.DEFAULT_MEAN_DIST_S,
 		diag_nn_path: Optional[str] = None,
 		diag_cutoff: float = 8.0,
+		fts_reflection: Optional[str] = None,
 	) -> None:
 		super().__init__(
 			shape=shape,
@@ -75,6 +76,13 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 			# with d <= switch_dist.  Both ranges must equal the corrected-pair range, or K_s is
 			# double-counted / missed in the shell between them (the published pc8 sidecar pins 8).
 			assert self.pair_cutoff == float(switch_dist), "diag correction needs pair_cutoff == switch_dist"
+		# Stresslet single ("refl1") / double ("refl2") reflection of src/fts_rpy.py as a global analytic
+		# term (all k).  Only with models whose labels subtract the in-configuration reflection
+		# (build_nbody_v2_cache.py --add-fts, trainers --label-base; sidecar key "fts_base"), otherwise the
+		# near triplets are double-counted; the same pair_cutoff == switch_dist lock as the diagonal.
+		self.fts_order = {None: 0, "none": 0, "refl1": 1, "refl2": 2}[fts_reflection]
+		if self.fts_order:
+			assert self.pair_cutoff == float(switch_dist), "FTS reflection base needs pair_cutoff == switch_dist"
 
 	def _load_nbody_model(self, model_path: str, mean_dist_s: float):
 		if model_path.endswith(".pt"):
@@ -238,11 +246,21 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 				out.append(self.diag_nn.predict_velocity(Xc, Fc).cpu().numpy().astype(np.float64))
 		return np.concatenate(out, 0) / float(viscosity)
 
+	def get_fts_velocity(self, pos: np.ndarray, force: np.ndarray, viscosity: float) -> np.ndarray:
+		"""The stresslet reflection velocity (fts_rpy.reflection_velocity, O(N^2), chunked); mu enters analytically."""
+		assert self.fts_order
+		from src import fts_rpy
+		# the diagonal two-body path t -> k -> t for d_tk <= pair_cutoff is already in the 2b model's K_s
+		return fts_rpy.reflection_velocity(pos, force, mu=float(viscosity), order=str(self.fts_order),
+		                                   diag_exclude_within=self.pair_cutoff).numpy()
+
 	def apply(self, config: np.ndarray, force: np.ndarray, viscosity: float) -> np.ndarray:
-		"""Base (self + 2b/RPY) + pair moments correction + optional learned diagonal correction."""
+		"""Base (self + 2b/RPY) + pair moments correction + optional learned diagonal + optional FTS reflection."""
 		v = super().apply(config, force, viscosity)
 		if self.diag_nn is not None:
 			v = v + self.get_diag_velocity(config[:, :3], force, viscosity)
+		if self.fts_order:
+			v = v + self.get_fts_velocity(config[:, :3], force, viscosity)
 		return v
 
 

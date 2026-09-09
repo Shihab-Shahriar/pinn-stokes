@@ -60,6 +60,10 @@ MODELS = {
     "mom_v2_kinf_rc8_pc8c": "data/models/nbody_moments_v2_kinf_rc8_pc8c.pt",  # + chain family (Fig 6 fix), latest
     "diag_v2_pc8": "data/models/nbody_diag_v2_pc8.pt",         # per-particle diagonal correction (pc8 labels)
     "diag_v2_pc8c": "data/models/nbody_diag_v2_pc8c.pt",       # diagonal retrained on the pc8c cache, latest
+    # pc8c models retrained on the FTS-reflection base (labels minus the in-box stresslet single reflection,
+    # src/fts_rpy.py; the operator adds the same reflection globally: sidecar fts_base = "refl1")
+    "mom_v2_kinf_rc8_pc8c_fts": "data/models/nbody_moments_v2_kinf_rc8_pc8c_fts.pt",
+    "diag_v2_pc8c_fts": "data/models/nbody_diag_v2_pc8c_fts.pt",
     "gpu_wt": "data/models/nbody_cross_tmp.wt",                # paper Fig 4 (GPU operator)
     # HIGNN baseline (src/hignn_ops.py): their shipped nn.Sequential pickles; 2b == nn/two_body_unbounded.pkl (the C++ engine's kernel)
     "hignn_2b": str(HIGNN_ROOT / "python/Saved_Model/Unbounded_try1/HIGNN_nn_2body.pkl"),
@@ -95,11 +99,12 @@ VEL_COLS = ["v_x", "v_y", "v_z", "w_x", "w_y", "w_z"]
 # The operator gets switch_dist=max(6, pair_cutoff): the 2b NN (trained to d=8) is the base wherever pairs are corrected.
 SELECTION = {"mom_old": (10, 6.0, 6.0), "mom_v2_k10_rc6": (10, 6.0, 6.0), "mom_v2_kinf_rc6": (None, 6.0, 6.0),
              "mom_v2_kinf_rc8": (None, 8.0, 6.0), "mom_v2_kinf_rc8_pc8": (None, 8.0, 8.0),
-             "mom_v2_kinf_rc8_pc8c": (None, 8.0, 8.0)}
+             "mom_v2_kinf_rc8_pc8c": (None, 8.0, 8.0), "mom_v2_kinf_rc8_pc8c_fts": (None, 8.0, 8.0)}
 # ops that stack a per-particle diagonal model on a pair moments model: op -> (pair model key, diag model key).
 # The diag model's labels subtract K_s over d <= its sidecar pair_cutoff, so it may only run at that pair_cutoff.
 DIAG_OPS = {"M_mom_v2_kinf_rc8_pc8_diag": ("mom_v2_kinf_rc8_pc8", "diag_v2_pc8"),
-            "M_mom_v2_kinf_rc8_pc8c_diag": ("mom_v2_kinf_rc8_pc8c", "diag_v2_pc8c")}
+            "M_mom_v2_kinf_rc8_pc8c_diag": ("mom_v2_kinf_rc8_pc8c", "diag_v2_pc8c"),
+            "M_mom_v2_kinf_rc8_pc8c_fts_diag": ("mom_v2_kinf_rc8_pc8c_fts", "diag_v2_pc8c_fts")}
 PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summations", "M_nbody_b1": "NeMO n-body (b1)",
                 "M_nbody_gpu": "NeMO n-body (GPU, Fig 4)", "mfs_coarse": "MFS coarse",
                 "M_nbody_b1_v2": "b1 retrained on v2", "M_mom_old": "moments (old data)",
@@ -109,7 +114,9 @@ PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summ
                 "M_mom_v2_kinf_rc8_pc8_diag": "moments v2 (pairs<=8) + learned diagonal",
                 "M_mom_v2_kinf_rc8_pc8c": "moments v2 pc8c (chain-fixed)",
                 "M_mom_v2_kinf_rc8_pc8c_diag": "moments v2 pc8c + learned diagonal",
+                "M_mom_v2_kinf_rc8_pc8c_fts_diag": "NeMO + FTS reflection (pc8c pair + diag on the reflected base)",
                 "M_mom_gpu_pc8c_diag": "NeMO (moments pc8c + diag, GPU)",
+                "M_mom_gpu_pc8c_fts_diag": "NeMO + FTS reflection (GPU)",
                 "HIGNN_2b": "HIGNN 2-body (their engine's kernel, dense)",
                 "HIGNN_full": "HIGNN 2-body + 3-body + self",
                 "SD": "Stokesian Dynamics (FTS far field + pairwise lubrication)",
@@ -117,7 +124,7 @@ PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summ
 OP_ORDER = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_gpu", "M_nbody_b1_v2", "M_mom_old",
             "M_mom_v2_k10_rc6", "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8",
             "M_mom_v2_kinf_rc8_pc8_diag", "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag",
-            "M_mom_gpu_pc8c_diag", "HIGNN_2b", "HIGNN_full", "SD", "SD_Minf", "mfs_coarse"]
+            "M_mom_v2_kinf_rc8_pc8c_fts_diag", "M_mom_gpu_pc8c_diag", "M_mom_gpu_pc8c_fts_diag", "HIGNN_2b", "HIGNN_full", "SD", "SD_Minf", "mfs_coarse"]
 
 
 # ----------------------------------------------------------------------------- cases
@@ -216,6 +223,17 @@ def _diag_sidecar_for(key: str) -> float:
     return float(meta.get("diag_cutoff", 8.0))
 
 
+def _fts_base_for(pair_key: str, diag_key: str):
+    """The FTS-reflection label base both sidecars were trained on ("none" -> None): the operator must add exactly
+    the reflection the labels subtract, so the pair and diag models have to agree and the registry cannot override it."""
+    bases = []
+    for key in (pair_key, diag_key):
+        side = Path(MODELS[key]).with_suffix(".json")
+        bases.append(json.load(open(side)).get("fts_base", "none") if side.exists() else "none")
+    assert bases[0] == bases[1], f"pair/diag models trained on different FTS bases: {bases}"
+    return None if bases[0] == "none" else bases[0]
+
+
 def build_op(name: str):
     if name == "M_rpy" or name == "M_2b":
         from src.mob_op_2b_combined import NNMob
@@ -237,9 +255,14 @@ def build_op(name: str):
                                     nbody_nn_path=MODELS[pair_key], nn_only=False, rpy_only=False,
                                     switch_dist=max(6.0, pc), pair_cutoff=pc, neighbor_cutoff=cutoff,
                                     max_neighbors=max_neighbors, diag_nn_path=MODELS[diag_key],
-                                    diag_cutoff=_diag_sidecar_for(diag_key))
+                                    diag_cutoff=_diag_sidecar_for(diag_key),
+                                    fts_reflection=_fts_base_for(pair_key, diag_key))
     if name == "M_mom_gpu_pc8c_diag":
         return _GpuMomentsAdapter()
+    if name == "M_mom_gpu_pc8c_fts_diag":
+        return _GpuMomentsAdapter("experiments/nbody_moments_v2_kinf_rc8_pc8c_fts.wt",
+                                  "experiments/nbody_diag_v2_pc8c_fts.wt",
+                                  _fts_base_for("mom_v2_kinf_rc8_pc8c_fts", "diag_v2_pc8c_fts"))
     if name.startswith("M_mom_"):
         from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
         key = name[len("M_"):]
@@ -274,14 +297,14 @@ class _GpuMomentsAdapter:
     Full-apply parity vs the CPU op is ~5e-7 (benchmarks/compare_gpu_moments.py); needs warp+CUDA."""
     FAR_CHUNK = 1_000_000
 
-    def __init__(self):
+    def __init__(self, moments_wt="experiments/nbody_moments_v2_kinf_rc8_pc8c.wt",
+                 diag_wt="experiments/nbody_diag_v2_pc8c.wt", fts_reflection=None):
         from src.gpu_nbody_moments import Mob_Nbody_Moments_Torch
         self.op = Mob_Nbody_Moments_Torch(
             shape=SHAPE, self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_WT,
-            moments_nn_path="experiments/nbody_moments_v2_kinf_rc8_pc8c.wt",
-            diag_nn_path="experiments/nbody_diag_v2_pc8c.wt",
+            moments_nn_path=moments_wt, diag_nn_path=diag_wt,
             near_field_2b="nn", far_field_2b=None, switch_dist=8.0, neighbor_cutoff=8.0,
-            moments_backend="warp", moments_mlp_fp16=False)
+            moments_backend="warp", moments_mlp_fp16=False, fts_reflection=fts_reflection)
 
     def apply_cpu(self, positions, orientations, forces, viscosity=1.0):
         import contextlib
@@ -314,14 +337,16 @@ class _GpuMomentsAdapter:
 
 CPU_OPS = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_b1_v2", "M_mom_old", "M_mom_v2_k10_rc6",
            "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8", "M_mom_v2_kinf_rc8_pc8_diag",
-           "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag"]
-GPU_OPS = ["mfs_coarse", "M_nbody_gpu", "M_mom_gpu_pc8c_diag", "HIGNN_2b", "HIGNN_full"]
+           "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag", "M_mom_v2_kinf_rc8_pc8c_fts_diag"]
+GPU_OPS = ["mfs_coarse", "M_nbody_gpu", "M_mom_gpu_pc8c_diag", "M_mom_gpu_pc8c_fts_diag", "HIGNN_2b", "HIGNN_full"]
 OP_MODEL = {"M_3b": "3b", "M_nbody_b1": "b1", "M_nbody_b1_v2": "b1_v2", "M_mom_old": "mom_old",
             "M_mom_v2_k10_rc6": "mom_v2_k10_rc6", "M_mom_v2_kinf_rc6": "mom_v2_kinf_rc6",
             "M_mom_v2_kinf_rc8": "mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8": "mom_v2_kinf_rc8_pc8",
             "M_mom_v2_kinf_rc8_pc8_diag": ("mom_v2_kinf_rc8_pc8", "diag_v2_pc8"),
             "M_mom_v2_kinf_rc8_pc8c": "mom_v2_kinf_rc8_pc8c",
             "M_mom_v2_kinf_rc8_pc8c_diag": ("mom_v2_kinf_rc8_pc8c", "diag_v2_pc8c"),
+            "M_mom_v2_kinf_rc8_pc8c_fts_diag": ("mom_v2_kinf_rc8_pc8c_fts", "diag_v2_pc8c_fts"),
+            "M_mom_gpu_pc8c_fts_diag": ("mom_v2_kinf_rc8_pc8c_fts", "diag_v2_pc8c_fts"),
             "M_nbody_gpu": "gpu_wt",
             "HIGNN_2b": "hignn_2b", "HIGNN_full": ("hignn_2b", "hignn_3b", "hignn_self")}
 

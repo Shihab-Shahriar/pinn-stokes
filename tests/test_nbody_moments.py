@@ -371,3 +371,36 @@ def test_two_body_labels_match_operator_convention():
         v_nb = two_body_velocity(two_nn, -s_vec[None], d, F[None], median_2b=5.01)[0]
         assert np.abs(v_nb - v_op).max() > 1e-2 * np.abs(v_op).max()
         assert np.allclose(v_nb[:3], v_op[:3] - 2 * (v_op[:3] - v_lb[:3]), atol=1e-9) or True  # (documentation only)
+
+
+# ----------------------------------------------------------------------------- 12. FTS reflection term
+@pytest.mark.skipif(not MODELS_PRESENT, reason="model files missing")
+def test_operator_fts_reflection_term(tmp_path):
+    """apply() with fts_reflection adds exactly fts_rpy.reflection_velocity, keeps the grand mobility symmetric,
+    and is refused unless pair_cutoff == switch_dist (the label-base lock)."""
+    from benchmarks.cluster import uniform_sphere_cluster
+    from src import fts_rpy
+    from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
+    wt = tmp_path / "rand.wt"
+    torch.save(random_model(5).to(torch.float32).state_dict(), wt)
+    common = dict(shape="sphere", self_nn_path="data/models/self_interaction_model.pt",
+                  two_nn_path="data/models/two_body_combined_model.pt", nbody_nn_path=str(wt),
+                  switch_dist=8.0, pair_cutoff=8.0, neighbor_cutoff=8.0, max_neighbors=None)
+    op0 = Mob_Op_Nbody_Moments(**common)
+    op1 = Mob_Op_Nbody_Moments(fts_reflection="refl1", **common)
+    pos, _ = uniform_sphere_cluster(0.15, 12, seed=1)
+    n = len(pos)
+    config = np.hstack([pos, np.tile([0.0, 0.0, 0.0, 1.0], (n, 1))])
+    rng = np.random.default_rng(0)
+    F = rng.normal(size=(n, 6))
+    for mu in (1.0, 2.0):
+        dv = op1.apply(config, F, mu) - op0.apply(config, F, mu)
+        ref = fts_rpy.reflection_velocity(pos, F, mu, "1", diag_exclude_within=8.0).numpy()
+        assert np.abs(dv - ref).max() < 1e-12 * np.abs(ref).max()
+    M = np.zeros((6 * n, 6 * n))
+    for j in range(6 * n):
+        Fj = np.zeros((n, 6)); Fj[j // 6, j % 6] = 1.0
+        M[:, j] = op1.apply(config, Fj, 1.0).reshape(-1)
+    assert np.linalg.norm(M - M.T) / np.linalg.norm(M) < 1e-5     # float32 learned parts
+    with pytest.raises(AssertionError):
+        Mob_Op_Nbody_Moments(fts_reflection="refl1", **dict(common, pair_cutoff=6.0))

@@ -11,6 +11,7 @@ variant and both architectures (~2.7 GB for the full set).
     python experiments/build_nbody_v2_cache.py --workers 8            # data/multibody_v2 -> data/multibody_v2_cache
     python experiments/build_nbody_v2_cache.py --max-configs 40 --out /tmp/x   # smoke
     python experiments/build_nbody_v2_cache.py --stats                 # summary of an existing cache
+    python experiments/build_nbody_v2_cache.py --out data/multibody_v2_cache_pc8c --add-fts refl1   # + FTS reflection labels
 
 Also stored: the diagonal-block residual Mtt_res = M_tt - M_self(analytic) - sum_{s near t} K_s(t,s) (the two-body
 self correction the operators apply), i.e. the part of the operator error no pairwise M_ts correction can fix.
@@ -323,6 +324,62 @@ def band_counts_v2(d, idx, variant):
     return s.mean(0).numpy()
 
 
+# ----------------------------------------------------------------------------- FTS reflection augmentation
+def add_fts(out_dir: Path, order: str, device: str = "cpu", pair_budget: int = 200_000):
+    """Augment an existing cache with the stresslet-reflection blocks of src/fts_rpy.py, evaluated over ALL
+    particles of each configuration (in-box, every k): ``Mref_<tag>_ts`` (n, 36) for the cached unordered
+    pairs (t, s) and ``Mref_<tag>_tt`` (C, PMAX, 36) for the diagonal -- the latter WITHOUT the two-body
+    diagonal path through neighbours within pair_cutoff (K_s already holds it; fts_rpy.diag_exclude_within) --
+    float32, cache row order.  With
+    ``--label-base <tag>`` the trainers then fit R' = Mts_sym - M2b - Mref_ts and Mtt_res' = Mtt_res - Mref_tt,
+    and the operator adds the same reflection globally (Mob_Op_Nbody_Moments(fts_reflection=<tag>))."""
+    import torch
+    from src import fts_rpy
+    tag = {"1": "refl1", "2": "refl2", "refl1": "refl1", "refl2": "refl2"}[str(order)]
+    order = {"refl1": "1", "refl2": "2"}[tag]
+    cfg = np.load(out_dir / "configs.npz")
+    meta = json.load(open(out_dir / "meta.json"))
+    pair_cutoff = float(meta["pair_cutoff"])
+    positions = np.asarray(cfg["positions"], dtype=np.float64)          # materialise once (npz re-extracts per access)
+    P = cfg["P"].astype(np.int64)
+    pair_cfg = np.asarray(np.load(out_dir / "pair_cfg.npy", mmap_mode="r")).astype(np.int64)
+    pair_t = np.asarray(np.load(out_dir / "pair_t.npy", mmap_mode="r")).astype(np.int64)
+    pair_s = np.asarray(np.load(out_dir / "pair_s.npy", mmap_mode="r")).astype(np.int64)
+    C, n = len(P), len(pair_cfg)
+    assert np.all(np.diff(pair_cfg) >= 0), "pair rows must be configuration-sorted"
+    starts = np.searchsorted(pair_cfg, np.arange(C + 1))
+    Mts = np.lib.format.open_memmap(out_dir / f"Mref_{tag}_ts.npy", mode="w+", dtype=np.float32, shape=(n, 36))
+    Mtt = np.lib.format.open_memmap(out_dir / f"Mref_{tag}_tt.npy", mode="w+", dtype=np.float32, shape=(C, PMAX, 36))
+    t0 = time.time()
+    done = 0
+    for pc in np.unique(P):                                             # batches of equal-size configurations
+        ids = np.nonzero(P == pc)[0]
+        B = max(1, pair_budget // int(pc * pc))
+        for i0 in range(0, len(ids), B):
+            cs = ids[i0:i0 + B]
+            pos = torch.as_tensor(positions[cs, :pc], device=device)
+            blk = fts_rpy.reflection_blocks(pos, 1.0, order, diag_exclude_within=pair_cutoff).cpu().numpy()  # (B, pc, pc, 6, 6)
+            ar = np.arange(pc)
+            for j, c in enumerate(cs):
+                a, b = starts[c], starts[c + 1]
+                Mts[a:b] = blk[j, pair_t[a:b], pair_s[a:b]].reshape(-1, 36)
+                Mtt[c, :pc] = blk[j, ar, ar].reshape(pc, 36)
+            done += len(cs)
+            if done % 5000 < len(cs):
+                print(f"  [fts] {done}/{C} configurations, {time.time() - t0:.0f} s", flush=True)
+    Mts.flush(); Mtt.flush()
+    try:
+        git = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
+    except Exception:
+        git = "?"
+    meta.setdefault("fts", {})[tag] = {"order": order, "mu": 1.0, "scope": "all particles of the configuration",
+                                       "diag_exclude_within": pair_cutoff,
+                                       "arrays": [f"Mref_{tag}_ts", f"Mref_{tag}_tt"], "git": git,
+                                       "created": time.strftime("%Y-%m-%d %H:%M:%S"), "build_s": time.time() - t0}
+    json.dump(meta, open(out_dir / "meta.json", "w"), indent=1)
+    print(f"[fts] {tag}: {C} configurations, {n} pairs in {time.time() - t0:.0f} s -> {out_dir}/Mref_{tag}_{{ts,tt}}.npy")
+
+
 # ----------------------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -336,10 +393,16 @@ def main():
     ap.add_argument("--max-shards", type=int, default=None)
     ap.add_argument("--two-body", default=TWO_BODY_PATH)
     ap.add_argument("--stats", action="store_true", help="only print statistics of an existing cache")
+    ap.add_argument("--add-fts", choices=["refl1", "refl2"], default=None,
+                    help="augment an existing cache with the stresslet reflection blocks (Mref_<tag>_{ts,tt}.npy)")
+    ap.add_argument("--device", default="cpu", help="device for --add-fts")
     ap.add_argument("--keep-parts", action="store_true")
     args = ap.parse_args()
     if args.stats:
         stats(args.out)
+        return
+    if args.add_fts:
+        add_fts(args.out, args.add_fts, args.device)
         return
     shards = list_shards(args.roots, args.families)
     if args.max_shards:

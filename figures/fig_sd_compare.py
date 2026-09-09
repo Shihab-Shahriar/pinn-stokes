@@ -37,10 +37,12 @@ from benchmarks.paper_accuracy_v2 import NUM_REPEATS, PHIS  # noqa: E402
 MAIN_CSV = Path("data/paper_accuracy_v2.csv")
 N_PARTICLES = 200
 NEMO = "M_mom_v2_kinf_rc8_pc8c_diag"
+NEMO_FTS = "M_mom_v2_kinf_rc8_pc8c_fts_diag"   # + analytic stresslet single reflection, models retrained on that base
 # fixed categorical assignment (dataviz reference palette, light mode; validated): NeMO solid, SD dashed with
 # hollow markers (third-party family), RPY thin. Line style + marker carry identity alongside colour.
 STYLE = {  # op: (label, colour, linestyle, marker, family)
     NEMO: ("NeMO (moments + learned diagonal)", "#2a78d6", "-", "o", "nemo"),
+    NEMO_FTS: ("NeMO + FTS reflection", "#0b3d91", "-", "D", "nemo"),
     "SD": ("Stokesian Dynamics (far field + lubrication)", "#eb6834", "--", "s", "sd"),
     "SD_Minf": ("Stokesian Dynamics, far field only (FTS)", "#1baf7a", "--", "^", "sd"),
     "M_rpy": ("RPY", "#4a3aa7", ":", "x", "rpy"),
@@ -96,7 +98,7 @@ def _draw(ax, sub: pd.DataFrame, ops, direct_labels=True, ticks=PHIS):
                     markerfacecolor="white" if fam == "sd" else c, markeredgewidth=1.2, zorder=3 if main else 2)
         ends.append((float(r["mean"].iloc[-1]), float(r["phi"].iloc[-1]), op, c))
     if direct_labels and ends:
-        short = {NEMO: "NeMO", "SD": "SD", "SD_Minf": "SD far field", "M_rpy": "RPY"}
+        short = {NEMO: "NeMO", NEMO_FTS: "NeMO + FTS", "SD": "SD", "SD_Minf": "SD far field", "M_rpy": "RPY"}
         ymax = max(e[0] for e in ends)
         placed = []
         for y, x, op, c in sorted(ends):  # nudge apart when two ends collide

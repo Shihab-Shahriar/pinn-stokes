@@ -382,3 +382,39 @@ def test_harness_selection_for_pc8(tmp_path):
     pav2.MODELS["mom_v2_kinf_rc6"] = str(mdl)
     (tmp_path / "m.json").write_text(json.dumps({"max_neighbors": None, "neighbor_cutoff": 6.0}))
     assert pav2._selection_for("mom_v2_kinf_rc6") == (None, 6.0, 6.0)  # old sidecar without pair_cutoff
+
+
+@needs_models
+@needs_v2
+def test_add_fts_augments_cache_and_labels(tmp_path):
+    """--add-fts stores the in-configuration stresslet reflection blocks in cache row order, and both trainers'
+    --label-base subtracts exactly them from the labels."""
+    import experiments.train_diag_v2 as td
+    import experiments.train_nbody_v2 as tr
+    from src import fts_rpy
+    out = _build_smoke_cache(tmp_path / "cache", pair_cutoff=8.0)
+    subprocess.run([sys.executable, "experiments/build_nbody_v2_cache.py", "--out", str(out), "--add-fts", "refl1"],
+                   check=True, capture_output=True, text=True)
+    meta = json.load(open(out / "meta.json"))
+    assert meta["fts"]["refl1"]["order"] == "1"
+    cfg = np.load(out / "configs.npz")
+    pos_all, P = cfg["positions"], cfg["P"]
+    pair_cfg = np.load(out / "pair_cfg.npy"); pair_t = np.load(out / "pair_t.npy"); pair_s = np.load(out / "pair_s.npy")
+    Mts = np.load(out / "Mref_refl1_ts.npy"); Mtt = np.load(out / "Mref_refl1_tt.npy")
+    assert Mts.shape == (len(pair_cfg), 36) and Mtt.shape == (len(P), 64, 36)
+    for c in range(len(P)):
+        pc = int(P[c])
+        B = fts_rpy.reflection_blocks(pos_all[c, :pc], 1.0, "1", diag_exclude_within=8.0).numpy()
+        rows = np.nonzero(pair_cfg == c)[0]
+        np.testing.assert_allclose(Mts[rows], B[pair_t[rows], pair_s[rows]].reshape(-1, 36), rtol=1e-6, atol=1e-9)
+        np.testing.assert_allclose(Mtt[c, :pc], B[np.arange(pc), np.arange(pc)].reshape(pc, 36), rtol=1e-6, atol=1e-9)
+        assert not Mtt[c, pc:].any()
+    # trainer labels: R' = R - Mref_ts, diag R' = sym(Mtt_res - Mref_tt)
+    a = tr.V2Cache(out, "kinf_rc8", "cpu", "cpu"); b = tr.V2Cache(out, "kinf_rc8", "cpu", "cpu", label_base="refl1")
+    np.testing.assert_allclose((a.R - b.R).numpy(), Mts[a.rows], rtol=1e-5, atol=1e-7)
+    da = td.DiagCache(out, "cpu", "cpu"); db = td.DiagCache(out, "cpu", "cpu", label_base="refl1")
+    valid = np.arange(64)[None, :] < P[:, None]
+    d = Mtt[valid].reshape(-1, 6, 6)
+    np.testing.assert_allclose((da.R - db.R).numpy().reshape(-1, 6, 6), 0.5 * (d + d.transpose(0, 2, 1)), rtol=1e-5, atol=1e-7)
+    with pytest.raises(AssertionError):
+        tr.V2Cache(out, "kinf_rc8", "cpu", "cpu", label_base="refl2")

@@ -623,6 +623,8 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
         moments_backend: str = "warp",
         moments_mlp_fp16: bool = True,
         mid_cell_scale: float = 0.5,
+        fts_reflection: Optional[str] = None,
+        fts_pair_chunk: int = 2_000_000,
     ) -> None:
         super().__init__(
             shape=shape,
@@ -655,6 +657,14 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
             moments_nn_path, lambda: MultiBodyMoments(self.mean_dist_s))
         self.diag_nn = (
             self._load_model(diag_nn_path, SelfBlockMoments) if diag_nn_path else None)
+        # Stresslet single reflection (src/fts_rpy.py) as a global analytic term, for models whose
+        # labels subtract it (sidecar fts_base = "refl1"); the diagonal two-body path within the
+        # switch distance is excluded because the 2b model's K_s already holds it.  Dense O(N^2)
+        # torch passes in fp64 (chunked by target rows): fine for the harness sweeps (N <= 1e4),
+        # the treecode version for production sizes is a separate step.
+        self.fts_order = {None: 0, "none": 0, "refl1": 1, "refl2": 2}[fts_reflection]
+        self.fts_diag_exclude = float(switch_dist)
+        self.fts_pair_chunk = int(fts_pair_chunk)
 
         self._mid_search = MidpointNeighborSearch(self.device)
         self._pair_buf: Optional[torch.Tensor] = None
@@ -866,6 +876,22 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
             t4 = time.perf_counter()
             print(f"[MobMoments] diag correction time: {(t4 - t3) * 1000:.3f} ms")
 
+        if self.fts_order:
+            v = v + self.get_fts_velocity(pos, force, viscosity)
+            torch.cuda.synchronize()
+            t45 = time.perf_counter()
+            print(f"[MobMoments] FTS reflection time: {(t45 - t3) * 1000:.3f} ms")
+
         t5 = time.perf_counter()
         print(f"[Mob_Nbody] Post-base path time: {(t5 - t2) * 1000:.3f} ms")
         return v
+
+    @torch.no_grad()
+    def get_fts_velocity(self, pos: torch.Tensor, force: torch.Tensor, viscosity: TensorLike) -> torch.Tensor:
+        """fts_rpy.reflection_velocity on the device (fp64), returned in the velocity dtype."""
+        from src import fts_rpy
+        mu = float(viscosity.item() if torch.is_tensor(viscosity) else viscosity)
+        v = fts_rpy.reflection_velocity(pos.to(torch.float64), force.to(torch.float64), mu=mu,
+                                        order=str(self.fts_order), pair_chunk=self.fts_pair_chunk,
+                                        diag_exclude_within=self.fts_diag_exclude)
+        return v.to(torch.float32)

@@ -1,0 +1,18 @@
+{
+ "name": "nbody_diag_v2_pc8c_fts",
+ "model": "diag_moments",
+ "features": "diag_moments",
+ "pair_cutoff": 8.0,
+ "diag_cutoff": 8.0,
+ "fts_base": "refl1",
+ "nb": 8,
+ "band_lo": 2.0,
+ "band_hi": 8.0,
+ "cache": "data/multibody_v2_cache_pc8c",
+ "run": "experiments/runs_v2/diag_pc8c_fts",
+ "capture": 53.930017265635044,
+ "vel_capture_lin": 54.52637023791419,
+ "vel_capture_ang": 53.23283177359407,
+ "inv_norm": false,
+ "created": "2026-09-08 23:26:28"
+}

@@ -35,9 +35,12 @@ EXP = "fig4g"
 PHIS = [0.025, 0.05, 0.1, 0.15]
 HEADLINE_GPU, HEADLINE_CPU = "M_mom_gpu_pc8c_diag", "M_mom_v2_kinf_rc8_pc8c_diag"
 NEMO = "NeMO"   # the GPU op spans the whole N range; the CPU op (N <= 300) fills cells the GPU rows lack
+NEMO_FTS = "NeMO + FTS"   # same merge for the stresslet-reflection stack (GPU + CPU ops)
+HEADLINES = {NEMO: (HEADLINE_GPU, HEADLINE_CPU), NEMO_FTS: ("M_mom_gpu_pc8c_fts_diag", "M_mom_v2_kinf_rc8_pc8c_fts_diag")}
 # fixed categorical assignment (dataviz reference palette, light mode); HIGNN dashed, NeMO/RPY solid
 STYLE = {  # op: (label, colour, linestyle, marker, family)
     NEMO: ("NeMO (moments + learned diagonal)", "#2a78d6", "-", "o", "nemo"),
+    NEMO_FTS: ("NeMO + FTS reflection", "#0b3d91", "-", "D", "nemo"),
     "HIGNN_full": ("HIGNN: 2-body + 3-body + self", "#eb6834", "--", "s", "hignn"),
     "M_3b": ("NeMO 3-body summations", "#1baf7a", "-", "^", "nemo"),
     "M_2b": ("NeMO 2-body", "#eda100", "-", "D", "nemo"),
@@ -55,19 +58,25 @@ def load(metrics: list[str]) -> pd.DataFrame:
     d = df[df["exp"] == EXP].copy()
     assert not d.empty, f"no {EXP} rows in {MAIN_CSV}"
     # headline series: GPU op rows, with CPU-op rows filling any (N, phi, seed) cell where the GPU op lacks the metric
-    gpu = d[d["op"] == HEADLINE_GPU].copy()
-    cpu = d[d["op"] == HEADLINE_CPU].copy()
     key = ["N", "phi", "seed"]
-    parts = [gpu]
-    for m in metrics:
-        have = gpu[gpu[m].notna()][key] if m in gpu else gpu.iloc[0:0][key]
-        fill = cpu.merge(have, on=key, how="left", indicator=True)
-        fill = fill[fill["_merge"] == "left_only"].drop(columns="_merge")
-        if len(fill):
-            parts.append(fill)
-    head = pd.concat(parts, ignore_index=True).drop_duplicates(subset=key, keep="first")
-    head["op"] = NEMO
-    d = pd.concat([d[~d["op"].isin([HEADLINE_GPU, HEADLINE_CPU])], head], ignore_index=True)
+    merged, drop = [], []
+    for name, (gpu_op, cpu_op) in HEADLINES.items():
+        gpu = d[d["op"] == gpu_op].copy()
+        cpu = d[d["op"] == cpu_op].copy()
+        drop += [gpu_op, cpu_op]
+        if gpu.empty and cpu.empty:
+            continue
+        parts = [gpu]
+        for m in metrics:
+            have = gpu[gpu[m].notna()][key] if m in gpu else gpu.iloc[0:0][key]
+            fill = cpu.merge(have, on=key, how="left", indicator=True)
+            fill = fill[fill["_merge"] == "left_only"].drop(columns="_merge")
+            if len(fill):
+                parts.append(fill)
+        head = pd.concat(parts, ignore_index=True).drop_duplicates(subset=key, keep="first")
+        head["op"] = name
+        merged.append(head)
+    d = pd.concat([d[~d["op"].isin(drop)]] + merged, ignore_index=True)
     return d
 
 

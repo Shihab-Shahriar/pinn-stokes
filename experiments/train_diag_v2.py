@@ -51,10 +51,12 @@ NNBR_BINS = [(0, 0), (1, 5), (6, 15), (16, 30), (31, 10 ** 6)]
 class DiagCache:
     """Per-particle rows of the v2 cache as device tensors + on-the-fly feature construction."""
 
-    def __init__(self, root: Path, device, data_on: str = "gpu", families=None, cutoff: float = 8.0):
+    def __init__(self, root: Path, device, data_on: str = "gpu", families=None, cutoff: float = 8.0,
+                 label_base: str = "none"):
         self.root = Path(root)
         self.device = torch.device(device)
         self.cutoff = float(cutoff)
+        self.label_base = str(label_base)
         cfg = np.load(self.root / "configs.npz")
         self.meta = json.load(open(self.root / "meta.json"))
         positions_np = cfg["positions"]                          # materialise once: npz re-extracts per access
@@ -71,6 +73,11 @@ class DiagCache:
 
         # labels: symmetrised diagonal residual (the model output is symmetric by construction)
         A = np.asarray(Mtt[valid])[keep].reshape(n, 6, 6).astype(np.float32)
+        if self.label_base != "none":
+            # base = analytic self + K_s over d <= pair_cutoff + the in-configuration stresslet reflection
+            assert self.label_base in self.meta.get("fts", {}), f"{self.root}: no {self.label_base} reflection arrays"
+            Mref = np.load(self.root / f"Mref_{self.label_base}_tt.npy", mmap_mode="r")
+            A = A - np.asarray(Mref[valid])[keep].reshape(n, 6, 6).astype(np.float32)
         R = 0.5 * (A + np.transpose(A, (0, 2, 1)))
 
         # per-particle neighbour CSR through the shared selection code path, config by config
@@ -208,6 +215,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
     ap.add_argument("--cutoff", type=float, default=8.0, help="particle neighbour cutoff (selection radius)")
+    ap.add_argument("--label-base", choices=["none", "refl1", "refl2"], default="none",
+                    help="subtract the cache's stresslet-reflection diagonal blocks from the labels (needs --add-fts)")
     ap.add_argument("--eval-only", type=str, default=None)
     ap.add_argument("--epochs", type=int, default=100)
     ap.add_argument("--max-steps", type=int, default=None)
@@ -234,7 +243,7 @@ def main():
               open(args.out / "config.json", "w"), indent=1)
 
     t0 = time.time()
-    cache = DiagCache(args.cache, device, args.data_on, args.families, args.cutoff)
+    cache = DiagCache(args.cache, device, args.data_on, args.families, args.cutoff, args.label_base)
     rng = np.random.default_rng(args.seed)
     val_all = cache.val_idx
     val_sub = np.sort(rng.choice(val_all, size=min(args.eval_rows, len(val_all)), replace=False))
@@ -354,7 +363,7 @@ def main():
         shutil.copy(args.out / "model.pt", Path("data/models") / f"{name}.pt")
         shutil.copy(args.out / "model.wt", Path("experiments") / f"{name}.wt")
         side = {"name": name, "model": "diag_moments", "features": "diag_moments",
-                "pair_cutoff": cache.meta["pair_cutoff"], "diag_cutoff": args.cutoff,
+                "pair_cutoff": cache.meta["pair_cutoff"], "diag_cutoff": args.cutoff, "fts_base": args.label_base,
                 "nb": nbm.NB_SELF, "band_lo": nbm.BAND_LO, "band_hi": nbm.BAND_HI,
                 "cache": str(args.cache), "run": str(args.out), "capture": m["capture"],
                 "vel_capture_lin": m["vel_capture_lin"], "vel_capture_ang": m["vel_capture_ang"],

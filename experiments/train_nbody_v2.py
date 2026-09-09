@@ -56,8 +56,9 @@ BLOCKS = {"TT": (slice(0, 3), slice(0, 3)), "TR": (slice(0, 3), slice(3, 6)), "R
 class V2Cache:
     """The cache as device tensors + on-the-fly feature construction for one selection variant."""
 
-    def __init__(self, root: Path, variant: str, device, data_on: str = "gpu", families=None):
+    def __init__(self, root: Path, variant: str, device, data_on: str = "gpu", families=None, label_base: str = "none"):
         self.root = Path(root); self.variant = variant; self.device = torch.device(device)
+        self.label_base = str(label_base)
         self.K, self.cutoff = nf.SELECTION_VARIANTS[variant]
         cfg = np.load(self.root / "configs.npz")
         self.meta = json.load(open(self.root / "meta.json"))
@@ -86,6 +87,11 @@ class V2Cache:
         self.pair_s = T(np.asarray(ld("pair_s"))[self.rows], torch.int64)
         self.dist = np.asarray(ld("pair_dist"))[self.rows].astype(np.float32)
         Mts = np.asarray(ld("Mts_sym"))[self.rows]; M2b = np.asarray(ld("M2b"))[self.rows]
+        if self.label_base != "none":
+            # base = 2b NN + the in-configuration stresslet reflection (build_nbody_v2_cache.py --add-fts);
+            # the operator adds the same reflection globally (Mob_Op_Nbody_Moments(fts_reflection=...))
+            assert self.label_base in self.meta.get("fts", {}), f"{self.root}: no {self.label_base} reflection arrays"
+            M2b = M2b + np.asarray(ld(f"Mref_{self.label_base}_ts"))[self.rows]
         self.R = T(Mts - M2b, torch.float32)                                   # (n, 36) residual labels
         self.Mts_np = Mts; self.M2b_np = M2b                                    # numpy (eval only)
         self.nnbr = counts[self.rows]
@@ -226,6 +232,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cache", type=Path, default=Path("data/multibody_v2_cache"))
     ap.add_argument("--variant", choices=list(nf.SELECTION_VARIANTS), default="k10_rc6")
+    ap.add_argument("--label-base", choices=["none", "refl1", "refl2"], default="none",
+                    help="subtract the cache's stresslet-reflection blocks from the labels (needs --add-fts)")
     ap.add_argument("--model", choices=["moments", "baseline"], default="moments")
     ap.add_argument("--features", choices=["moments", "baseline"], default=None, help="(eval-only) feature layout")
     ap.add_argument("--eval-only", type=str, default=None)
@@ -265,7 +273,7 @@ def main():
     json.dump({k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()}, open(args.out / "config.json", "w"), indent=1)
 
     t0 = time.time()
-    cache = V2Cache(args.cache, args.variant, device, args.data_on, args.families)
+    cache = V2Cache(args.cache, args.variant, device, args.data_on, args.families, args.label_base)
     rng = np.random.default_rng(args.seed)
     val_all = cache.val_idx
     val_sub = np.sort(rng.choice(val_all, size=min(args.eval_rows, len(val_all)), replace=False))
@@ -392,7 +400,8 @@ def main():
         side = {"name": name, "model": args.model, "features": features, "variant": args.variant, "max_neighbors": cache.K,
                 "neighbor_cutoff": cache.cutoff, "pair_cutoff": cache.meta["pair_cutoff"], "hidden": args.hidden,
                 "mean_dist_s": MEAN_DIST_S,
-                "median_2b": cache.meta["median_2b"], "run": str(args.out), "prmse_lin": m["prmse_lin"], "prmse_ang": m["prmse_ang"],
+                "median_2b": cache.meta["median_2b"], "fts_base": args.label_base,
+                "run": str(args.out), "prmse_lin": m["prmse_lin"], "prmse_ang": m["prmse_ang"],
                 "rel_total": m["rel_total"], "created": time.strftime("%Y-%m-%d %H:%M:%S")}
         json.dump(side, open(Path("data/models") / f"{name}.json", "w"), indent=1)
         print(f"[published] data/models/{name}.pt (+ .json sidecar), experiments/{name}.wt")
