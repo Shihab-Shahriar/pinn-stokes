@@ -44,7 +44,7 @@ from src import nbody_moments as nbm  # noqa: E402
 from src.model_archs import MultiBodyCorrectionB1, MultiBodyMoments  # noqa: E402
 
 MEAN_DIST_S = nf.MEAN_DIST_S
-FAMILIES = ["uniform", "grown", "lattice"]
+FAMILIES = ["uniform", "grown", "lattice", "chain"]
 NNBR_BINS = [(1, 5), (6, 10), (11, 20), (21, 40), (41, 10 ** 6)]
 DIST_BINS = [(2.0, 2.5), (2.5, 3.0), (3.0, 4.0), (4.0, 5.0), (5.0, 6.01), (6.01, 8.01)]
 PUBLISH = {("moments", "k10_rc6"): "nbody_moments_v2_k10_rc6", ("moments", "kinf_rc6"): "nbody_moments_v2_kinf_rc6",
@@ -244,8 +244,9 @@ def main():
     ap.add_argument("--eval-every", type=int, default=5)
     ap.add_argument("--eval-rows", type=int, default=500000)
     ap.add_argument("--families", nargs="+", default=None, choices=FAMILIES)
-    ap.add_argument("--family-weights", type=float, nargs=3, default=None, metavar=("W_UNIFORM", "W_GROWN", "W_LATTICE"),
-                    help="relative sampling weight per row of each family (default: uniform over rows)")
+    ap.add_argument("--family-weights", type=float, nargs="+", default=None,
+                    help=f"relative sampling weight per row of each family, one per {FAMILIES} "
+                         "(default: uniform over rows)")
     ap.add_argument("--hidden", type=int, nargs="+", default=None,
                     help="MLP hidden widths for the moments model (default 128 64 128 64)")
     ap.add_argument("--inv-norm", action="store_true")
@@ -304,6 +305,7 @@ def main():
         print(f"[loss] block weights TT {bw[0, 0]:.2f} TR {bw[0, 3]:.2f} RR {bw[3, 3]:.2f}")
     weights = None
     if args.family_weights is not None:
+        assert len(args.family_weights) == len(FAMILIES), f"one weight per family: {FAMILIES}"
         w = np.asarray(args.family_weights, dtype=np.float64)[cache.family[train_idx]]
         weights = torch.as_tensor(w / w.sum(), dtype=torch.float64, device=device)
     n_train = len(train_idx)

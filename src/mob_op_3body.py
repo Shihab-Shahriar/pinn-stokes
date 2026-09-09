@@ -227,7 +227,7 @@ class NNMob3B(TwoBodyNNMob):
         assert config.shape == (N, 7)
 
         # Initialize M matrix as in the parent class, required for get_two_vel
-        self.M = np.zeros((6*N, 6*N), dtype=np.float64)
+        self.M = np.zeros((6*N, 6*N), dtype=np.float64) if self.store_M else None
 
         pos = config[:, :3]
         # orientations = [Rotation.identity() for _ in range(N)]  # unused for spheres

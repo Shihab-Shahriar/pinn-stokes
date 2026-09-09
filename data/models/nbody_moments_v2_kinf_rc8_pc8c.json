@@ -1,0 +1,17 @@
+{
+ "name": "nbody_moments_v2_kinf_rc8_pc8c",
+ "model": "moments",
+ "features": "moments",
+ "variant": "kinf_rc8",
+ "max_neighbors": null,
+ "neighbor_cutoff": 8.0,
+ "pair_cutoff": 8.0,
+ "hidden": null,
+ "mean_dist_s": 4.690027344329476,
+ "median_2b": 5.01,
+ "run": "experiments/runs_v2/mom_kinf_rc8_pc8c_final",
+ "prmse_lin": 3.871031735724816,
+ "prmse_ang": 15.524766383925423,
+ "rel_total": 4.6044030679962615,
+ "created": "2026-09-05 21:55:45"
+}

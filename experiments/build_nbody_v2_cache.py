@@ -37,7 +37,7 @@ os.chdir(ROOT)
 from src import nbody_features as nf  # noqa: E402
 
 TWO_BODY_PATH = "data/models/two_body_combined_model.pt"
-FAMILY_ID = {"uniform": 0, "grown": 1, "lattice": 2}
+FAMILY_ID = {"uniform": 0, "grown": 1, "lattice": 2, "chain": 3}
 PMAX = 64
 VARIANTS = nf.SELECTION_VARIANTS
 MEAN_DIST_S = nf.MEAN_DIST_S

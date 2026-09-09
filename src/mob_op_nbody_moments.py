@@ -32,6 +32,9 @@ from src import nbody_features as nf
 class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 	DEFAULT_PAIR_CUTOFF: float = 6.0
 	PREDICT_CHUNK: int = 100_000  # ordered-pair rows per model call
+	PAIR_ROW_CHUNK: int = 25_000  # unordered pairs per feature-build chunk in get_nbody_velocity:
+	# the padded-neighbour + band-moment intermediates are O(pairs x K_max) and reached ~5 GB at
+	# N=3000, phi=0.15 unchunked (OOM on a 15 GB box); chunking caps them at a few hundred MB.
 
 	def __init__(
 		self,
@@ -122,8 +125,8 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 	# ------------------------------------------------------------------
 	# Pair rows
 	# ------------------------------------------------------------------
-	def _pair_rows(self, pos: np.ndarray) -> Tuple[List[Tuple[int, int]], np.ndarray, np.ndarray]:
-		"""Unordered near pairs (t < s) with >= 1 neighbour and their model rows for (t, s) and (s, t).
+	def _selected_pairs(self, pos: np.ndarray):
+		"""Unordered near pairs (t < s) with >= 1 neighbour, CSR neighbour lists (zero-neighbour pairs dropped).
 
 		Selection is ``nf.select_pair_neighbours`` (the one code path shared with the v2 training cache), so
 		training rows and inference rows are built identically."""
@@ -131,18 +134,30 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 			pos, self.pair_cutoff, self.neighbor_cutoff, self.max_neighbors)
 		keep = np.diff(indptr) > 0
 		if not keep.any():
-			empty = np.zeros((0, 111), dtype=np.float32)
-			return [], empty, empty
+			return t_idx[:0], s_idx[:0], indptr[:1], indices[:0]
 		if not keep.all():  # drop zero-neighbour pairs (no correction, as in Mob_Op_Nbody)
 			counts = np.diff(indptr)[keep]
 			indices = np.concatenate([indices[indptr[i]:indptr[i + 1]] for i in np.nonzero(keep)[0]])
 			indptr = np.concatenate([[0], np.cumsum(counts)])
 			t_idx, s_idx = t_idx[keep], s_idx[keep]
+		return t_idx, s_idx, indptr, indices
+
+	def _build_rows(self, pos: np.ndarray, t_idx, s_idx, indptr, indices) -> Tuple[np.ndarray, np.ndarray]:
+		"""Model rows (X_ts, X_st) for the given selected pairs + CSR neighbour lists."""
 		nbr, mask = nf.pad_neighbours(pos, t_idx, indptr, indices)
 		svecs = pos[s_idx] - pos[t_idx]
 		X_ts = nf.moment_features(svecs, nbr, mask, self.mean_dist_s)
 		X_st = X_ts.copy()
 		X_st[:, :3] *= -1.0  # moments are midpoint-based and identical; only the pair axis flips
+		return X_ts, X_st
+
+	def _pair_rows(self, pos: np.ndarray) -> Tuple[List[Tuple[int, int]], np.ndarray, np.ndarray]:
+		"""Unordered near pairs and their model rows for (t, s) and (s, t) -- unchunked (diagnostics path)."""
+		t_idx, s_idx, indptr, indices = self._selected_pairs(pos)
+		if len(t_idx) == 0:
+			empty = np.zeros((0, 111), dtype=np.float32)
+			return [], empty, empty
+		X_ts, X_st = self._build_rows(pos, t_idx, s_idx, indptr, indices)
 		pairs = [(int(t), int(s)) for t, s in zip(t_idx, s_idx)]
 		return pairs, X_ts, X_st
 
@@ -167,17 +182,18 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 		_ = viscosity  # absorbed by the learned model (as in Mob_Op_Nbody)
 		N = pos.shape[0]
 		velocities = np.zeros((N, 6), dtype=np.float64)
-		pairs, X_ts, X_st = self._pair_rows(pos)
-		if not pairs:
-			return velocities
-		t_idx = np.array([p[0] for p in pairs])
-		s_idx = np.array([p[1] for p in pairs])
-		X = np.concatenate([X_ts, X_st], 0)
-		F = np.concatenate([force[s_idx], force[t_idx]], 0)  # (t,s): force on s moves t; (s,t): vice versa
-		pred = self._predict(X, F)
-		P = len(pairs)
-		np.add.at(velocities, t_idx, pred[:P])
-		np.add.at(velocities, s_idx, pred[P:])
+		t_idx, s_idx, indptr, indices = self._selected_pairs(pos)
+		P = len(t_idx)
+		for i0 in range(0, P, self.PAIR_ROW_CHUNK):  # bounded feature-build memory; rows are independent
+			i1 = min(i0 + self.PAIR_ROW_CHUNK, P)
+			X_ts, X_st = self._build_rows(pos, t_idx[i0:i1], s_idx[i0:i1],
+			                              indptr[i0:i1 + 1] - indptr[i0], indices[indptr[i0]:indptr[i1]])
+			X = np.concatenate([X_ts, X_st], 0)
+			F = np.concatenate([force[s_idx[i0:i1]], force[t_idx[i0:i1]]], 0)  # (t,s): force on s moves t; (s,t): vice versa
+			pred = self._predict(X, F)
+			n = i1 - i0
+			np.add.at(velocities, t_idx[i0:i1], pred[:n])
+			np.add.at(velocities, s_idx[i0:i1], pred[n:])
 		return velocities
 
 	def nbody_pair_blocks(self, pos: np.ndarray) -> Tuple[List[Tuple[int, int]], np.ndarray]:

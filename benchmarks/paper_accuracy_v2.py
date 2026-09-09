@@ -47,6 +47,7 @@ SHAPE = "sphere"
 SELF_PATH = "data/models/self_interaction_model.pt"
 TWO_BODY_PATH = "data/models/two_body_combined_model.pt"
 TWO_BODY_WT = "data/models/combined_2body.wt"
+HIGNN_ROOT = Path(os.environ.get("HIGNN_ROOT", "/home/shihab/throwaway/hignn"))  # Pan-group checkout (AGPL-3): referenced, never copied
 MODELS = {
     "3b": "data/models/3body_cross.pt",
     "b1": "data/models/nbody_pinn_b1.pt",                      # paper Fig 3 (CPU)
@@ -56,14 +57,26 @@ MODELS = {
     "mom_v2_kinf_rc6": "data/models/nbody_moments_v2_kinf_rc6.pt",
     "mom_v2_kinf_rc8": "data/models/nbody_moments_v2_kinf_rc8.pt",
     "mom_v2_kinf_rc8_pc8": "data/models/nbody_moments_v2_kinf_rc8_pc8.pt",  # pair_cutoff 8 ablation
+    "mom_v2_kinf_rc8_pc8c": "data/models/nbody_moments_v2_kinf_rc8_pc8c.pt",  # + chain family (Fig 6 fix), latest
     "diag_v2_pc8": "data/models/nbody_diag_v2_pc8.pt",         # per-particle diagonal correction (pc8 labels)
+    "diag_v2_pc8c": "data/models/nbody_diag_v2_pc8c.pt",       # diagonal retrained on the pc8c cache, latest
     "gpu_wt": "data/models/nbody_cross_tmp.wt",                # paper Fig 4 (GPU operator)
+    # HIGNN baseline (src/hignn_ops.py): their shipped nn.Sequential pickles; 2b == nn/two_body_unbounded.pkl (the C++ engine's kernel)
+    "hignn_2b": str(HIGNN_ROOT / "python/Saved_Model/Unbounded_try1/HIGNN_nn_2body.pkl"),
+    "hignn_3b": str(HIGNN_ROOT / "python/Saved_Model/Unbounded_try1/HIGNN_nn_3body.pkl"),
+    "hignn_self": str(HIGNN_ROOT / "python/Saved_Model/Unbounded_try1/HIGNN_nn_self.pkl"),
 }
 PHIS = [0.025, 0.05, 0.075, 0.1, 0.125, 0.15, 0.175, 0.2]
 FIG3_N = [200, 300]
-FIG4_N = [20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 140, 160, 180, 200]
+FIG4_N = [20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 140, 160, 180, 200,
+          300, 500, 1000, 2000,  # large-N cells APPENDED (p_idx feeds the seed formula: never reorder)
+          1500, 2500, 3000,      # second batch, appended after 2000 for the same reason
+          5000, 7500, 10000,     # third batch (gravity + random truths)
+          20000, 30000]          # saturation check (gravity, phi=0.1 only)
 DELTAS = ["0.1", "0.2", "0.5", "1.0", "2.0", "3.0"]
 NUM_REPEATS = 10
+FIG4_REPEATS = {1000: 5, 1500: 5, 2000: 3, 2500: 3, 3000: 3,  # tapered seeds (runs 0..k-1, formula unchanged)
+                5000: 3, 7500: 3, 10000: 3, 20000: 2, 30000: 2}
 BASE_SEED = 123
 NEARFIELD_CUTOFF = 6.0
 
@@ -81,20 +94,30 @@ VEL_COLS = ["v_x", "v_y", "v_z", "w_x", "w_y", "w_z"]
 # (max_neighbors, neighbor_cutoff, pair_cutoff) each moments model must be run with (= its training selection).
 # The operator gets switch_dist=max(6, pair_cutoff): the 2b NN (trained to d=8) is the base wherever pairs are corrected.
 SELECTION = {"mom_old": (10, 6.0, 6.0), "mom_v2_k10_rc6": (10, 6.0, 6.0), "mom_v2_kinf_rc6": (None, 6.0, 6.0),
-             "mom_v2_kinf_rc8": (None, 8.0, 6.0), "mom_v2_kinf_rc8_pc8": (None, 8.0, 8.0)}
+             "mom_v2_kinf_rc8": (None, 8.0, 6.0), "mom_v2_kinf_rc8_pc8": (None, 8.0, 8.0),
+             "mom_v2_kinf_rc8_pc8c": (None, 8.0, 8.0)}
 # ops that stack a per-particle diagonal model on a pair moments model: op -> (pair model key, diag model key).
 # The diag model's labels subtract K_s over d <= its sidecar pair_cutoff, so it may only run at that pair_cutoff.
-DIAG_OPS = {"M_mom_v2_kinf_rc8_pc8_diag": ("mom_v2_kinf_rc8_pc8", "diag_v2_pc8")}
+DIAG_OPS = {"M_mom_v2_kinf_rc8_pc8_diag": ("mom_v2_kinf_rc8_pc8", "diag_v2_pc8"),
+            "M_mom_v2_kinf_rc8_pc8c_diag": ("mom_v2_kinf_rc8_pc8c", "diag_v2_pc8c")}
 PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summations", "M_nbody_b1": "NeMO n-body (b1)",
                 "M_nbody_gpu": "NeMO n-body (GPU, Fig 4)", "mfs_coarse": "MFS coarse",
                 "M_nbody_b1_v2": "b1 retrained on v2", "M_mom_old": "moments (old data)",
                 "M_mom_v2_k10_rc6": "moments v2 (K=10, r_c=6)", "M_mom_v2_kinf_rc6": "moments v2 (all, r_c=6)",
                 "M_mom_v2_kinf_rc8": "moments v2 (all, r_c=8)",
                 "M_mom_v2_kinf_rc8_pc8": "moments v2 (all, r_c=8, pairs<=8)",
-                "M_mom_v2_kinf_rc8_pc8_diag": "moments v2 (pairs<=8) + learned diagonal"}
+                "M_mom_v2_kinf_rc8_pc8_diag": "moments v2 (pairs<=8) + learned diagonal",
+                "M_mom_v2_kinf_rc8_pc8c": "moments v2 pc8c (chain-fixed)",
+                "M_mom_v2_kinf_rc8_pc8c_diag": "moments v2 pc8c + learned diagonal",
+                "M_mom_gpu_pc8c_diag": "NeMO (moments pc8c + diag, GPU)",
+                "HIGNN_2b": "HIGNN 2-body (their engine's kernel, dense)",
+                "HIGNN_full": "HIGNN 2-body + 3-body + self",
+                "SD": "Stokesian Dynamics (FTS far field + pairwise lubrication)",
+                "SD_Minf": "Stokesian Dynamics far field only (FTS multipole, no lubrication)"}
 OP_ORDER = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_gpu", "M_nbody_b1_v2", "M_mom_old",
             "M_mom_v2_k10_rc6", "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8",
-            "M_mom_v2_kinf_rc8_pc8_diag", "mfs_coarse"]
+            "M_mom_v2_kinf_rc8_pc8_diag", "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag",
+            "M_mom_gpu_pc8c_diag", "HIGNN_2b", "HIGNN_full", "SD", "SD_Minf", "mfs_coarse"]
 
 
 # ----------------------------------------------------------------------------- cases
@@ -106,10 +129,10 @@ def cases(exp: str, Ns=None, phis=None, seeds=None) -> list[dict]:
             for phi in PHIS:
                 for run in range(NUM_REPEATS):
                     out.append({"exp": exp, "N": int(N), "phi": float(phi), "seed": BASE_SEED + run})
-    elif exp == "fig4":
+    elif exp in ("fig4", "fig4g"):  # fig4g = same grid/seeds/configs, uniform gravity forcing
         for v_idx, phi in enumerate(PHIS):
             for p_idx, N in enumerate(FIG4_N):
-                for run in range(NUM_REPEATS):
+                for run in range(FIG4_REPEATS.get(int(N), NUM_REPEATS)):
                     out.append({"exp": exp, "N": int(N), "phi": float(phi),
                                 "seed": BASE_SEED + v_idx * 1000 + p_idx * 100 + run})
         if Ns is not None:
@@ -127,8 +150,9 @@ def cases(exp: str, Ns=None, phis=None, seeds=None) -> list[dict]:
 
 
 # ----------------------------------------------------------------------------- truth
-def truth_path(N: int, phi: float, seed: int) -> Path:
-    return TRUTH_DIR / f"uniform_N{N}_phi{phi:g}_seed{seed}.npz"
+def truth_path(N: int, phi: float, seed: int, forcing: str = "random") -> Path:
+    suffix = {"random": "", "gravity": "_grav"}[forcing]
+    return TRUTH_DIR / f"uniform_N{N}_phi{phi:g}_seed{seed}{suffix}.npz"
 
 
 def load_case(case: dict, generate: bool = False):
@@ -138,12 +162,18 @@ def load_case(case: dict, generate: bool = False):
         df = pd.read_csv(f"tmp/reference_sphere_{delta}.csv", float_precision="high")
         return (df[CONFIG_COLS].values.astype(np.float64), df[FORCE_COLS].values.astype(np.float64),
                 df[VEL_COLS].values.astype(np.float64))
-    p = truth_path(case["N"], case["phi"], case["seed"])
+    forcing = "gravity" if case["exp"] == "fig4g" else "random"
+    p = truth_path(case["N"], case["phi"], case["seed"], forcing)
     if p.exists():
         d = np.load(p)
         return d["config"], d["forces"], d["velocity"]
     if not generate:
         raise FileNotFoundError(f"truth missing: {p} (run with --truth-only on a GPU box first)")
+    if forcing == "gravity":
+        raise RuntimeError("fig4g truths come from benchmarks/broms_truth.py --forcing gravity")
+    if case["N"] > 300:  # the GS solver's L_cut=25 truncates the Oseen sum once boxes outgrow it
+        raise RuntimeError(f"N={case['N']} truths come from benchmarks/broms_truth.py (widebvh MFS, "
+                           "no L_cut), not the truncated GS solver")
     from benchmarks.cluster import generate_uniform_testcase
 
     t0 = time.time()
@@ -208,6 +238,8 @@ def build_op(name: str):
                                     switch_dist=max(6.0, pc), pair_cutoff=pc, neighbor_cutoff=cutoff,
                                     max_neighbors=max_neighbors, diag_nn_path=MODELS[diag_key],
                                     diag_cutoff=_diag_sidecar_for(diag_key))
+    if name == "M_mom_gpu_pc8c_diag":
+        return _GpuMomentsAdapter()
     if name.startswith("M_mom_"):
         from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
         key = name[len("M_"):]
@@ -224,17 +256,74 @@ def build_op(name: str):
         return Mob_Nbody_Torch(shape=SHAPE, self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_WT,
                                nbody_nn_path=MODELS["gpu_wt"], near_field_2b="nn", far_field_2b="rpy",
                                near_far_switch=6.0)
+    if name in ("SD", "SD_Minf"):  # Stokesian Dynamics (Townsend checkout at SD_ROOT; src/sd_ops.py), CPU, dense O(N^3)
+        from src.sd_ops import SDMob
+        return SDMob(minfinity_only=(name == "SD_Minf"))
+    if name in ("HIGNN_2b", "HIGNN_full"):  # third-party baseline, translational only: score with prmse_lin & co.
+        from src.hignn_ops import HignnMob
+        return HignnMob(MODELS["hignn_2b"], MODELS["hignn_3b"], MODELS["hignn_self"],
+                        variant="2b" if name == "HIGNN_2b" else "full", eps3=5.0)
     raise KeyError(name)
 
 
+class _GpuMomentsAdapter:
+    """`Mob_Nbody_Moments_Torch` (pc8c pair + diag, accuracy grade: warp backend, fp16 OFF) behind
+    the harness's apply_cpu contract. The op's own far_field_2b='rpy' runs one dense batch over all
+    far pairs (~5 GB at N=3000 -- OOM on the 4060), so the op is built with far_field_2b=None and
+    the far-field RPY is added here in bounded chunks through the op's own RPY kernel.
+    Full-apply parity vs the CPU op is ~5e-7 (benchmarks/compare_gpu_moments.py); needs warp+CUDA."""
+    FAR_CHUNK = 1_000_000
+
+    def __init__(self):
+        from src.gpu_nbody_moments import Mob_Nbody_Moments_Torch
+        self.op = Mob_Nbody_Moments_Torch(
+            shape=SHAPE, self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_WT,
+            moments_nn_path="experiments/nbody_moments_v2_kinf_rc8_pc8c.wt",
+            diag_nn_path="experiments/nbody_diag_v2_pc8c.wt",
+            near_field_2b="nn", far_field_2b=None, switch_dist=8.0, neighbor_cutoff=8.0,
+            moments_backend="warp", moments_mlp_fp16=False)
+
+    def apply_cpu(self, positions, orientations, forces, viscosity=1.0):
+        import contextlib
+        import io
+        import torch
+        dev = torch.device("cuda")
+        pos = torch.as_tensor(np.ascontiguousarray(positions, dtype=np.float32), device=dev)
+        quat = torch.as_tensor(np.ascontiguousarray(orientations, dtype=np.float32), device=dev)
+        F = torch.as_tensor(np.ascontiguousarray(forces, dtype=np.float32), device=dev)
+        N = pos.shape[0]
+        with torch.no_grad(), contextlib.redirect_stdout(io.StringIO()):
+            t_idx, s_idx = self.op.get_neighbor_pairs(pos)
+            v = self.op.apply(pos, quat, F, viscosity, t_idx=t_idx, s_idx=s_idx)
+            # far pairs = complement of the near list, enumerated in target-row blocks so the
+            # index tensors stay bounded (a one-shot NxN nonzero is ~14 GB at N=30000)
+            rows = max(1, self.FAR_CHUNK // N)
+            for r0 in range(0, N, rows):
+                r1 = min(r0 + rows, N)
+                mask = torch.ones(r1 - r0, N, dtype=torch.bool, device=dev)
+                mask[torch.arange(r1 - r0, device=dev), torch.arange(r0, r1, device=dev)] = False
+                sel = (t_idx >= r0) & (t_idx < r1)
+                mask[t_idx[sel] - r0, s_idx[sel]] = False
+                far_t, far_s = torch.nonzero(mask, as_tuple=True)
+                far_t += r0
+                for i in range(0, far_t.numel(), self.FAR_CHUNK):
+                    tc, sc = far_t[i:i + self.FAR_CHUNK], far_s[i:i + self.FAR_CHUNK]
+                    v.index_add_(0, tc, self.op._rpy_velocity_compiled(pos[tc] - pos[sc], F[sc], viscosity))
+        return v.detach().cpu().numpy().astype(np.float64)
+
+
 CPU_OPS = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_b1_v2", "M_mom_old", "M_mom_v2_k10_rc6",
-           "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8", "M_mom_v2_kinf_rc8_pc8_diag"]
-GPU_OPS = ["mfs_coarse", "M_nbody_gpu"]
+           "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8", "M_mom_v2_kinf_rc8_pc8_diag",
+           "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag"]
+GPU_OPS = ["mfs_coarse", "M_nbody_gpu", "M_mom_gpu_pc8c_diag", "HIGNN_2b", "HIGNN_full"]
 OP_MODEL = {"M_3b": "3b", "M_nbody_b1": "b1", "M_nbody_b1_v2": "b1_v2", "M_mom_old": "mom_old",
             "M_mom_v2_k10_rc6": "mom_v2_k10_rc6", "M_mom_v2_kinf_rc6": "mom_v2_kinf_rc6",
             "M_mom_v2_kinf_rc8": "mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8": "mom_v2_kinf_rc8_pc8",
             "M_mom_v2_kinf_rc8_pc8_diag": ("mom_v2_kinf_rc8_pc8", "diag_v2_pc8"),
-            "M_nbody_gpu": "gpu_wt"}
+            "M_mom_v2_kinf_rc8_pc8c": "mom_v2_kinf_rc8_pc8c",
+            "M_mom_v2_kinf_rc8_pc8c_diag": ("mom_v2_kinf_rc8_pc8c", "diag_v2_pc8c"),
+            "M_nbody_gpu": "gpu_wt",
+            "HIGNN_2b": "hignn_2b", "HIGNN_full": ("hignn_2b", "hignn_3b", "hignn_self")}
 
 
 def available(names: list[str]) -> list[str]:
@@ -263,10 +352,9 @@ def apply_op(op, config, forces):
 
 
 def nearfield_interactions(config: np.ndarray) -> float:
+    from scipy.spatial.distance import pdist
     pos = config[:, :3]
-    D = np.linalg.norm(pos[:, None, :] - pos[None, :, :], axis=-1)
-    np.fill_diagonal(D, np.inf)
-    return float(np.sum(D < NEARFIELD_CUTOFF) / len(pos))
+    return float(2 * np.sum(pdist(pos) < NEARFIELD_CUTOFF) / len(pos))
 
 
 def evaluate(ops: dict, case: dict, tag: str = "") -> list[dict]:
@@ -290,11 +378,15 @@ _OPS: dict = {}
 _TAG = ""
 
 
-def _init_worker(op_names: list[str], tag: str, threads: int):
+def _init_worker(op_names: list[str], tag: str, threads: int, models: dict | None = None):
     os.environ["CUDA_VISIBLE_DEVICES"] = ""  # CPU operators only: never open a CUDA context per worker
     import torch
     torch.set_num_threads(threads)
+    from src.mob_op_2b_combined import NNMob
+    NNMob.store_M = False  # the dense diagnostics matrix is 1.15 GB/apply at N=2000; nothing here reads it
     global _OPS, _TAG
+    if models:  # the pool is a spawn context: --models overrides applied in the parent don't survive
+        MODELS.update(models)  # the re-import, so they are passed through initargs instead
     _TAG = tag
     _OPS = {n: build_op(n) for n in op_names}
 
@@ -374,7 +466,7 @@ def summary(df: pd.DataFrame, write_md: bool = True) -> str:
             for op, hop in hist:
                 lines.append(f"| historic {op} (paper CSV) | " + " | ".join(fmt.format(hop.get(round(v, 6), np.nan)) for v in col_values) + " |")
 
-    for exp in [e for e in ["fig3", "fig4", "cluster"] if e in set(df["exp"])]:
+    for exp in [e for e in ["fig3", "fig4", "fig4g", "cluster"] if e in set(df["exp"])]:
         d = df[df["exp"] == exp]
         if exp == "fig3":
             for N in sorted(d["N"].unique()):
@@ -414,6 +506,33 @@ def summary(df: pd.DataFrame, write_md: bool = True) -> str:
                             r = h[h["num_particles"] == N]
                             cells.append("-" if r.empty else f"{float(r['avg_rel_rmse'].iloc[0]):.2f}")
                         lines.append(f"| historic {phi:g} (paper CSV) | " + " | ".join(cells) + " |")
+        elif exp == "fig4g":
+            lines.append("\n## Fig 4g protocol (uniform gravity F=(0,0,-9.81), T=0, same configs as Fig 4): "
+                         "translational metrics vs N, mean over seeds")
+            for metric, title in [("prmse_lin", "translational PRMSE (%)"),
+                                  ("prmse_fluct", "fluctuation PRMSE (%): error of U - mean(U) over truth fluctuations"),
+                                  ("err_mean_pct", "mean (collective) velocity error (%)"),
+                                  ("max_rel_lin", "max per-particle translational rel err (%)"),
+                                  ("prmse_ang", "rotational rel-L2 (%) (omitted for HIGNN: no angular output)")]:
+                if metric not in d.columns:
+                    continue
+                for op in _ops_in(d):
+                    sub = d[d["op"] == op]
+                    if sub[metric].isna().all() or (op.startswith("HIGNN") and metric == "prmse_ang"):
+                        continue
+                    a = _agg(sub, metric)
+                    Ns = sorted(sub["N"].unique())
+                    phis = sorted(sub["phi"].unique())
+                    lines.append(f"\n**{op} -- {title}** (rows phi, columns N)\n")
+                    lines.append("| phi | " + " | ".join(str(n) for n in Ns) + " |")
+                    lines.append("|" + "---|" * (len(Ns) + 1))
+                    for phi in phis:
+                        cells = []
+                        for N in Ns:
+                            r = a[(a["N"] == N) & np.isclose(a["phi"], phi)]
+                            ok = not r.empty and not np.isnan(float(r["mean"].iloc[0]))
+                            cells.append(f"{float(r['mean'].iloc[0]):.2f}" if ok else "-")
+                        lines.append(f"| {phi:g} | " + " | ".join(cells) + " |")
         else:
             deltas = sorted(d["phi"].unique())
             lines.append("\n## Clustered near-contact clusters (tmp/reference_sphere_delta.csv, N = 10)")
@@ -484,13 +603,42 @@ def figures(df: pd.DataFrame):
             fig.suptitle("Fig 4 protocol (dashed: paper CSV, historic)", fontsize=10); fig.tight_layout()
             fig.savefig(ROOT / "figures" / f"paper_v2_fig4_{target}.pdf"); fig.savefig(ROOT / "figures" / f"paper_v2_fig4_{target}.png", dpi=150)
             plt.close(fig)
-    print("[figures] figures/paper_v2_fig3_P*.pdf, figures/paper_v2_fig4_*.pdf")
+    _figures_fig4g(df, plt)
+    print("[figures] figures/paper_v2_fig3_P*.pdf, figures/paper_v2_fig4_*.pdf, figures/paper_v2_fig4g_*.pdf")
+
+
+def _figures_fig4g(df: pd.DataFrame, plt):
+    """Gravity protocol: one panel per op, translational metric vs N (log x), one curve per phi."""
+    d = df[df["exp"] == "fig4g"]
+    if d.empty:
+        return
+    ops = _ops_in(d)
+    cmap = plt.get_cmap("viridis")
+    show_phis = sorted(d["phi"].unique())
+    for target in [t for t in ("prmse_lin", "prmse_fluct") if t in d.columns and not d[t].isna().all()]:
+        a = _agg(d, target)
+        ncol = min(3, len(ops)); nrow = int(np.ceil(len(ops) / ncol))
+        fig, axes = plt.subplots(nrow, ncol, figsize=(5 * ncol, 3.8 * nrow), squeeze=False, sharey=True)
+        for k, op in enumerate(ops):
+            ax = axes[k // ncol][k % ncol]
+            for j, phi in enumerate(show_phis):
+                r = a[(a["op"] == op) & np.isclose(a["phi"], phi) & a["mean"].notna()].sort_values("N")
+                ax.plot(r["N"], r["mean"], marker="o", ms=3, color=cmap(j / max(1, len(show_phis) - 1)), label=f"phi={phi:g}")
+            ax.set_xscale("log"); ax.set_title(PAPER_LABELS.get(op, op), fontsize=9); ax.set_xlabel("num particles")
+            if k % ncol == 0:
+                ax.set_ylabel("translational PRMSE (%)" if target == "prmse_lin" else "fluctuation PRMSE (%)")
+        for k in range(len(ops), nrow * ncol):
+            axes[k // ncol][k % ncol].axis("off")
+        axes[0][0].legend(fontsize=7)
+        fig.suptitle("Fig 4g protocol: uniform gravity, T = 0 (translational metrics)", fontsize=10); fig.tight_layout()
+        fig.savefig(ROOT / "figures" / f"paper_v2_fig4g_{target}.pdf"); fig.savefig(ROOT / "figures" / f"paper_v2_fig4g_{target}.png", dpi=150)
+        plt.close(fig)
 
 
 # ----------------------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--exp", nargs="+", default=["fig3"], choices=["fig3", "fig4", "cluster"])
+    ap.add_argument("--exp", nargs="+", default=["fig3"], choices=["fig3", "fig4", "fig4g", "cluster"])
     ap.add_argument("--N", type=int, nargs="+", default=None, help="restrict N (fig3 default 200 300; fig4 the paper list)")
     ap.add_argument("--phis", type=float, nargs="+", default=None)
     ap.add_argument("--seeds", type=int, nargs="+", default=None)
@@ -524,6 +672,11 @@ def main():
         return
 
     all_cases = [c for e in args.exp for c in cases(e, args.N, args.phis, args.seeds)]
+    # fig4g truths exist only where they were generated (4 plotted phis; N >= 20000 at phi 0.1 only): drop the rest
+    n_all = len(all_cases)
+    all_cases = [c for c in all_cases if c["exp"] != "fig4g" or truth_path(c["N"], c["phi"], c["seed"], "gravity").exists()]
+    if len(all_cases) < n_all:
+        print(f"[cases] dropped {n_all - len(all_cases)} fig4g cells with no gravity truth file")
     print(f"[cases] {len(all_cases)} configurations: " + ", ".join(f"{e}:{sum(c['exp'] == e for c in all_cases)}" for e in args.exp))
     out_csv = MAIN_CSV
     if args.part:
@@ -537,12 +690,15 @@ def main():
             if c["exp"] != "cluster":
                 load_case(c, generate=True)
         if args.gpu_ops:
-            names = ["mfs_coarse"]
-            try:
-                import warp  # noqa: F401
-                names.append("M_nbody_gpu")
-            except ImportError:
-                print("[ops] warp not importable: skipping M_nbody_gpu")
+            if args.ops:  # explicit --ops wins; keep only the GPU ones for this in-process branch
+                names = [n for n in args.ops if n in GPU_OPS]
+            else:
+                names = ["mfs_coarse"]
+                try:
+                    import warp  # noqa: F401
+                    names.append("M_nbody_gpu")
+                except ImportError:
+                    print("[ops] warp not importable: skipping M_nbody_gpu")
             ops = {n: build_op(n) for n in available(names)}
             done = done_keys() if args.skip_done else set()
             for c in all_cases:
@@ -552,8 +708,10 @@ def main():
         if args.truth_only:
             return
 
-    op_names = available(args.ops or CPU_OPS)
-    assert op_names, "no operators to run"
+    op_names = [n for n in available(args.ops or CPU_OPS) if n not in GPU_OPS]  # GPU ops ran above
+    if not op_names:
+        print("[ops] no CPU operators to run")
+        return
     done = done_keys() if args.skip_done else set()
     if args.skip_done:
         all_cases = [c for c in all_cases if any((c["exp"], c["N"], round(c["phi"], 6), c["seed"], n + args.tag) not in done for n in op_names)]
@@ -569,7 +727,7 @@ def main():
     else:
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
         ctx = mp.get_context("spawn")
-        with ctx.Pool(args.workers, initializer=_init_worker, initargs=(op_names, args.tag, args.threads)) as pool:
+        with ctx.Pool(args.workers, initializer=_init_worker, initargs=(op_names, args.tag, args.threads, MODELS)) as pool:
             for i, rows in enumerate(pool.imap_unordered(_worker, all_cases)):
                 merge_rows(out_csv, rows)
                 print(f"[progress] {i + 1}/{len(all_cases)} ({time.time() - t_start:.0f} s)", flush=True)

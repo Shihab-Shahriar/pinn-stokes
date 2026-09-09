@@ -94,8 +94,18 @@ def compute_error_stats(predicted, velocity):
     # per-block relative L2 (translational / rotational), not in the original harness
     lin = np.linalg.norm(diff[:, :3]) / max(np.linalg.norm(velocity[:, :3]), 1e-12) * 100
     ang = np.linalg.norm(diff[:, 3:]) / max(np.linalg.norm(velocity[:, 3:]), 1e-12) * 100
+    # translational-only extras for the torque-free / gravity protocols (HIGNN predicts no angular velocity):
+    # error of the mean (collective) velocity, error of the fluctuations about it, per-particle max
+    dl, vl = diff[:, :3], velocity[:, :3]
+    d_mean, v_mean = dl.mean(axis=0), vl.mean(axis=0)
+    err_mean_pct = np.linalg.norm(d_mean) / max(np.linalg.norm(v_mean), 1e-12) * 100
+    prmse_fluct = np.linalg.norm(dl - d_mean) / max(np.linalg.norm(vl - v_mean), 1e-12) * 100
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rel_lin = np.nan_to_num(np.linalg.norm(dl, axis=1) / np.linalg.norm(vl, axis=1))
+    max_rel_lin = np.max(rel_lin) * 100
     return {"rmse": rmse, "rel_rmse": rel_rmse, "mae": mae, "rel_mae": rel_mae,
-            "max_rel_rmse": max_rel_rmse, "prmse_lin": lin, "prmse_ang": ang}
+            "max_rel_rmse": max_rel_rmse, "prmse_lin": lin, "prmse_ang": ang,
+            "err_mean_pct": err_mean_pct, "prmse_fluct": prmse_fluct, "max_rel_lin": max_rel_lin}
 
 
 # ----------------------------------------------------------------------------- operators

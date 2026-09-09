@@ -14,6 +14,10 @@ generators used in practice):
            least 2 + delta from all others (benchmarks/cluster.py::grow_cluster semantics)
   lattice  primitive cubic lattice with spacing a = ((4 pi / 3) / phi)^(1/3), the P points nearest the
            origin (a small sedimenting-drop patch), jittered by +-j a per coordinate; gap >= 0.05
+  chain    quasi-1D line of spheres: per-gap centre spacing iid uniform in [2.1, 8], transverse
+           Gaussian jitter of absolute scale j (j = 0 is the exactly collinear manifold, which the
+           box families never sample and where the pc8 pair model had an unconstrained error cliff
+           -- see reproduction.md, Figure 6)
 
 Storage: data/multibody_v2/{family}/{tag}/shard_{k:04d}.npz with positions (n,P,3) f64, M (n,6P,6P)
 (fp32 by default), per-config seed / iterations / residuals / symmetry error / wall time and metadata;
@@ -44,7 +48,7 @@ sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
 GAP_MIN = 0.05            # global minimum surface-to-surface gap (as in every existing dataset)
-FAMILY_ID = {"uniform": 1, "grown": 2, "lattice": 3}
+FAMILY_ID = {"uniform": 1, "grown": 2, "lattice": 3, "chain": 4}
 SHARD_SIZE = {8: 1024, 12: 768, 16: 512, 24: 384, 32: 256, 48: 128, 64: 64}   # configs per shard by P
 
 DEFAULT_PLAN = {
@@ -54,7 +58,9 @@ DEFAULT_PLAN = {
     "lattice": {"phi": [0.05, 0.1, 0.15], "jitter": [0.05, 0.1, 0.2], "P": [32, 64]},
 }
 # rounds interleave the families so that the mix by configuration count is ~60 / 30 / 10 %
-FAMILY_ROUND_WEIGHT = {"uniform": 1.0, "grown": 0.5, "lattice": 0.25}
+FAMILY_ROUND_WEIGHT = {"uniform": 1.0, "grown": 0.5, "lattice": 0.25, "chain": 1.0}
+CHAIN_JITTER = [0.0, 0.02, 0.05, 0.1, 0.3]  # transverse sigma (radii); 0 = exactly collinear
+CHAIN_P = [8, 12, 16]
 
 
 # ----------------------------------------------------------------------------- configuration families
@@ -115,6 +121,18 @@ def gen_lattice(P: int, phi: float, jitter: float, rng: np.random.Generator, max
     return None
 
 
+def gen_chain(P: int, jitter: float, rng: np.random.Generator):
+    """Quasi-1D chain along x: gaps iid uniform in [2.1, 8] (so adjacent pairs span the whole corrected
+    range and next-nearest sums straddle the d = 8 cutoff), transverse Gaussian jitter of scale ``jitter``.
+    Transverse jitter cannot shrink any centre distance below its axial gap, so gap >= 0.1 by construction."""
+    pos = np.zeros((P, 3))
+    pos[1:, 0] = np.cumsum(rng.uniform(2.1, 8.0, size=P - 1))
+    if jitter > 0:
+        pos[:, 1:] = rng.normal(scale=jitter, size=(P, 2))
+        pos -= pos[0]                          # keep particle 0 at the origin (convention)
+    return pos
+
+
 def make_config(family: str, params: dict, P: int, rng: np.random.Generator):
     if family == "uniform":
         return gen_uniform(P, params["phi"], rng)
@@ -122,6 +140,8 @@ def make_config(family: str, params: dict, P: int, rng: np.random.Generator):
         return gen_grown(P, params["delta"], rng)
     if family == "lattice":
         return gen_lattice(P, params["phi"], params["jitter"], rng)
+    if family == "chain":
+        return gen_chain(P, params["jitter"], rng)
     raise ValueError(family)
 
 
@@ -147,6 +167,8 @@ def build_plan(args) -> list:
             fams["uniform"] = {"phi": args.phi or DEFAULT_PLAN["uniform"]["phi"], "P": args.P or DEFAULT_PLAN["uniform"]["P"]}
         elif args.family == "grown":
             fams["grown"] = {"delta": args.delta or DEFAULT_PLAN["grown"]["delta"], "P": args.P or DEFAULT_PLAN["grown"]["P"]}
+        elif args.family == "chain":
+            fams["chain"] = {"jitter": args.jitter or CHAIN_JITTER, "P": args.P or CHAIN_P}
         else:
             fams["lattice"] = {"phi": args.phi or DEFAULT_PLAN["lattice"]["phi"],
                                "jitter": args.jitter or DEFAULT_PLAN["lattice"]["jitter"], "P": args.P or DEFAULT_PLAN["lattice"]["P"]}

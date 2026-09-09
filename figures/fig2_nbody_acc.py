@@ -36,7 +36,7 @@ sys.path.insert(1, str(ROOT / "src"))  # grpy_tensors is imported bare by mob_op
 os.chdir(ROOT)
 os.environ.setdefault("TORCH_COMPILE_DISABLE", "1")  # accuracy work
 
-FAMILIES = ["uniform", "grown", "lattice"]
+FAMILIES = ["uniform", "grown", "lattice", "chain"]
 SELF_PATH = "data/models/self_interaction_model.pt"
 TWO_BODY_PATH = "data/models/two_body_combined_model.pt"
 STAGES = ["2b", "b1", "moments", "diag"]

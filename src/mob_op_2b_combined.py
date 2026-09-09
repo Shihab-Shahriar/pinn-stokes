@@ -90,6 +90,8 @@ class NNMob:
     Forces and torque has to be converted to particle's body (i.e. local) frame
     for self interaction. For two body interaction, we need to rotate the forces
     """
+    store_M = True  # keep the dense 6Nx6N diagnostics matrix on apply(); disable for large N
+
     def __init__(self, shape, self_nn_path, two_nn_path,
                  nn_only: bool = False,          
                  rpy_only: bool = False,         
@@ -319,7 +321,8 @@ class NNMob:
                 # RPY path ------------------------------------------------------
                 if use_rpy:
                     K_ij = self.compute_rpy_mobility(center2)
-                    self.M[t*6:(t+1)*6, s*6:(s+1)*6] = K_ij
+                    if self.M is not None:
+                        self.M[t*6:(t+1)*6, s*6:(s+1)*6] = K_ij
                     velocities[t] += K_ij @ force[s]
                     # accumulate spectral norm (largest singular value)
                     #offdiag_spectral_sum[t] += np.max(np.linalg.eigvals(K_ij))
@@ -367,7 +370,8 @@ class NNMob:
                     Ms_np = M_s.detach().cpu().numpy()
                     for k in range(Mt_np.shape[0]):
                         s_idx = nn_neighbors_indices[k]
-                        self.M[t*6:(t+1)*6, s_idx*6:(s_idx+1)*6] = Mt_np[k]
+                        if self.M is not None:
+                            self.M[t*6:(t+1)*6, s_idx*6:(s_idx+1)*6] = Mt_np[k]
                         #offdiag_spectral_sum[t] += np.max(np.linalg.eigvals(Mt_np[k]))
                         #diag_ms_sum[t] += Ms_np[k]
 
@@ -409,7 +413,9 @@ class NNMob:
 
         assert config.shape == (N, 7)
 
-        self.M = np.zeros((6*N, 6*N), dtype=np.float64)  # Store the full mobility matrix for diagnostics
+        # Full mobility matrix, kept for spd_diagnostics only. 1.15 GB at N=2000 -- set
+        # store_M=False (class attribute) to skip it for large-N accuracy runs.
+        self.M = np.zeros((6*N, 6*N), dtype=np.float64) if self.store_M else None
 
         orientations = Rotation.from_quat(config[:, 3:], scalar_first=False) # (x, y, z, w) 
         pos = config[:, :3]
