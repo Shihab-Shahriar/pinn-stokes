@@ -235,16 +235,24 @@ figure.
 | Stokesian Dynamics                   | 0.0037 | 0.0154 | 0.0035    | 0.0154   |
 | 2-body only (switch 6)               | 0.0204 | 0.1250 | 0.0120    | 0.0862   |
 | n-body b1 (the published figure's op)| 0.0160 | 0.1122 | 0.0086    | 0.0728   |
-| moments pc8c + diag (NeMO)           | **0.0066** | **0.0375** | **0.0027** | **0.0185** |
+| moments pc8c + diag (NeMO v2)        | 0.0066 | 0.0375 | 0.0027    | 0.0185   |
+| moments v3 + diag (NeMO v3, 2026-09-13) | **0.0040** | **0.0236** | **0.0012** | **0.0091** |
 
 The published figure's visible artefact — U3 read ~0.117 at S=2.01 against Wilson's 0.005 and
 had the wrong shape over the whole sweep — is gone: the new stack tracks Wilson's non-monotone
 U3 curve to ≤0.002 for S ≥ 2.1 (26× better than b1 at S=2.1). The learned diagonal is the only
 term that moves U1 (the apex velocity is a pure self-block response at N=3) and halves its
-near-contact error. Remaining visible gap: Ω at S ≤ 2.5 is still overpredicted (0.075 vs 0.037
-at S=2.01 — ~30 % better than b1's 0.090, consistent with the known ~17 % angular TR/RT
-residual of the pair model); S=2.01 as a whole sits below the training data's minimum gap of
-0.1 and is OOD for every learned term.
+near-contact error. The v2 stack's remaining visible gap — Ω at S ≤ 2.5 overpredicted (0.075 vs
+0.037 at S=2.01, +36 % at S=2.1, +14 % at S=2.5) — was the pair block's `RT = TR` tying, not the
+encoder: Ω here is the base sphere's rotation from the apex force, an RT-block quantity, and v2
+wrote the same matrix into both off-diagonal corners. The v3 pair model
+(`nbody_moments_v3_nb5lin_tr2_kinf_rc8_pc8c.pt`, `--v3-model`; 5 bands, linear bases, class-2 TR
+bases, 60 coefficients; `moments_for_nbody.md` §5.4) removes it: Ω error vs MFS Xfine +36/+14/+8/+3 %
+at S = 2.1/2.5/3/4 → +2/−1/+0.2/−2 %, on top of Wilson and SD from S = 2.1 outward, and U3 at
+S = 2.1 +7.5 % → +0.4 %; U1/U2 unchanged (same diagonal). NeMO v3 is closer to Wilson than SD in
+12/24 cells (v2: 10, b1: 8) and beats SD on the mean deviation for S ≥ 2.1 (0.0012 vs 0.0035).
+The figure now carries both NeMO curves. What remains is S=2.01 (Ω +27 %, U3 +51 %), which sits
+below the training data's minimum gap of 0.1 and is OOD for every learned term.
 
 ## Figure 8 — single-drop sedimentation storyboard
 

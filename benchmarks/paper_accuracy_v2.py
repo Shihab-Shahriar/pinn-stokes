@@ -60,6 +60,9 @@ MODELS = {
     "mom_v2_kinf_rc8_pc8c": "data/models/nbody_moments_v2_kinf_rc8_pc8c.pt",  # + chain family (Fig 6 fix), latest
     "diag_v2_pc8": "data/models/nbody_diag_v2_pc8.pt",         # per-particle diagonal correction (pc8 labels)
     "diag_v2_pc8c": "data/models/nbody_diag_v2_pc8c.pt",       # diagonal retrained on the pc8c cache, latest
+    # v3 layout (nbody_moments.py: 5 tent bands on knots 0.5..4.5, linear bases, class-2 TR bases -> 60 coefficients),
+    # same selection as the pc8c pair model; the sidecar carries bands/bases/invariants (_assert_layout)
+    "mom_v3_nb5lin_tr2_pc8c": "data/models/nbody_moments_v3_nb5lin_tr2_kinf_rc8_pc8c.pt",
     "gpu_wt": "data/models/nbody_cross_tmp.wt",                # paper Fig 4 (GPU operator)
     # HIGNN baseline (src/hignn_ops.py): their shipped nn.Sequential pickles; 2b == nn/two_body_unbounded.pkl (the C++ engine's kernel)
     "hignn_2b": str(HIGNN_ROOT / "python/Saved_Model/Unbounded_try1/HIGNN_nn_2body.pkl"),
@@ -95,11 +98,12 @@ VEL_COLS = ["v_x", "v_y", "v_z", "w_x", "w_y", "w_z"]
 # The operator gets switch_dist=max(6, pair_cutoff): the 2b NN (trained to d=8) is the base wherever pairs are corrected.
 SELECTION = {"mom_old": (10, 6.0, 6.0), "mom_v2_k10_rc6": (10, 6.0, 6.0), "mom_v2_kinf_rc6": (None, 6.0, 6.0),
              "mom_v2_kinf_rc8": (None, 8.0, 6.0), "mom_v2_kinf_rc8_pc8": (None, 8.0, 8.0),
-             "mom_v2_kinf_rc8_pc8c": (None, 8.0, 8.0)}
+             "mom_v2_kinf_rc8_pc8c": (None, 8.0, 8.0), "mom_v3_nb5lin_tr2_pc8c": (None, 8.0, 8.0)}
 # ops that stack a per-particle diagonal model on a pair moments model: op -> (pair model key, diag model key).
 # The diag model's labels subtract K_s over d <= its sidecar pair_cutoff, so it may only run at that pair_cutoff.
 DIAG_OPS = {"M_mom_v2_kinf_rc8_pc8_diag": ("mom_v2_kinf_rc8_pc8", "diag_v2_pc8"),
-            "M_mom_v2_kinf_rc8_pc8c_diag": ("mom_v2_kinf_rc8_pc8c", "diag_v2_pc8c")}
+            "M_mom_v2_kinf_rc8_pc8c_diag": ("mom_v2_kinf_rc8_pc8c", "diag_v2_pc8c"),
+            "M_mom_v3_nb5lin_tr2_pc8c_diag": ("mom_v3_nb5lin_tr2_pc8c", "diag_v2_pc8c")}
 PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summations", "M_nbody_b1": "NeMO n-body (b1)",
                 "M_nbody_gpu": "NeMO n-body (GPU, Fig 4)", "mfs_coarse": "MFS coarse",
                 "M_nbody_b1_v2": "b1 retrained on v2", "M_mom_old": "moments (old data)",
@@ -109,6 +113,8 @@ PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summ
                 "M_mom_v2_kinf_rc8_pc8_diag": "moments v2 (pairs<=8) + learned diagonal",
                 "M_mom_v2_kinf_rc8_pc8c": "moments v2 pc8c (chain-fixed)",
                 "M_mom_v2_kinf_rc8_pc8c_diag": "moments v2 pc8c + learned diagonal",
+                "M_mom_v3_nb5lin_tr2_pc8c": "moments v3 (5 bands, linear bases, split TR/RT; no diag)",
+                "M_mom_v3_nb5lin_tr2_pc8c_diag": "NeMO v3 (moments v3 pair + learned diagonal)",
                 "M_mom_gpu_pc8c_diag": "NeMO (moments pc8c + diag, GPU)",
                 "HIGNN_2b": "HIGNN 2-body (their engine's kernel, dense)",
                 "HIGNN_full": "HIGNN 2-body + 3-body + self",
@@ -117,6 +123,7 @@ PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summ
 OP_ORDER = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_gpu", "M_nbody_b1_v2", "M_mom_old",
             "M_mom_v2_k10_rc6", "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8",
             "M_mom_v2_kinf_rc8_pc8_diag", "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag",
+            "M_mom_v3_nb5lin_tr2_pc8c", "M_mom_v3_nb5lin_tr2_pc8c_diag",
             "M_mom_gpu_pc8c_diag", "HIGNN_2b", "HIGNN_full", "SD", "SD_Minf", "mfs_coarse"]
 
 
@@ -216,6 +223,22 @@ def _diag_sidecar_for(key: str) -> float:
     return float(meta.get("diag_cutoff", 8.0))
 
 
+def _assert_layout(op, pair_key: str):
+    """A v3 pair model's sidecar pins its band knots / basis set / invariant set; the operator reads the same from the
+    model itself (nbody_moments.layout_of_model), so the two must agree (a stale or copied sidecar fails here)."""
+    side = Path(MODELS[pair_key]).with_suffix(".json")
+    if not side.exists():
+        return
+    meta = json.load(open(side))
+    if meta.get("bands") is None and "bases" not in meta:
+        return  # pre-layout sidecar: v2 model
+    from src import nbody_moments as nbm
+    want = {"bands": [float(b) for b in (meta.get("bands") or nbm.V2_KNOTS)], "bases": meta.get("bases", "v2"),
+            "invariants": meta.get("invariants", "full")}
+    got = {k: op.nbody_layout[k] for k in want}
+    assert got == want, f"{MODELS[pair_key]}: sidecar layout {want} != model layout {got}"
+
+
 def build_op(name: str):
     if name == "M_rpy" or name == "M_2b":
         from src.mob_op_2b_combined import NNMob
@@ -233,21 +256,25 @@ def build_op(name: str):
         from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
         pair_key, diag_key = DIAG_OPS[name]
         max_neighbors, cutoff, pc = _selection_for(pair_key)
-        return Mob_Op_Nbody_Moments(shape=SHAPE, self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_PATH,
-                                    nbody_nn_path=MODELS[pair_key], nn_only=False, rpy_only=False,
-                                    switch_dist=max(6.0, pc), pair_cutoff=pc, neighbor_cutoff=cutoff,
-                                    max_neighbors=max_neighbors, diag_nn_path=MODELS[diag_key],
-                                    diag_cutoff=_diag_sidecar_for(diag_key))
+        op = Mob_Op_Nbody_Moments(shape=SHAPE, self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_PATH,
+                                  nbody_nn_path=MODELS[pair_key], nn_only=False, rpy_only=False,
+                                  switch_dist=max(6.0, pc), pair_cutoff=pc, neighbor_cutoff=cutoff,
+                                  max_neighbors=max_neighbors, diag_nn_path=MODELS[diag_key],
+                                  diag_cutoff=_diag_sidecar_for(diag_key))
+        _assert_layout(op, pair_key)
+        return op
     if name == "M_mom_gpu_pc8c_diag":
         return _GpuMomentsAdapter()
     if name.startswith("M_mom_"):
         from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
         key = name[len("M_"):]
         max_neighbors, cutoff, pc = _selection_for(key)
-        return Mob_Op_Nbody_Moments(shape=SHAPE, self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_PATH,
-                                    nbody_nn_path=MODELS[key], nn_only=False, rpy_only=False,
-                                    switch_dist=max(6.0, pc), pair_cutoff=pc, neighbor_cutoff=cutoff,
-                                    max_neighbors=max_neighbors)
+        op = Mob_Op_Nbody_Moments(shape=SHAPE, self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_PATH,
+                                  nbody_nn_path=MODELS[key], nn_only=False, rpy_only=False,
+                                  switch_dist=max(6.0, pc), pair_cutoff=pc, neighbor_cutoff=cutoff,
+                                  max_neighbors=max_neighbors)
+        _assert_layout(op, key)
+        return op
     if name == "mfs_coarse":
         from src.triton_mfs import MobMFSTriton
         return MobMFSTriton(shape=SHAPE, acc="coarse")
@@ -314,7 +341,8 @@ class _GpuMomentsAdapter:
 
 CPU_OPS = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_b1_v2", "M_mom_old", "M_mom_v2_k10_rc6",
            "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8", "M_mom_v2_kinf_rc8_pc8_diag",
-           "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag"]
+           "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag",
+           "M_mom_v3_nb5lin_tr2_pc8c", "M_mom_v3_nb5lin_tr2_pc8c_diag"]
 GPU_OPS = ["mfs_coarse", "M_nbody_gpu", "M_mom_gpu_pc8c_diag", "HIGNN_2b", "HIGNN_full"]
 OP_MODEL = {"M_3b": "3b", "M_nbody_b1": "b1", "M_nbody_b1_v2": "b1_v2", "M_mom_old": "mom_old",
             "M_mom_v2_k10_rc6": "mom_v2_k10_rc6", "M_mom_v2_kinf_rc6": "mom_v2_kinf_rc6",
@@ -322,6 +350,8 @@ OP_MODEL = {"M_3b": "3b", "M_nbody_b1": "b1", "M_nbody_b1_v2": "b1_v2", "M_mom_o
             "M_mom_v2_kinf_rc8_pc8_diag": ("mom_v2_kinf_rc8_pc8", "diag_v2_pc8"),
             "M_mom_v2_kinf_rc8_pc8c": "mom_v2_kinf_rc8_pc8c",
             "M_mom_v2_kinf_rc8_pc8c_diag": ("mom_v2_kinf_rc8_pc8c", "diag_v2_pc8c"),
+            "M_mom_v3_nb5lin_tr2_pc8c": "mom_v3_nb5lin_tr2_pc8c",
+            "M_mom_v3_nb5lin_tr2_pc8c_diag": ("mom_v3_nb5lin_tr2_pc8c", "diag_v2_pc8c"),
             "M_nbody_gpu": "gpu_wt",
             "HIGNN_2b": "hignn_2b", "HIGNN_full": ("hignn_2b", "hignn_3b", "hignn_self")}
 

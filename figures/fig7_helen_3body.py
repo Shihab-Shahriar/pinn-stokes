@@ -2,7 +2,10 @@
 """Figure 7 refresh: 3-sphere equilateral-triangle mobility testcase (Wilson 2013),
 regenerated with the new NeMO stack: Mob_Op_Nbody_Moments with the chain-fixed pc8c
 moments pair model (nbody_moments_v2_kinf_rc8_pc8c.pt) + learned per-particle diagonal
-(nbody_diag_v2_pc8c.pt), pair_cutoff = switch_dist = 8.
+(nbody_diag_v2_pc8c.pt), pair_cutoff = switch_dist = 8, and (2026-09-13) the v3 pair model
+(nbody_moments_v3_nb5lin_tr2_kinf_rc8_pc8c.pt: 5 bands, linear bases, class-2 TR bases that untie
+the pair block's TR and RT corners; moments_for_nbody.md section 5.4) with the same diagonal.
+Omega here is the base sphere's angular velocity from a force on the apex, i.e. an RT-block quantity.
 
 Three unit spheres at the vertices of an equilateral triangle of side S (center-to-center,
 in radii) in the x-z plane; the apex sphere is forced with F = (0, 0, -6*pi), no torques,
@@ -45,9 +48,13 @@ SELF_PATH = "data/models/self_interaction_model.pt"
 TWO_BODY_PATH = "data/models/two_body_combined_model.pt"
 MOMENTS_PATH = "data/models/nbody_moments_v2_kinf_rc8_pc8c.pt"
 DIAG_PATH = "data/models/nbody_diag_v2_pc8c.pt"
-OPS = ["2b", "b1_paper", "moments", "diag"]
+# v3 pair model (nbody_moments.py v3 layout: 5 tent bands on knots 0.5..4.5, linear bases, class-2 TR bases so that
+# the pair block's TR and RT corners are no longer tied; 60 coefficients). Same selection and diagonal model.
+V3_PATH = "data/models/nbody_moments_v3_nb5lin_tr2_kinf_rc8_pc8c.pt"
+OPS = ["2b", "b1_paper", "moments", "diag", "v3", "v3diag"]
 OP_LABELS = {"2b": "2-body only", "b1_paper": "n-body b1 (published figure)",
-             "moments": "moments pc8c", "diag": "moments pc8c + diag (NeMO)"}
+             "moments": "moments pc8c", "diag": "moments pc8c + diag (NeMO v2)",
+             "v3": "moments v3 (split TR/RT)", "v3diag": "moments v3 + diag (NeMO v3)"}
 
 # Hard-coded reference tables of the published figure (benchmarks/helens_3body.py in the
 # paper checkout): Wilson (2013) "Current" method and Stokesian Dynamics (Townsend 2017).
@@ -103,25 +110,28 @@ def mfs_metrics(S: float, acc: str) -> tuple[float, float, float, float]:
     return metrics_from_velocity(vel[:, :, 0].cpu().numpy())
 
 
-def build_ops(moments_path: str = MOMENTS_PATH, diag_path: str = DIAG_PATH):
+def build_ops(moments_path: str = MOMENTS_PATH, diag_path: str = DIAG_PATH, v3_path: str = V3_PATH):
     from src.mob_op_2b_combined import NNMob
     from src.mob_op_nbody import Mob_Op_Nbody
     from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
 
     common = dict(shape="sphere", self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_PATH)
-    mom = dict(common, nbody_nn_path=moments_path,
-               switch_dist=8.0, pair_cutoff=8.0, neighbor_cutoff=8.0, max_neighbors=None)
+    sel = dict(switch_dist=8.0, pair_cutoff=8.0, neighbor_cutoff=8.0, max_neighbors=None)
+    mom = dict(common, nbody_nn_path=moments_path, **sel)
+    v3 = dict(common, nbody_nn_path=v3_path, **sel)
     return {"2b": NNMob(**common),
             "b1_paper": Mob_Op_Nbody(**common, nbody_nn_path="data/models/nbody_pinn_b1.pt",
                                      switch_dist=6.0),
             "moments": Mob_Op_Nbody_Moments(**mom),
-            "diag": Mob_Op_Nbody_Moments(**mom, diag_nn_path=diag_path, diag_cutoff=8.0)}
+            "diag": Mob_Op_Nbody_Moments(**mom, diag_nn_path=diag_path, diag_cutoff=8.0),
+            "v3": Mob_Op_Nbody_Moments(**v3),
+            "v3diag": Mob_Op_Nbody_Moments(**v3, diag_nn_path=diag_path, diag_cutoff=8.0)}
 
 
-def evaluate(moments_path: str = MOMENTS_PATH, diag_path: str = DIAG_PATH) -> pd.DataFrame:
+def evaluate(moments_path: str = MOMENTS_PATH, diag_path: str = DIAG_PATH, v3_path: str = V3_PATH) -> pd.DataFrame:
     import torch
 
-    ops = build_ops(moments_path, diag_path)
+    ops = build_ops(moments_path, diag_path, v3_path)
     rows = []
     for S in S_VALUES:
         row = {"S": S}
@@ -178,7 +188,7 @@ def report(df: pd.DataFrame) -> None:
               f"{dev[:, keep].mean():12.4f}{dev[:, keep].max():11.4f}")
 
     # the published figure's summary stat: wins vs Stokesian Dynamics, referenced to Wilson
-    for key in ("b1_paper", "diag"):
+    for key in ("b1_paper", "diag", "v3diag"):
         wins = sum(abs(df[f"{m}_{key}"] - df[f"{m}_wilson"]).lt(
             abs(df[f"{m}_sd"] - df[f"{m}_wilson"])).sum() for m in METRICS)
         print(f"\n{OP_LABELS[key]}: closer to Wilson than Stokesian Dynamics in "
@@ -194,7 +204,8 @@ def plot(df: pd.DataFrame, out_stem: Path) -> None:
                          "font.serif": ["STIXGeneral", "DejaVu Serif"],
                          "mathtext.fontset": "stix",
                          "pdf.fonttype": 42, "ps.fonttype": 42})
-    series = [("wilson", "Helen's Method"), ("sd", "Stokesian Dynamics"), ("diag", "NeMO")]
+    series = [("wilson", "Helen's Method"), ("sd", "Stokesian Dynamics"),
+              ("diag", "NeMO (moments v2)"), ("v3diag", "NeMO (moments v3, split TR/RT)")]
     fig, axes = plt.subplots(2, 2, figsize=(10, 8), sharex=True)
     for m, ax in zip(METRICS, axes.flat):
         for key, label in series:
@@ -217,12 +228,13 @@ def main():
     ap.add_argument("--plot-only", action="store_true", help="re-render from the existing CSV")
     ap.add_argument("--moments-model", default=MOMENTS_PATH, help="pair moments model (.pt)")
     ap.add_argument("--diag-model", default=DIAG_PATH, help="diagonal model (.pt)")
+    ap.add_argument("--v3-model", default=V3_PATH, help="v3 pair moments model (.pt)")
     args = ap.parse_args()
     csv = args.out.with_suffix(".csv")
     if args.plot_only:
         df = pd.read_csv(csv)
     else:
-        df = evaluate(args.moments_model, args.diag_model)
+        df = evaluate(args.moments_model, args.diag_model, args.v3_model)
         df.to_csv(csv, index=False, float_format="%.10g")
         print(f"-> {csv}")
     report(df)

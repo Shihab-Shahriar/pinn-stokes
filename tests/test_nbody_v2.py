@@ -74,23 +74,26 @@ def test_select_pair_neighbours_matches_operators(max_neighbors, cutoff, pc):
 
 
 @needs_models
-def test_moments_pair_rows_match_per_pair_construction(tmp_path):
+@pytest.mark.parametrize("layout,x_dim", [({}, 111), ({"bands": [0.5, 1.5, 2.5, 3.5, 4.5], "bases": "linear_tr2"}, 72)])
+def test_moments_pair_rows_match_per_pair_construction(tmp_path, layout, x_dim):
     from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
     from src.model_archs import MultiBodyMoments
     wt = tmp_path / "rand.wt"
     torch.manual_seed(0)
-    torch.save(MultiBodyMoments(4.69, zero_init_head=False).state_dict(), wt)
+    torch.save(MultiBodyMoments(4.69, zero_init_head=False, **layout).state_dict(), wt)
     for max_neighbors, cutoff in [(10, 6.0), (None, 8.0)]:
         op = Mob_Op_Nbody_Moments(shape="sphere", self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_PATH,
-                                  nbody_nn_path=str(wt), max_neighbors=max_neighbors, neighbor_cutoff=cutoff)
+                                  nbody_nn_path=str(wt), max_neighbors=max_neighbors, neighbor_cutoff=cutoff,
+                                  nbody_layout=layout or None)
         pos = configs()["uniform"]
         pairs, X_ts, X_st = op._pair_rows(pos)
-        assert len(pairs) > 100 and X_ts.shape == (len(pairs), 111)
+        assert len(pairs) > 100 and X_ts.shape == (len(pairs), x_dim)
         for i, (t, s) in enumerate(pairs):
             idx = op._select_neighbor_indices(pos, t, s)
             assert idx, (t, s)
             nbr = (pos[idx] - pos[t])[None]
-            X = nf.moment_features((pos[s] - pos[t])[None], nbr, np.ones((1, len(idx))), op.mean_dist_s)[0]
+            X = nf.moment_features((pos[s] - pos[t])[None], nbr, np.ones((1, len(idx))), op.mean_dist_s,
+                                   knots=layout.get("bands"))[0]
             assert np.allclose(X, X_ts[i], rtol=1e-6, atol=1e-6)
         assert np.allclose(X_st[:, :3], -X_ts[:, :3]) and np.array_equal(X_st[:, 3:], X_ts[:, 3:])
 
@@ -309,25 +312,35 @@ def test_oracle_residual_reproduces_grand_M(tmp_path):
 # ----------------------------------------------------------------------------- 6. trainer smoke
 @needs_models
 @needs_v2
-@pytest.mark.parametrize("model", ["moments", "baseline"])
+@pytest.mark.parametrize("model", ["moments", "baseline", "moments_v3"])
 def test_trainer_smoke_and_operator_symmetry(tmp_path, model):
     from benchmarks.cluster import uniform_sphere_cluster
     out = _build_smoke_cache(tmp_path / "cache", max_shards=3, max_configs=12)
     run = tmp_path / "run"
-    cmd = [sys.executable, "experiments/train_nbody_v2.py", "--cache", str(out), "--model", model, "--variant", "k10_rc6",
+    v3 = model == "moments_v3"
+    cmd = [sys.executable, "experiments/train_nbody_v2.py", "--cache", str(out), "--model", "moments" if v3 else model, "--variant", "k10_rc6",
            "--epochs", "2", "--max-steps", "6", "--batch", "64", "--fit-rows", "500", "--eval-rows", "300", "--eval-every", "1",
            "--device", "cpu", "--data-on", "cpu", "--out", str(run), "--publish", "--publish-name", f"test_{model}"]
+    if v3:
+        cmd += ["--bands", "0.5", "1.5", "2.5", "3.5", "4.5", "--bases", "linear_tr2"]
     r = subprocess.run(cmd, capture_output=True, text=True)
     assert r.returncode == 0, r.stdout[-2000:] + r.stderr[-2000:]
-    assert (run / "model.pt").exists() and (run / "metrics.json").exists()
+    assert (run / "model.pt").exists() and (run / "metrics.json").exists() and (run / "model.json").exists()
     m = json.load(open(run / "metrics.json"))
     assert m["variant"] == "k10_rc6" and "by_family" in m and m["twobody_only"]["prmse_lin"] > 0
+    assert "RT" in m["blocks"]
     side = json.load(open(f"data/models/test_{model}.json"))
     assert side["max_neighbors"] == 10 and side["neighbor_cutoff"] == 6.0
+    assert side == json.load(open(run / "model.json"))
+    if v3:
+        assert side["layout"] == "v3" and side["bands"] == [0.5, 1.5, 2.5, 3.5, 4.5] and side["bases"] == "linear_tr2"
+        assert side["n_coef"] == 60 and side["x_dim"] == 72 and m["n_coef"] == 60
+    elif model == "moments":
+        assert side["layout"] == "v2" and side["n_coef"] == 93
     for p in [f"data/models/test_{model}.pt", f"data/models/test_{model}.json", f"experiments/test_{model}.wt"]:
         os.remove(p)
     # the exported model runs in the operator and gives a symmetric n-body grand M
-    if model == "moments":
+    if model != "baseline":
         from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
         op = Mob_Op_Nbody_Moments(shape="sphere", self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_PATH, nbody_nn_path=str(run / "model.pt"))
     else:

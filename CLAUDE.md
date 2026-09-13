@@ -80,6 +80,33 @@ Each operator has an `apply(config, force, viscosity) -> velocity` interface:
    protocol (0.08 → 0.77 %). Same ordering for the translational block of the random-wrench protocol (φ = 0.1: far field
    2.8, NeMO 4.3, SD 8.7, RPY 12.2 % PRMSE); SD's lubrication does make its rotational velocities the best there.
 
+4e. **Moments v3 layout: fewer bands, linear bases, split TR/RT (2026-09-13, branch `moments-v3-main`, `artifacts/nbody_v3_report.md`).**
+   `src/nbody_moments.py` is parametrised: tent bands on an arbitrary knot sequence (`band_weights_knots`; the v2 bands
+   0.5..7.5 are reproduced **bitwise**), `bases_v3(z, v, Q, use_quadratic, has_tr2)` and `assemble_block_v3(c, tt, tr1, tr2)`
+   with `TR = T1 + T2`, `RT = T1 − T2`; the v2-named functions are wrappers, rows are `7 + 13·NB` columns (`unpack_features`
+   reads NB from the width), coefficients `5 + (8 + 3q + 3t)·NB`. `MultiBodyMoments(bands=, bases=, invariants=)` (defaults =
+   v2; knots in the non-persistent buffer `band_knots`, so v2 `.wt` files stay strict-loadable; `nbody_moments.layout_of_model`
+   / `knots_of` read any model incl. TorchScript). **Rows are always built with the model's own knots**: `nf.moment_features(...,
+   knots=)`, the operator's `_build_rows`, and the trainer's `V2Cache(knots=)`; a `.wt` needs its layout (sidecar `.json` next to
+   it, written per run as `<out>/model.json`, or `Mob_Op_Nbody_Moments(nbody_layout=...)`), a `.pt` is self-describing.
+   Trainer: `--bands 0.5 1.5 2.5 3.5 4.5 --bases {v2,linear,linear_tr2,v2_tr2} --invariants {full,reduced}` (non-default
+   layouts need `--publish-name`; sidecar keys `bands/bases/invariants/layout/n_coef/x_dim`). GPU path is v2-only (asserted).
+   **Why (measured on 300k pc8c validation rows of the published model):** (i) the label's TR and RT blocks differ by 80 %
+   (`‖TR−RT‖/‖TR‖`), so writing the same matrix in both corners (`RT = TR`, inherited from Eq. 17) leaves a **40 % floor** on
+   the TR/RT residual that the model sits on (43/45 %) — the reason every encoder ablation left the angular blocks at ~17 %.
+   Reciprocity only needs `TR_ji = RT_ijᵀ`, which admits a second basis class with `T(−z) = −T(z)ᵀ` placed as `TR = +T, RT = −T`:
+   `E(v_a)`, `(z·v_a)E(z)`, `[E(z), Q_a]` per band (`moments_for_nbody.md` §5.4). (ii) Zeroing the coefficients of bands 5–8
+   costs ≤ 0.17 PRMSE points each (band 2: +1.7), so bands are unit-width on r ≤ 4 and one saturating band covers 4.5–8; bands
+   1–2 are low-occupancy but high-leverage (do not drop them as the diag model does). (iii) The quadratic bases are removable
+   (all 24 zeroed: lin 3.864 → 4.015 before refit). Runtime is not the argument (assemble+apply is 0.11 s of a 2.97 s step).
+   Harness ops `M_mom_v3_nb5lin_tr2_pc8c[_diag]` (sidecar layout asserted by `_assert_layout`). **Published
+   `nbody_moments_v3_nb5lin_tr2_kinf_rc8_pc8c.pt`** (60 coef, same selection/diag as pc8c): validation lin/ang 3.87/15.53 →
+   3.25/8.39 %, TR/RT 16.7/15.9 → 8.5/8.2 (the bands + linear bases alone: 3.95/15.55, i.e. the size cut is free and the
+   gain is the split corners); Fig 3 φ=0.2 N=200 total 7.51 → 7.39 %, ang 6.30 → 4.82; Fig 4 φ=0.2 mean 5.77 → 5.37 %, ang
+   5.36 → 3.69; gravity settling bias at φ=0.2 1.11 → 0.56 %; Fig 7 Ω error at S=2.1 +36 → +2 % (`reproduction.md`).
+   Pre-existing test failures unrelated to this: `test_v2_split_is_configuration_level` (0.1201 > 0.12 with the chain shards),
+   `test_oracle_residual_reproduces_grand_M` (the first shards are now `chain`), `test_harness_cases_and_metric` (Fig 4 has 1536 cells).
+
 7a. **`mfs_batched.py` → `BatchedMFS`**: the **batched multi-right-hand-side MFS solver** (Triton + torch; the reference solvers below are single-RHS Gauss–Seidel). Solves R right-hand sides of n_sys equal-size configurations at once in boundary-velocity space (`T W = b`, `T = I + Ŵ K_f`) with batched restarted GMRES; `solve_mobility_matrix(positions)` returns the full grand mobility matrix M (6P×6P) from all 6P unit force/torque columns. Backends: `torch64` (exact fp64, one cuBLAS dgemm per target over all partners — **production on the H200**, fp64 at half the fp32 rate there; 50–70× slower on GeForce) and `triton32` (fp32 `tl.dot` kernel in `mfs_batched_kernels.py`, 4–5 TFLOPS on the 4060, ~1e-5 relative accuracy: the MFS strengths cancel by ~1e3, so fp32 storage of the strengths alone costs 6e-6). Two things are load-bearing: **the pseudo-inverse is always applied in fp64** (an fp32 GEMM carries a 2e-3 net-force error into the labels), and **convergence is judged on the velocities** (`tol_v`, per column, checked at every Krylov step), never on strengths or on the W residual — the fp32 kernel's W residual stalls at 1e-4 while its velocities are converged. Defaults `tol_v` = 1e-7 (torch64) / 1e-5 (triton32); 17–26 Krylov steps. Validated by `tests/test_mfs_batched.py` against `src/mfs.py` (2e-12 in fp64), the old dataset rows and the cached Xfine truths; `benchmarks/bench_mfs_batched.py` measures throughput. `tf32x3`/`tf32` `tl.dot` crash Triton 3.2 on register operands; fp64 `tl.dot` is unsupported.
 
    **Dataset v2 generator** `src/create_dataset_multibody_v2.py`: full M per configuration for `uniform` (RSA box, gap ≥ 0.1), `grown` (cluster growth at gap δ) and `lattice` (jittered cubic drop patch) families, sharded `.npz` under `data/multibody_v2/` (gitignored) with per-worker manifests, deterministic seeds, resume, `--time-budget`, `--worker/--num-workers`. Cluster recipe: `source ~/warp_env.sh`, then per GPU `CUDA_VISIBLE_DEVICES=k python src/create_dataset_multibody_v2.py --plan default --acc fine --backend torch64 --mem-budget-gb 40 --time-budget 28800 --num-workers 4 --worker k`. Consumer: `nbody_features.iter_multibody_v2_configs` + `pairs_from_config` (lazy, for full passes), `load_multibody_v2` (eager ordered-pair table with `M_ts`, `M_st`, `M_tt`, all-neighbour positions — ~2.4 KB per pair, subsets only) and `pair_rows_from_M` (old-convention rows with random forces, `Y = M_ts [F;T]_s`, `+s_vec`). **Generated 2026-08-30** (SLURM array 16539317, `slurm/gen_multibody_v2.sbatch`, 4 × H200 ≈ 4.5 GPU-h): 56,048 configurations, 12.7 M ordered pairs within 6 radii, 4.4 GB, in `data/multibody_v2/` on the cluster and the laptop; see `artifacts/mfs_batched_report.md` §5.

@@ -301,6 +301,44 @@ Alternative (from the chat) if one ever wants odd invariants inside the MLP: pre
 
 ---
 
+### 5.4 Class-2 TR bases and the v3 layout (2026-09-13)
+
+Section 5.1 places every TR basis identically in both off-diagonal corners ($\Delta^{RT} = \Delta^{TR}$). That is
+sufficient for reciprocity but **not necessary**, and on dataset v2 it is wrong for the labels: for the residual
+$R = M_{ts}^{\text{sym}} - M^{(2)}_{ts}$, $\lVert R^{TR} - R^{RT}\rVert / \lVert R^{TR}\rVert = 0.80$ (uniform 0.72,
+grown 0.85, lattice 0.66, chain 0.90). A model with tied corners can at best fit the corner mean, leaving a floor of
+$\lVert (R^{TR} - R^{RT})/2 \rVert / \lVert R^{TR} \rVert = 40\,\%$ of the TR residual; the published v2 model sits
+at 43 / 45 % (TR / RT) — this, not the encoder, is why no invariant or capacity change ever moved the angular
+coupling blocks (`artifacts/nbody_diag_report.md` §6–7).
+
+With swap-even coefficients, $M_{ji} = M_{ij}^T$ requires $\Delta^{TR}_{ji} = (\Delta^{RT}_{ij})^T$. Two classes of
+basis tensors satisfy it:
+
+| class | rule | placement |
+|---|---|---|
+| 1 (Section 5.2) | $T(-\hat{\mathbf z}) = T(\hat{\mathbf z})^T$: ($\hat{\mathbf z}$-even, symmetric) or ($\hat{\mathbf z}$-odd, antisymmetric) | $\Delta^{TR} = \Delta^{RT} = T$ |
+| 2 (new) | $T(-\hat{\mathbf z}) = -T(\hat{\mathbf z})^T$: ($\hat{\mathbf z}$-even, antisymmetric) or ($\hat{\mathbf z}$-odd, symmetric) | $\Delta^{TR} = +T,\ \Delta^{RT} = -T$ |
+
+Check for class 2: $\Delta^{TR}_{ji} = T(-\hat{\mathbf z}) = -T^T = (-T)^T = (\Delta^{RT}_{ij})^T$. Both classes
+carry exactly one $\varepsilon$ (pseudotensors). Class-2 bases linear in the moments, per band:
+$E(\mathbf v_a)$ and $(\hat{\mathbf z}\cdot\mathbf v_a)\,E(\hat{\mathbf z})$ (even, antisymmetric) and
+$[E(\hat{\mathbf z}), Q_a] = E(\hat{\mathbf z})Q_a - Q_a E(\hat{\mathbf z})$ (odd, symmetric). The two-body block has
+no class-2 term because with no neighbours $\hat{\mathbf z}$ is the only vector, which is how the tie was inherited
+from Eq. (17). $\Delta^{TT}$ and $\Delta^{RR}$ are single blocks, so the class-1 rule is necessary there and nothing
+is missing.
+
+**v3 layout** (`src/nbody_moments.py`, configurable; evidence in `artifacts/nbody_v3_report.md`): tent bands on a
+knot sequence instead of 8 unit bands (post-hoc zeroing of the published model's bands 5–8 costs < 0.1 PRMSE point
+each, bands 1–4 carry the correction; the recommended knots are $\{0.5, 1.5, 2.5, 3.5, 4.5\}$ with the last band
+saturating over the 4.5–8 shell), the quadratic bases $\mathbf v_a\mathbf v_a^T$ and
+$(\hat{\mathbf z}\cdot\mathbf v_a)E(\mathbf v_a)$ dropped (zeroing all 24 costs 0.15 PRMSE points before any
+refit), and the class-2 TR bases added. Per band: TT/RR $\{Q_a, S(\hat{\mathbf z}\hat{\mathbf z}^TQ_a),
+\operatorname{Alt}(\hat{\mathbf z}\mathbf v_a^T)\}$, TR class 1 $\{E(Q_a\hat{\mathbf z}),
+S(\hat{\mathbf z}(\hat{\mathbf z}\times\mathbf v_a)^T)\}$, TR class 2 as above; constants $I, \hat{\mathbf z}\hat{\mathbf z}^T$
+(TT, RR) and $E(\hat{\mathbf z})$ (TR): $5 + 11\,\text{NB} = 60$ coefficients at NB = 5 (vs 93), every basis linear in
+the moments, MLP input $4 + 9\,\text{NB} = 49$. Rows are $7 + 13\,\text{NB}$ wide; the v2 functions are the same code at the v2
+parameters (bitwise).
+
 ## 6. Where this sits
 
 | level | encoder | output structure | status |

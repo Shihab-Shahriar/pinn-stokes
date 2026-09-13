@@ -24,7 +24,8 @@ def load_runs(root: Path) -> dict:
 def label(name: str, m: dict) -> str:
     if "model_path" in m:
         return f"{Path(m['model_path']).name} (old data) @ {m['variant']}"
-    return f"{m['model']} v2 @ {m['variant']}" + (f" [{m['loss']}/{m['loss_form']}, bw={m['block_weights']}]" if m.get("block_weights", "none") != "none" or m.get("loss_form", "block") != "block" else "")
+    lay = f" [{m['layout']}: nb {len(m['bands'])}, {m['bases']}, inv {m['invariants']}]" if m.get("layout") == "v3" else ""
+    return f"{m['model']} v2 @ {m['variant']}" + lay + (f" [{m['loss']}/{m['loss_form']}, bw={m['block_weights']}]" if m.get("block_weights", "none") != "none" or m.get("loss_form", "block") != "block" else "")
 
 
 def main():
@@ -39,13 +40,13 @@ def main():
     lines.append(f"Validation rows: {any_m['n']} pairs.  2-body only: PRMSE lin {tb['prmse_lin']:.2f} % / ang {tb['prmse_ang']:.2f} %, "
                  f"block rel-Frobenius {any_m['rel_2b']:.2f} %.")
     lines.append("")
-    lines.append("| run | model @ selection | PRMSE lin % | PRMSE ang % | block rel % | TT | TR | RR | residual capture % | uniform lin/ang | grown lin/ang | lattice lin/ang |")
-    lines.append("|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+    lines.append("| run | model @ selection | PRMSE lin % | PRMSE ang % | block rel % | TT | TR | RT | RR | residual capture % | uniform lin/ang | grown lin/ang | lattice lin/ang |")
+    lines.append("|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for name, m in runs.items():
         fam = " | ".join(f"{m['by_family'][f]['prmse_lin']:.2f}/{m['by_family'][f]['prmse_ang']:.2f}" if f in m.get("by_family", {}) else "-" for f in FAMILIES)
         b = m["blocks"]
         lines.append(f"| {name} | {label(name, m)} | {m['prmse_lin']:.2f} | {m['prmse_ang']:.2f} | {m['rel_total']:.2f} | {b['TT']['rel_total']:.2f} | "
-                     f"{b['TR']['rel_total']:.2f} | {b['RR']['rel_total']:.2f} | {m['capture']:.1f} | {fam} |")
+                     f"{b['TR']['rel_total']:.2f} | {b['RT']['rel_total']:.2f} | {b['RR']['rel_total']:.2f} | {m['capture']:.1f} | {fam} |")
     lines.append("")
     lines.append("PRMSE lin/ang by neighbour count (K under the run's selection):")
     lines.append("")

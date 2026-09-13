@@ -11,6 +11,9 @@ Rows = unordered near pairs (t < s, d <= 6) with >= 1 neighbour under the select
 the fly from the cached geometry with the operators' own code paths (nbody_moments.moment_features /
 nbody_features.baseline_features_torch); the label is the residual block R = Mts_sym - M2b (operator conventions:
 +s_vec, median 5.01), and both architectures are reciprocal by construction so unordered rows suffice.
+Layout knobs of the moments model (nbody_moments.py "v3"): --bands (tent-band knots), --bases {v2,linear,linear_tr2,v2_tr2},
+--invariants {full,reduced}; the rows are built with the model's own knots (training == inference) and the layout is
+recorded in metrics.json and the sidecar (a non-default layout needs --publish-name).
 Split = configuration level (configs.is_val, seed % 10 == 0).  Loss (default): L1 over the 36 entries of
 6*pi*(predict_mobility(X) - R); Adam + cosine over all steps; the moments model fits its normalisation buffers on a
 train subsample.  Metrics (validation configs, plus 2b-only): block rel-Frobenius error (all / TT / TR / RR),
@@ -56,8 +59,10 @@ BLOCKS = {"TT": (slice(0, 3), slice(0, 3)), "TR": (slice(0, 3), slice(3, 6)), "R
 class V2Cache:
     """The cache as device tensors + on-the-fly feature construction for one selection variant."""
 
-    def __init__(self, root: Path, variant: str, device, data_on: str = "gpu", families=None):
+    def __init__(self, root: Path, variant: str, device, data_on: str = "gpu", families=None, knots=None):
         self.root = Path(root); self.variant = variant; self.device = torch.device(device)
+        # band knots of the model the rows are built for (None = the v2 bands): training rows == inference rows
+        self.knots = None if knots is None else torch.as_tensor(knots, dtype=torch.float64, device=self.device)
         self.K, self.cutoff = nf.SELECTION_VARIANTS[variant]
         cfg = np.load(self.root / "configs.npz")
         self.meta = json.load(open(self.root / "meta.json"))
@@ -130,7 +135,9 @@ class V2Cache:
     def features(self, idx, kind: str) -> torch.Tensor:
         s_vec, nbr, mask = self.gather(idx)
         if kind == "moments":
-            return nbm.moment_features(s_vec, nbr, mask, MEAN_DIST_S).to(torch.float32)
+            if self.knots is None:
+                return nbm.moment_features(s_vec, nbr, mask, MEAN_DIST_S).to(torch.float32)
+            return nbm.moment_features_knots(s_vec, nbr, mask, MEAN_DIST_S, self.knots).to(torch.float32)
         assert self.K == 10, "the baseline layout needs the k10 selection"
         return nf.baseline_features_torch(s_vec, nbr, mask, MEAN_DIST_S)
 
@@ -208,15 +215,19 @@ def evaluate(model, cache: V2Cache, idx, kind: str, full: bool = True) -> dict:
 
 def fmt(m: dict) -> str:
     return (f"PRMSE lin {m['prmse_lin']:.3f}% ang {m['prmse_ang']:.3f}% | block rel {m['rel_total']:.3f}% "
-            f"(TT {m['blocks']['TT']['rel_total']:.2f} TR {m['blocks']['TR']['rel_total']:.2f} RR {m['blocks']['RR']['rel_total']:.2f}) "
+            f"(TT {m['blocks']['TT']['rel_total']:.2f} TR {m['blocks']['TR']['rel_total']:.2f} RT {m['blocks']['RT']['rel_total']:.2f} "
+            f"RR {m['blocks']['RR']['rel_total']:.2f}) "
             f"capture {m['capture']:.1f}% | 2b-only lin {m['twobody_only']['prmse_lin']:.2f}% ang {m['twobody_only']['prmse_ang']:.2f}% "
             f"block {m['rel_2b']:.2f}%")
 
 
-def load_model(path: str, features: str, device, inv_norm=False, hidden=None):
+def load_model(path: str, features: str, device, inv_norm=False, hidden=None, layout=None):
+    """``.pt`` (TorchScript, self-describing) or ``.wt`` (state dict; ``layout`` = bands / bases / invariants kwargs of
+    ``MultiBodyMoments``, which a ``.wt`` cannot carry -- pass the run's flags, as with --hidden / --inv-norm)."""
     if path.endswith(".pt"):
         return torch.jit.load(path, map_location=device).eval()
-    model = (MultiBodyMoments(MEAN_DIST_S, inv_norm=inv_norm, hidden=hidden) if features == "moments" else MultiBodyCorrectionB1(MEAN_DIST_S)).to(device)
+    model = (MultiBodyMoments(MEAN_DIST_S, inv_norm=inv_norm, hidden=hidden, **(layout or {})) if features == "moments"
+             else MultiBodyCorrectionB1(MEAN_DIST_S)).to(device)
     model.load_state_dict(torch.load(path, map_location=device, weights_only=True))
     return model.eval()
 
@@ -250,6 +261,10 @@ def main():
     ap.add_argument("--hidden", type=int, nargs="+", default=None,
                     help="MLP hidden widths for the moments model (default 128 64 128 64)")
     ap.add_argument("--inv-norm", action="store_true")
+    ap.add_argument("--bands", type=float, nargs="+", default=None,
+                    help="tent-band knots of the moments model (default: the v2 bands 0.5 .. 7.5); e.g. 0.5 1.5 2.5 3.5 4.5")
+    ap.add_argument("--bases", choices=list(nbm.BASES), default="v2", help="basis set of the moments model (nbody_moments.BASES)")
+    ap.add_argument("--invariants", choices=list(nbm.INVARIANTS), default="full", help="invariant set per band (9 or 5)")
     ap.add_argument("--zero-init-head", choices=["auto", "on", "off"], default="auto")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--publish", action="store_true")
@@ -260,34 +275,53 @@ def main():
         ap.error("--eval-only requires --features")
     if features == "baseline":
         assert args.variant == "k10_rc6", "the baseline (147-column) layout is only defined for the k10_rc6 selection"
+    layout = {"bands": args.bands, "bases": args.bases, "invariants": args.invariants}
+    non_default_layout = args.bands is not None or args.bases != "v2" or args.invariants != "full"
+    if non_default_layout and args.model != "moments":
+        ap.error("--bands / --bases / --invariants only apply to --model moments")
+    if args.publish and args.publish_name is None and non_default_layout:
+        ap.error("a non-default layout has no auto publish name: pass --publish-name")
     device = torch.device(args.device)
     args.out.mkdir(parents=True, exist_ok=True)
     json.dump({k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()}, open(args.out / "config.json", "w"), indent=1)
 
+    # ---------------------------------------------------------------- model (before the cache: the rows are built with its band knots)
+    torch.manual_seed(args.seed); np.random.seed(args.seed)
+    zero_init = (args.model == "moments") if args.zero_init_head == "auto" else (args.zero_init_head == "on")
+    if args.eval_only:
+        model = load_model(args.eval_only, features, device, args.inv_norm, args.hidden, layout if features == "moments" else None)
+    else:
+        model = (MultiBodyMoments(MEAN_DIST_S, zero_init_head=zero_init, inv_norm=args.inv_norm, hidden=args.hidden, **layout)
+                 if args.model == "moments" else MultiBodyCorrectionB1(MEAN_DIST_S, zero_init_head=zero_init)).to(device)
+    lay = nbm.layout_of_model(model) if features == "moments" else None
+    if lay is not None:
+        print(f"[layout] {lay['version']}: bands {lay['bands']} bases {lay['bases']} invariants {lay['invariants']} "
+              f"-> n_in {lay['n_in']} n_coef {lay['n_coef']} x_dim {lay['x_dim']}", flush=True)
+
     t0 = time.time()
-    cache = V2Cache(args.cache, args.variant, device, args.data_on, args.families)
+    cache = V2Cache(args.cache, args.variant, device, args.data_on, args.families,
+                    knots=nbm.knots_of(model) if features == "moments" else None)
     rng = np.random.default_rng(args.seed)
     val_all = cache.val_idx
     val_sub = np.sort(rng.choice(val_all, size=min(args.eval_rows, len(val_all)), replace=False))
     print(f"[data] loaded in {time.time() - t0:.0f} s; periodic eval on {len(val_sub)} val rows, final on {len(val_all)}", flush=True)
+    if lay is not None:
+        got = cache.features(val_all[:1], features).shape[1]
+        assert got == lay["x_dim"], f"row width {got} != model x_dim {lay['x_dim']}"
 
     # ---------------------------------------------------------------- eval-only
     if args.eval_only:
-        model = load_model(args.eval_only, features, device, args.inv_norm, args.hidden)
         t0 = time.time()
         m = evaluate(model, cache, val_all, features)
-        m.update({"model_path": args.eval_only, "features": features, "variant": args.variant, "eval_s": time.time() - t0})
+        m.update({"model_path": args.eval_only, "features": features, "variant": args.variant, "eval_s": time.time() - t0,
+                  "layout": lay})
         print(f"[eval-only] {args.eval_only} ({args.variant}): {fmt(m)}")
         for name, mm in m["by_family"].items():
             print(f"   {name:8s} {fmt(mm)}")
         json.dump(m, open(args.out / "metrics.json", "w"), indent=1)
         return
 
-    # ---------------------------------------------------------------- model + recipe
-    torch.manual_seed(args.seed); np.random.seed(args.seed)
-    zero_init = (args.model == "moments") if args.zero_init_head == "auto" else (args.zero_init_head == "on")
-    model = (MultiBodyMoments(MEAN_DIST_S, zero_init_head=zero_init, inv_norm=args.inv_norm, hidden=args.hidden) if args.model == "moments"
-             else MultiBodyCorrectionB1(MEAN_DIST_S, zero_init_head=zero_init)).to(device)
+    # ---------------------------------------------------------------- recipe
     train_idx = cache.train_idx
     fit_idx = np.sort(rng.choice(train_idx, size=min(args.fit_rows, len(train_idx)), replace=False))
     if args.model == "moments":
@@ -365,6 +399,9 @@ def main():
               "block_weights": args.block_weights, "scale": args.scale, "seed": args.seed, "n_params": n_params, "n_train": n_train,
               "n_val": int(len(val_all)), "zero_init_head": zero_init, "inv_norm": args.inv_norm, "families": args.families,
               "family_weights": args.family_weights, "hidden": args.hidden,
+              "bands": lay["bands"] if lay else None, "bases": lay["bases"] if lay else None,
+              "invariants": lay["invariants"] if lay else None, "layout": lay["version"] if lay else None,
+              "n_in": lay["n_in"] if lay else None, "n_coef": lay["n_coef"] if lay else None, "x_dim": lay["x_dim"] if lay else None,
               "train_time_s": time.time() - t_start, "device": str(device), "cache": str(args.cache)})
     print(f"[final] {fmt(m)}")
     for name, mm in m["by_family"].items():
@@ -384,16 +421,23 @@ def main():
     with torch.no_grad():
         a = model.predict_mobility(Xc); b = chk.predict_mobility(Xc)
     assert torch.allclose(a, b, atol=1e-6), "TorchScript export mismatch"
-    print(f"[saved] {args.out}/model.wt, model.pt, metrics.json, log.csv, config.json")
+    # sidecar: the selection, label base and layout the model must be run with.  Always written next to the run's
+    # model.pt (so `paper_accuracy_v2.py --models KEY=<run>/model.pt` and a `.wt` reload find it); --publish copies it.
+    name = args.publish_name or PUBLISH.get((args.model, args.variant), args.out.name)
+    side = {"name": name, "model": args.model, "features": features, "variant": args.variant, "max_neighbors": cache.K,
+            "neighbor_cutoff": cache.cutoff, "pair_cutoff": cache.meta["pair_cutoff"], "hidden": args.hidden,
+            "inv_norm": args.inv_norm, "mean_dist_s": MEAN_DIST_S,
+            "median_2b": cache.meta["median_2b"],
+            "bands": lay["bands"] if lay else None, "bases": lay["bases"] if lay else None,
+            "invariants": lay["invariants"] if lay else None, "layout": lay["version"] if lay else None,
+            "n_in": lay["n_in"] if lay else None, "n_coef": lay["n_coef"] if lay else None, "x_dim": lay["x_dim"] if lay else None,
+            "run": str(args.out), "prmse_lin": m["prmse_lin"], "prmse_ang": m["prmse_ang"],
+            "rel_total": m["rel_total"], "created": time.strftime("%Y-%m-%d %H:%M:%S")}
+    json.dump(side, open(args.out / "model.json", "w"), indent=1)
+    print(f"[saved] {args.out}/model.wt, model.pt, model.json, metrics.json, log.csv, config.json")
     if args.publish:
-        name = args.publish_name or PUBLISH[(args.model, args.variant)]
         shutil.copy(args.out / "model.pt", Path("data/models") / f"{name}.pt")
         shutil.copy(args.out / "model.wt", Path("experiments") / f"{name}.wt")
-        side = {"name": name, "model": args.model, "features": features, "variant": args.variant, "max_neighbors": cache.K,
-                "neighbor_cutoff": cache.cutoff, "pair_cutoff": cache.meta["pair_cutoff"], "hidden": args.hidden,
-                "mean_dist_s": MEAN_DIST_S,
-                "median_2b": cache.meta["median_2b"], "run": str(args.out), "prmse_lin": m["prmse_lin"], "prmse_ang": m["prmse_ang"],
-                "rel_total": m["rel_total"], "created": time.strftime("%Y-%m-%d %H:%M:%S")}
         json.dump(side, open(Path("data/models") / f"{name}.json", "w"), indent=1)
         print(f"[published] data/models/{name}.pt (+ .json sidecar), experiments/{name}.wt")
 

@@ -59,6 +59,7 @@ import warp as wp
 
 from src.gpu_mob_2b import NNMobTorch, TensorLike, DEFAULT_TWO_BODY_CHUNK
 from src.model_archs import MultiBodyMoments, SelfBlockMoments
+from src import nbody_moments as nbm
 
 wp.init()
 
@@ -653,6 +654,9 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
 
         self.moments_nn = self._load_model(
             moments_nn_path, lambda: MultiBodyMoments(self.mean_dist_s))
+        # the warp kernels hard-code the v2 layout (8 unit bands, 76 invariants, 93 coefficients, RT = TR)
+        assert nbm.layout_of_model(self.moments_nn)["version"] == "v2", \
+            f"GPU moments path supports the v2 layout only, got {nbm.layout_of_model(self.moments_nn)}"
         self.diag_nn = (
             self._load_model(diag_nn_path, SelfBlockMoments) if diag_nn_path else None)
 

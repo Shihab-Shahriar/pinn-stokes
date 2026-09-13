@@ -80,14 +80,21 @@ def pair_scalars(dist: np.ndarray, mean_dist_s: float) -> np.ndarray:
 
 
 def moment_features(s_vec: np.ndarray, nbr: np.ndarray, mask: np.ndarray, mean_dist_s: float,
-                    chunk: int = 65536) -> np.ndarray:
-    """Model input rows X[N, 111] (float32) from target-frame geometry, moments computed in float64."""
+                    chunk: int = 65536, knots=None) -> np.ndarray:
+    """Model input rows X[N, 7 + 13 NB] (float32) from target-frame geometry, moments computed in float64.
+    ``knots`` = None -> the v2 bands (111 columns); else the tent bands on that knot sequence (v3 models:
+    ``nbody_moments.knots_of(model)``)."""
+    kt = None if knots is None else torch.as_tensor(np.asarray(knots, dtype=np.float64), dtype=torch.float64)
     out = []
     for i in range(0, len(s_vec), chunk):
         S = torch.as_tensor(s_vec[i:i + chunk], dtype=torch.float64)
         Nb = torch.as_tensor(nbr[i:i + chunk], dtype=torch.float64)
         Mk = torch.as_tensor(mask[i:i + chunk], dtype=torch.float64)
-        out.append(nbm.moment_features(S, Nb, Mk, float(mean_dist_s)).to(torch.float32).numpy())
+        if kt is None:
+            X = nbm.moment_features(S, Nb, Mk, float(mean_dist_s))
+        else:
+            X = nbm.moment_features_knots(S, Nb, Mk, float(mean_dist_s), kt)
+        out.append(X.to(torch.float32).numpy())
     return np.concatenate(out, 0)
 
 

@@ -511,31 +511,58 @@ class MultiBodyCorrectionB1(nn.Module):
 
 
 class MultiBodyMoments(nn.Module):
-    """Moments-based n-body correction m_t^(n) (moments_for_nbody.md sections 3-5).
+    """Moments-based n-body correction m_t^(n) (moments_for_nbody.md sections 3-5; layouts in nbody_moments.py).
 
-    Input row X[:, 111] = [s_vec(3) | pair scalars(4) | s_a(8) | v_a(24) | Q_a(72)]
-    (``nbody_moments.moment_features``).  Inside: pair axis z = -s_vec/|s_vec|, the 72
-    rotation-invariant swap-even invariants, standardisation (``inv_mean``/``inv_std`` buffers),
-    MLP 76 -> 128 -> 64 -> 128 -> 64 -> 93 (same hidden widths as the b1 baseline), per-basis
-    rescaling (``basis_scale`` buffer, RMS Frobenius norm of each basis tensor over the training
-    set so that raw coefficients are O(1)), and assembly onto the 34 TT/RR + 25 TR bases.
-    Reciprocity M_ji = M_ij^T and O(3) equivariance hold by construction; the buffers are fitted
-    with ``fit_normalisation`` on the training split and travel with the state dict."""
+    Input row X[:, 7 + 13 NB] = [s_vec(3) | pair scalars(4) | s_a(NB) | v_a(3 NB) | Q_a(9 NB)]
+    (``nbody_moments.moment_features`` for the v2 bands, ``moment_features_knots`` otherwise).  Inside: pair
+    axis z = -s_vec/|s_vec|, the rotation-invariant swap-even invariants (9 or 5 per band), standardisation
+    (``inv_mean``/``inv_std`` buffers), MLP n_in -> 128 -> 64 -> 128 -> 64 -> n_coef (same hidden widths as
+    the b1 baseline), per-basis rescaling (``basis_scale`` buffer, RMS Frobenius norm of each basis tensor
+    over the training set so that raw coefficients are O(1)), and assembly onto the TT / RR / TR bases of
+    ``nbody_moments.bases_v3``.  Reciprocity M_ji = M_ij^T and O(3) equivariance hold by construction; the
+    buffers are fitted with ``fit_normalisation`` on the training split and travel with the state dict.
+
+    Layout knobs (defaults = the published v2 layout: 8 unit bands, quadratic bases on, no class-2 TR bases,
+    full invariants -> 76 inputs, 93 coefficients, 111-column rows):
+      bands       increasing tent-band knots (None = 0.5 .. 7.5)
+      bases       key of ``nbody_moments.BASES``: "v2" | "linear" | "linear_tr2" | "v2_tr2"
+      invariants  key of ``nbody_moments.INVARIANTS``: "full" | "reduced"
+    The knots live in the non-persistent buffer ``band_knots`` (kept out of the state dict so v2 ``.wt``
+    files stay loadable, but serialised by TorchScript), and ``nb / use_quadratic / has_tr2 / reduced_inv /
+    n_in / n_coef / x_dim`` are plain attributes, all readable after ``torch.jit.load``
+    (``nbody_moments.layout_of_model`` / ``knots_of``)."""
 
     def __init__(self, mean_dist_s: float, zero_init_head: bool = True, inv_norm: bool = False,
-                 hidden=None):
+                 hidden=None, bands=None, bases: str = "v2", invariants: str = "full"):
         super().__init__()
+        knots = list(nbm.V2_KNOTS) if bands is None else [float(b) for b in bands]
+        assert len(knots) >= 2 and all(b > a for a, b in zip(knots, knots[1:])), f"band knots must increase: {knots}"
+        assert knots[0] > 0.0, knots
+        use_quadratic, has_tr2 = nbm.BASES[bases]
+        reduced_inv = nbm.INVARIANTS[invariants]
+        dims = nbm.layout_dims(len(knots), use_quadratic, has_tr2, reduced_inv)
+        self.nb = int(dims["nb"])
+        self.use_quadratic = bool(use_quadratic)
+        self.has_tr2 = bool(has_tr2)
+        self.reduced_inv = bool(reduced_inv)
+        self.n_in = int(dims["n_in"])
+        self.n_tt = int(dims["n_tt"])
+        self.n_tr1 = int(dims["n_tr1"])
+        self.n_tr2 = int(dims["n_tr2"])
+        self.n_coef = int(dims["n_coef"])
+        self.x_dim = int(dims["x_dim"])
+        self.register_buffer("band_knots", torch.tensor(knots, dtype=torch.float64), persistent=False)
         widths = [128, 64, 128, 64] if hidden is None else [int(h) for h in hidden]
         layers = []
-        last = nbm.N_IN
+        last = self.n_in
         for w in widths:
             layers += [nn.Linear(last, w), nn.Tanh()]
             last = w
-        layers.append(nn.Linear(last, nbm.N_COEF))
+        layers.append(nn.Linear(last, self.n_coef))
         self.net = nn.Sequential(*layers)
-        self.register_buffer("inv_mean", torch.zeros(nbm.N_IN))
-        self.register_buffer("inv_std", torch.ones(nbm.N_IN))
-        self.register_buffer("basis_scale", torch.ones(nbm.N_COEF))
+        self.register_buffer("inv_mean", torch.zeros(self.n_in))
+        self.register_buffer("inv_std", torch.ones(self.n_in))
+        self.register_buffer("basis_scale", torch.ones(self.n_coef))
         self.mean_dist_s = float(mean_dist_s)
         # inv_norm: feed the MLP invariants of the count-normalised (intensive) moments
         # v_a / max(s_a, 1), Q_a / max(s_a, 1) instead of the raw sums, keeping s_a as the count input
@@ -556,11 +583,11 @@ class MultiBodyMoments(nn.Module):
             n = s.clamp_min(1.0)
             v = v / n.unsqueeze(-1)
             Q = Q / n.unsqueeze(-1).unsqueeze(-1)
-        return torch.cat([pair, nbm.invariants(z, s, v, Q)], 1)
+        return torch.cat([pair, nbm.invariants(z, s, v, Q, self.reduced_inv)], 1)
 
     @torch.jit.export
     def coefficients(self, X):
-        """[P, 93] scaled coefficients (TT 0:34, RR 34:68, TR=RT 68:93)."""
+        """[P, n_coef] scaled coefficients (TT 0:n_tt, RR n_tt:2n_tt, TR class 1, TR class 2)."""
         x = (self._invariants(X) - self.inv_mean) / self.inv_std
         return self.net(x) / self.basis_scale
 
@@ -569,8 +596,8 @@ class MultiBodyMoments(nn.Module):
         s_vec, pair, s, v, Q = nbm.unpack_features(X)
         z = nbm.pair_axis(s_vec)
         c = self.coefficients(X)
-        tt, tr = nbm.bases(z, v, Q)
-        return nbm.assemble_block(c, tt, tr)
+        tt, tr1, tr2 = nbm.bases_v3(z, v, Q, self.use_quadratic, self.has_tr2)
+        return nbm.assemble_block_v3(c, tt, tr1, tr2)
 
     @torch.jit.export
     def predict_velocity(self, X, force_s):
@@ -579,21 +606,22 @@ class MultiBodyMoments(nn.Module):
 
     @torch.jit.ignore
     def fit_normalisation(self, X, chunk: int = 8192):
-        """Fit inv_mean / inv_std / basis_scale from training rows X[N, 111] (python only)."""
+        """Fit inv_mean / inv_std / basis_scale from training rows X[N, x_dim] (python only)."""
         with torch.no_grad():
-            invs, fro_tt, fro_tr, n = [], 0.0, 0.0, 0
+            invs, fro_tt, fro_tr1, fro_tr2, n = [], 0.0, 0.0, 0.0, 0
             for i in range(0, X.shape[0], chunk):
                 Xc = X[i:i + chunk]
                 invs.append(self._invariants(Xc))
                 s_vec, pair, s, v, Q = nbm.unpack_features(Xc)
-                tt, tr = nbm.bases(nbm.pair_axis(s_vec), v, Q)
+                tt, tr1, tr2 = nbm.bases_v3(nbm.pair_axis(s_vec), v, Q, self.use_quadratic, self.has_tr2)
                 fro_tt = fro_tt + (tt * tt).sum((-1, -2)).sum(0)
-                fro_tr = fro_tr + (tr * tr).sum((-1, -2)).sum(0)
+                fro_tr1 = fro_tr1 + (tr1 * tr1).sum((-1, -2)).sum(0)
+                fro_tr2 = fro_tr2 + (tr2 * tr2).sum((-1, -2)).sum(0)
                 n += Xc.shape[0]
             inv = torch.cat(invs, 0)
             self.inv_mean.copy_(inv.mean(0))
             self.inv_std.copy_(inv.std(0).clamp_min(1e-6))
-            scale = torch.cat([torch.sqrt(fro_tt / n), torch.sqrt(fro_tt / n), torch.sqrt(fro_tr / n)])
+            scale = torch.cat([torch.sqrt(fro_tt / n), torch.sqrt(fro_tt / n), torch.sqrt(fro_tr1 / n), torch.sqrt(fro_tr2 / n)])
             self.basis_scale.copy_(scale.clamp_min(1e-6))
 
 

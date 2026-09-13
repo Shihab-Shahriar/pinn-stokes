@@ -371,3 +371,295 @@ def test_two_body_labels_match_operator_convention():
         v_nb = two_body_velocity(two_nn, -s_vec[None], d, F[None], median_2b=5.01)[0]
         assert np.abs(v_nb - v_op).max() > 1e-2 * np.abs(v_op).max()
         assert np.allclose(v_nb[:3], v_op[:3] - 2 * (v_op[:3] - v_lb[:3]), atol=1e-9) or True  # (documentation only)
+
+
+# ----------------------------------------------------------------------------- 13. v3 layout: knot bands, linear bases, class-2 TR
+KNOTS5 = [0.5, 1.5, 2.5, 3.5, 4.5]
+KNOTS4 = [0.5, 1.5, 2.5, 3.5]
+LAYOUTS = {  # name -> (bands, bases, invariants, n_in, n_coef, x_dim)
+    "v2": (None, "v2", "full", 76, 93, 111),
+    "nb8_linear": (None, "linear", "full", 76, 69, 111),
+    "nb5_linear": (KNOTS5, "linear", "full", 49, 45, 72),
+    "nb4_linear": (KNOTS4, "linear", "full", 40, 37, 59),
+    "nb5_linear_tr2": (KNOTS5, "linear_tr2", "full", 49, 60, 72),
+    "nb4_linear_tr2_red": (KNOTS4, "linear_tr2", "reduced", 24, 49, 59),
+}
+WT_V2 = "experiments/nbody_moments_v2_kinf_rc8_pc8c.wt"
+PT_V2 = "data/models/nbody_moments_v2_kinf_rc8_pc8c.pt"
+
+
+def random_model_v3(seed, name):
+    from src.model_archs import MultiBodyMoments
+    bands, bases, inv = LAYOUTS[name][:3]
+    torch.manual_seed(seed)
+    m = MultiBodyMoments(4.69, zero_init_head=False, bands=bands, bases=bases, invariants=inv).to(DT)
+    with torch.no_grad():
+        for p in m.parameters():
+            p.mul_(3.0)
+    return m.eval()
+
+
+def _rows_v3(model, s_vec, nbr, mask=None):
+    K = len(nbr)
+    mask = np.ones((1, K)) if mask is None else mask[None]
+    knots = nbm.knots_of(model)
+    if knots is None:
+        return nbm.moment_features(*to_t(s_vec[None], nbr[None], mask), model.mean_dist_s)
+    return nbm.moment_features_knots(*to_t(s_vec[None], nbr[None], mask), model.mean_dist_s, knots)
+
+
+@pytest.mark.parametrize("knots", [KNOTS5, KNOTS4, [0.25, 0.75, 2.0, 5.0, 7.5], [1.0, 3.0]])
+def test_knot_bands_partition_of_unity(knots):
+    r = torch.linspace(0.0, 12.0, 4001, dtype=DT)
+    k = torch.as_tensor(knots, dtype=DT)
+    w = nbm.band_weights_knots(r, k)
+    assert w.shape == (4001, len(knots))
+    assert torch.allclose(w.sum(-1), torch.ones_like(r), atol=1e-12)
+    assert torch.all(w >= 0) and torch.all(w <= 1)
+    assert torch.all(w[r <= knots[0], 0] == 1.0)
+    assert torch.all(w[r >= knots[-1], -1] == 1.0)
+    for a, ka in enumerate(knots):  # peaks at the knots
+        assert torch.allclose(nbm.band_weights_knots(torch.tensor([ka], dtype=DT), k)[0, a], torch.tensor(1.0, dtype=DT))
+    assert torch.abs(w[1:] - w[:-1]).max() < 4.0 * (12.0 / 4000) / min(np.diff(knots))   # Lipschitz continuity
+    assert np.allclose(w.numpy(), ref.band_weights_knots(r.numpy(), knots), atol=1e-12)
+
+
+def test_knot_bands_reproduce_v2_bitwise():
+    for dt in (torch.float32, torch.float64):
+        r = torch.linspace(0.0, 12.0, 100001, dtype=dt)
+        assert torch.equal(nbm.band_weights(r), nbm.band_weights_knots(r, torch.as_tensor(nbm.V2_KNOTS, dtype=dt)))
+
+
+def test_v2_defaults_unchanged():
+    from src.model_archs import MultiBodyMoments
+    assert (nbm.X_DIM, nbm.N_COEF, nbm.N_TT, nbm.N_TR, nbm.N_INV, nbm.N_IN) == (111, 93, 34, 25, 72, 76)
+    assert nbm.layout_dims(8, True, False, False) == {"nb": 8, "n_in": 76, "n_tt": 34, "n_tr1": 25, "n_tr2": 0, "n_coef": 93, "x_dim": 111}
+    m = MultiBodyMoments(4.69)
+    lay = nbm.layout_of_model(m)
+    assert lay["version"] == "v2" and lay["bands"] == nbm.V2_KNOTS and (m.n_in, m.n_coef, m.x_dim) == (76, 93, 111)
+    assert nbm.knots_of(m) is None
+    assert not any("band_knots" in k for k in m.state_dict())        # v2 .wt files stay strict-loadable
+    assert m.net[0].in_features == 76 and m.net[-1].out_features == 93
+    if os.path.exists(WT_V2):
+        m.load_state_dict(torch.load(WT_V2, map_location="cpu", weights_only=True), strict=True)
+    if os.path.exists(PT_V2):
+        pt = torch.jit.load(PT_V2, map_location="cpu").eval()
+        assert nbm.layout_of_model(pt)["version"] == "v2" and nbm.knots_of(pt) is None
+    # the v2 wrappers are the v3 functions at the v2 parameters, exactly
+    rng = np.random.default_rng(13)
+    s_vec, nbr = random_pair(rng, K=9)
+    S, N, Mk = to_t(s_vec[None], nbr[None], np.ones((1, 9)))
+    X = nbm.moment_features(S, N, Mk, 4.69)
+    assert torch.equal(X, nbm.moment_features_knots(S, N, Mk, 4.69, torch.as_tensor(nbm.V2_KNOTS, dtype=DT)))
+    z = nbm.pair_axis(S); s, v, Q = nbm.band_moments(S, N, Mk)
+    tt, tr = nbm.bases(z, v, Q)
+    tt3, tr1, tr2 = nbm.bases_v3(z, v, Q, True, False)
+    assert torch.equal(tt, tt3) and torch.equal(tr, tr1) and tr2.shape == (1, 0, 3, 3)
+    c = torch.as_tensor(rng.normal(size=(1, 93)), dtype=DT)
+    assert torch.equal(nbm.assemble_block(c, tt, tr), nbm.assemble_block_v3(c, tt3, tr1, tr2))
+    assert nbm.layout_from_sidecar({}) == {"bands": None, "bases": "v2", "invariants": "full"}
+    assert nbm.layout_from_sidecar({"bands": nbm.V2_KNOTS}) == {"bands": None, "bases": "v2", "invariants": "full"}
+    assert nbm.layout_from_sidecar({"bands": KNOTS5, "bases": "linear_tr2", "invariants": "reduced"}) == \
+        {"bands": KNOTS5, "bases": "linear_tr2", "invariants": "reduced"}
+
+
+@pytest.mark.parametrize("name", list(LAYOUTS))
+def test_layout_dims_and_row_width(name):
+    bands, bases, inv, n_in, n_coef, x_dim = LAYOUTS[name]
+    m = random_model_v3(0, name)
+    lay = nbm.layout_of_model(m)
+    assert (lay["n_in"], lay["n_coef"], lay["x_dim"]) == (n_in, n_coef, x_dim)
+    assert lay["bases"] == bases and lay["invariants"] == inv and lay["bands"] == (bands or nbm.V2_KNOTS)
+    assert lay["version"] == ("v2" if name == "v2" else "v3")
+    assert (m.net[0].in_features, m.net[-1].out_features) == (n_in, n_coef)
+    assert m.inv_std.shape == (n_in,) and m.basis_scale.shape == (n_coef,)
+    rng = np.random.default_rng(14)
+    s_vec, nbr = random_pair(rng, K=7)
+    X = _rows_v3(m, s_vec, nbr)
+    assert X.shape == (1, x_dim)
+    s_vec2, pair, s, v, Q = nbm.unpack_features(X)
+    assert s.shape == (1, lay["nb"]) and v.shape == (1, lay["nb"], 3) and Q.shape == (1, lay["nb"], 3, 3)
+    assert torch.allclose(nbm.pack_features(s_vec2, pair, s, v, Q), X)
+    assert torch.allclose(s.sum(-1), torch.tensor([7.0], dtype=DT), atol=1e-12)     # partition of unity
+    with torch.no_grad():
+        assert m.coefficients(X).shape == (1, n_coef) and m.predict_mobility(X).shape == (1, 6, 6)
+    # the numpy wrapper builds the same rows
+    from src import nbody_features as nf
+    Xn = nf.moment_features(s_vec[None], nbr[None], np.ones((1, 7)), 4.69, knots=nbm.knots_of(m))
+    assert Xn.shape == (1, x_dim) and np.allclose(Xn[0], X[0].numpy(), atol=1e-6)
+
+
+def test_reciprocity_with_tr2():
+    """Class-2 TR bases: RT = TR1 - TR2 != TR, yet M_st = M_ts^T exactly; zeroing class 2 restores RT = TR."""
+    model = random_model_v3(1, "nb5_linear_tr2")
+    rng = np.random.default_rng(15)
+    n2 = model.n_tr2
+    assert n2 == 15
+    for _ in range(5):
+        s_vec, nbr = random_pair(rng, K=6)
+        X_ts = _rows_v3(model, s_vec, nbr)
+        X_st = _rows_v3(model, -s_vec, nbr - s_vec)          # from scratch in the source's frame
+        with torch.no_grad():
+            K_ts = model.predict_mobility(X_ts)[0]
+            K_st = model.predict_mobility(X_st)[0]
+            c = model.coefficients(X_ts)
+        assert torch.allclose(K_st, K_ts.T, atol=1e-10, rtol=1e-8)
+        assert torch.allclose(X_ts[:, 3:], X_st[:, 3:], atol=1e-12) and torch.allclose(X_ts[:, :3], -X_st[:, :3])
+        scale = K_ts.abs().max()
+        assert (K_ts[:3, 3:] - K_ts[3:, :3]).abs().max() > 1e-3 * scale              # class 2 is active
+        s_vec_t, pair, s, v, Q = nbm.unpack_features(X_ts)
+        z = nbm.pair_axis(s_vec_t)
+        tt, tr1, tr2 = nbm.bases_v3(z, v, Q, False, True)
+        assert tt.shape[1] == 17 and tr1.shape[1] == 11 and tr2.shape[1] == 15
+        c0 = c.clone(); c0[:, -n2:] = 0
+        K0 = nbm.assemble_block_v3(c0, tt, tr1, tr2)[0]
+        assert torch.equal(K0[:3, 3:], K0[3:, :3])                                    # class 2 off -> RT = TR
+        assert torch.allclose(K0, nbm.assemble_block_v3(c, tt, tr1, tr2)[0] - torch.cat(
+            [torch.cat([torch.zeros(3, 3, dtype=DT), (K_ts[:3, 3:] - K_ts[3:, :3]) / 2], 1),
+             torch.cat([-(K_ts[:3, 3:] - K_ts[3:, :3]) / 2, torch.zeros(3, 3, dtype=DT)], 1)], 0), atol=1e-12)
+        # each class-2 basis satisfies T(-z) = -T(z)^T, each class-1 basis T(-z) = T(z)^T
+        _, _, _, v_s, Q_s = nbm.unpack_features(X_st)
+        tt_s, tr1_s, tr2_s = nbm.bases_v3(nbm.pair_axis(X_st[:, :3]), v_s, Q_s, False, True)
+        assert torch.allclose(tt_s, tt.transpose(-1, -2), atol=1e-12)
+        assert torch.allclose(tr1_s, tr1.transpose(-1, -2), atol=1e-12)
+        assert torch.allclose(tr2_s, -tr2.transpose(-1, -2), atol=1e-12)
+
+
+def test_tr2_reduces_to_v2_when_zero():
+    rng = np.random.default_rng(16)
+    s_vec, nbr = random_pair(rng, K=8)
+    S, N, Mk = to_t(s_vec[None], nbr[None], np.ones((1, 8)))
+    z = nbm.pair_axis(S); s, v, Q = nbm.band_moments(S, N, Mk)
+    tt, tr1, tr2 = nbm.bases_v3(z, v, Q, True, True)
+    assert (tt.shape[1], tr1.shape[1], tr2.shape[1]) == (34, 25, 24)
+    c93 = rng.normal(size=93)
+    c = torch.as_tensor(np.concatenate([c93, np.zeros(24)])[None], dtype=DT)
+    K = nbm.assemble_block_v3(c, tt, tr1, tr2)[0]
+    assert torch.allclose(K, nbm.assemble_block(c[:, :93], *nbm.bases(z, v, Q))[0], atol=1e-12)
+    z_r, s_r, v_r, Q_r = ref.moments_target_frame(s_vec, nbr)
+    assert np.allclose(K.numpy(), ref.nbody_block(c93, z_r, v_r, Q_r), atol=1e-12)
+
+
+@pytest.mark.parametrize("kind", ["rotation", "reflection", "improper"])
+@pytest.mark.parametrize("name", ["nb5_linear_tr2", "nb4_linear_tr2_red"])
+def test_o3_equivariance_v3(kind, name):
+    model = random_model_v3(2, name)
+    rng = np.random.default_rng(17)
+    if kind == "rotation":
+        R = random_rotation(rng, +1.0)
+    elif kind == "reflection":
+        R = np.diag([1.0, 1.0, -1.0])
+    else:
+        R = random_rotation(rng, +1.0) @ np.diag([1.0, -1.0, 1.0])
+    D = torch.as_tensor(big_D(R), dtype=DT)
+    for _ in range(3):
+        s_vec, nbr = random_pair(rng, K=6)
+        X = _rows_v3(model, s_vec, nbr)
+        XR = _rows_v3(model, s_vec @ R.T, nbr @ R.T)
+        with torch.no_grad():
+            K = model.predict_mobility(X)[0]
+            KR = model.predict_mobility(XR)[0]
+            inv, invR = model._invariants(X), model._invariants(XR)
+        assert torch.allclose(inv, invR, atol=1e-9, rtol=1e-9)
+        assert torch.allclose(KR, D @ K @ D.T, atol=1e-9, rtol=1e-8)
+        F = torch.as_tensor(rng.normal(size=(1, 6)), dtype=DT)
+        with torch.no_grad():
+            v = model.predict_velocity(X, F)[0]
+            vR = model.predict_velocity(XR, (D @ F[0])[None])[0]
+        assert torch.allclose(vR, D @ v, atol=1e-9, rtol=1e-8)
+
+
+def test_matches_numpy_reference_v3():
+    rng = np.random.default_rng(18)
+    for quadratic, tr2 in [(False, True), (False, False), (True, True)]:
+        s_vec, nbr = random_pair(rng, K=8)
+        z_r, s_r, v_r, Q_r = ref.moments_knots(np.zeros(3), s_vec, nbr, KNOTS5)
+        S, N, Mk = to_t(s_vec[None], nbr[None], np.ones((1, 8)))
+        z = nbm.pair_axis(S)
+        s, v, Q = nbm.band_moments_knots(S, N, Mk, torch.as_tensor(KNOTS5, dtype=DT))
+        assert np.allclose(s[0].numpy(), s_r, atol=1e-12) and np.allclose(v[0].numpy(), v_r, atol=1e-12)
+        assert np.allclose(Q[0].numpy(), Q_r, atol=1e-12)
+        assert np.allclose(nbm.invariants(z, s, v, Q)[0].numpy(), ref.invariants(z_r, s_r, v_r, Q_r), atol=1e-10)
+        assert np.allclose(nbm.invariants(z, s, v, Q, True)[0].numpy(), ref.invariants_reduced(z_r, s_r, v_r, Q_r), atol=1e-10)
+        tt, tr1, t2 = nbm.bases_v3(z, v, Q, quadratic, tr2)
+        tt_r, tr1_r, t2_r = ref.bases_v3(z_r, v_r, Q_r, quadratic, tr2)
+        assert tt.shape[1:] == tt_r.shape and tr1.shape[1:] == tr1_r.shape and t2.shape[1:] == t2_r.shape
+        assert np.allclose(tt[0].numpy(), tt_r, atol=1e-12) and np.allclose(tr1[0].numpy(), tr1_r, atol=1e-12)
+        assert np.allclose(t2[0].numpy(), t2_r, atol=1e-12)
+        n_coef = nbm.layout_dims(5, quadratic, tr2, False)["n_coef"]
+        c = rng.normal(size=n_coef)
+        M = nbm.assemble_block_v3(torch.as_tensor(c[None], dtype=DT), tt, tr1, t2)
+        assert np.allclose(M[0].numpy(), ref.nbody_block_v3(c, z_r, v_r, Q_r, quadratic, tr2), atol=1e-12)
+
+
+def test_torchscript_roundtrip_v3(tmp_path):
+    model = random_model_v3(3, "nb5_linear_tr2").to(torch.float32)
+    rng = np.random.default_rng(19)
+    rows = [random_pair(rng, K=5) for _ in range(4)]
+    S = np.stack([r[0] for r in rows]); N = np.stack([r[1] for r in rows])
+    X = nbm.moment_features_knots(*to_t(S, N, np.ones((4, 5))), 4.69, torch.as_tensor(KNOTS5, dtype=DT)).to(torch.float32)
+    with torch.no_grad():
+        model.fit_normalisation(X)
+    assert model.basis_scale.shape == (60,) and model.basis_scale.min() > 0
+    scripted = torch.jit.script(model)
+    p = tmp_path / "m.pt"
+    scripted.save(str(p))
+    loaded = torch.jit.load(str(p)).eval()
+    assert nbm.layout_of_model(loaded) == nbm.layout_of_model(model)
+    assert torch.allclose(nbm.knots_of(loaded), torch.as_tensor(KNOTS5, dtype=DT))
+    assert (loaded.nb, loaded.has_tr2, loaded.use_quadratic, loaded.reduced_inv) == (5, True, False, False)
+    with torch.no_grad():
+        assert torch.allclose(model.predict_mobility(X), loaded.predict_mobility(X), atol=1e-6)
+        F = torch.as_tensor(rng.normal(size=(4, 6)), dtype=torch.float32)
+        assert torch.allclose(model.predict_velocity(X, F), loaded.predict_velocity(X, F), atol=1e-6)
+
+
+@pytest.mark.skipif(not MODELS_PRESENT, reason="model files missing")
+def test_operator_v3_rows_and_symmetry(tmp_path):
+    """A v3 model in the CPU operator: rows built with the model's knots (per-pair from-scratch check), symmetric
+    grand M, and the .wt path (sidecar or nbody_layout kwarg) equal to the self-describing .pt path."""
+    import json
+    from benchmarks.cluster import uniform_sphere_cluster
+    from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
+    model = random_model_v3(6, "nb5_linear_tr2").to(torch.float32).eval()
+    pt = tmp_path / "v3.pt"; wt = tmp_path / "v3.wt"
+    torch.jit.script(model).save(str(pt))
+    torch.save(model.state_dict(), wt)
+    common = dict(shape="sphere", self_nn_path="data/models/self_interaction_model.pt",
+                  two_nn_path="data/models/two_body_combined_model.pt", switch_dist=8.0, pair_cutoff=8.0,
+                  neighbor_cutoff=8.0, max_neighbors=None)
+    op = Mob_Op_Nbody_Moments(nbody_nn_path=str(pt), **common)
+    assert op.nbody_layout["version"] == "v3" and op.nbody_layout["x_dim"] == 72
+    assert np.allclose(op.band_knots.numpy(), KNOTS5)
+    pos, _ = uniform_sphere_cluster(0.15, 40, seed=5)
+    pairs, X_ts, X_st = op._pair_rows(pos)
+    assert len(pairs) > 50 and X_ts.shape == (len(pairs), 72)
+    knots = torch.as_tensor(KNOTS5, dtype=DT)
+    for i, (t, s) in list(enumerate(pairs))[:40]:
+        idx = op._select_neighbor_indices(pos, t, s)
+        X = nbm.moment_features_knots(*to_t((pos[s] - pos[t])[None], (pos[idx] - pos[t])[None], np.ones((1, len(idx)))),
+                                      op.mean_dist_s, knots)[0].numpy()
+        assert np.allclose(X, X_ts[i], rtol=1e-6, atol=1e-6)
+    assert np.allclose(X_st[:, :3], -X_ts[:, :3]) and np.array_equal(X_st[:, 3:], X_ts[:, 3:])
+    pos12, _ = uniform_sphere_cluster(0.2, 12, seed=0)
+    n = len(pos12)
+    M = np.zeros((6 * n, 6 * n))
+    for j in range(6 * n):
+        F = np.zeros((n, 6)); F[j // 6, j % 6] = 1.0
+        M[:, j] = op.get_nbody_velocity(pos12, F, 1.0).reshape(-1)
+    assert np.linalg.norm(M) > 0 and np.linalg.norm(M - M.T) / np.linalg.norm(M) < 1e-5
+    blk = M.reshape(n, 6, n, 6)
+    off = np.array([np.abs(blk[t, :3, s, 3:] - blk[t, 3:, s, :3]).max() for t in range(n) for s in range(n) if t != s])
+    assert off.max() > 1e-3 * np.abs(M).max()                                   # TR != RT in the pair blocks
+    # .wt paths: nbody_layout kwarg, and a sidecar next to the weights
+    config = np.hstack([pos12, np.tile([0.0, 0.0, 0.0, 1.0], (n, 1))])
+    F = np.random.default_rng(0).normal(size=(n, 6))
+    v_pt = op.apply(config, F, 1.0)
+    op_kw = Mob_Op_Nbody_Moments(nbody_nn_path=str(wt), nbody_layout={"bands": KNOTS5, "bases": "linear_tr2"}, **common)
+    assert np.allclose(op_kw.apply(config, F, 1.0), v_pt, atol=1e-6, rtol=1e-5)
+    json.dump({"bands": KNOTS5, "bases": "linear_tr2", "invariants": "full"}, open(tmp_path / "v3.json", "w"))
+    op_side = Mob_Op_Nbody_Moments(nbody_nn_path=str(wt), **common)
+    assert op_side.nbody_layout == op.nbody_layout
+    assert np.allclose(op_side.apply(config, F, 1.0), v_pt, atol=1e-6, rtol=1e-5)
+    with pytest.raises(Exception):  # wrong layout for the weights must fail at construction
+        Mob_Op_Nbody_Moments(nbody_nn_path=str(wt), nbody_layout={"bands": KNOTS4, "bases": "linear_tr2"}, **common)
