@@ -663,3 +663,164 @@ def test_operator_v3_rows_and_symmetry(tmp_path):
     assert np.allclose(op_side.apply(config, F, 1.0), v_pt, atol=1e-6, rtol=1e-5)
     with pytest.raises(Exception):  # wrong layout for the weights must fail at construction
         Mob_Op_Nbody_Moments(nbody_nn_path=str(wt), nbody_layout={"bands": KNOTS4, "bases": "linear_tr2"}, **common)
+
+
+# ----------------------------------------------------------------------------- 14. learned radial bands (Bessel basis x MLP)
+def random_model_bessel(seed, nb=6, n_radial=8, bases="linear_tr2"):
+    from src.model_archs import MultiBodyMoments
+    torch.manual_seed(seed)
+    m = MultiBodyMoments(4.69, zero_init_head=False, radial="bessel", nb=nb, n_radial=n_radial, bases=bases).to(DT)
+    with torch.no_grad():
+        for p in m.parameters():
+            p.mul_(3.0)
+    return m.eval()
+
+
+def _rows_model(model, s_vec, nbr, mask=None):
+    K = len(nbr)
+    mask = np.ones((1, K)) if mask is None else mask[None]
+    with torch.no_grad():
+        return model.moment_features(*to_t(s_vec[None], nbr[None], mask))
+
+
+def test_bessel_basis_properties():
+    rc, n = 8.0, 8
+    r = torch.linspace(0.0, 10.0, 10001, dtype=DT)
+    b = nbm.bessel_basis(r, rc, n)
+    assert b.shape == (10001, n) and torch.isfinite(b).all()
+    assert torch.all(b[r >= rc] == 0)                                                     # zero beyond the cutoff
+    k = torch.arange(1, n + 1, dtype=DT)
+    assert torch.allclose(b[0], np.sqrt(2 / rc) * k * np.pi / rc, rtol=1e-3)               # finite limit at r = 0
+    assert (b[1:] - b[:-1]).abs().max() < 5e-3                                             # continuous (step 1e-3)
+    assert b[(r > 7.9) & (r < 8.0)].abs().max() < 1e-4                                     # smooth approach to zero
+
+
+def test_learned_bands_layout_and_dims():
+    from src.model_archs import MultiBodyMoments
+    m = random_model_bessel(0, nb=6, n_radial=8)
+    lay = nbm.layout_of_model(m)
+    assert lay["version"] == "v3" and lay["radial"] == "bessel" and lay["nb"] == 6 and lay["n_radial"] == 8 and lay["bands"] is None
+    assert (lay["n_in"], lay["n_coef"], lay["x_dim"]) == (4 + 9 * 6, 5 + 11 * 6, 7 + 13 * 6)
+    assert nbm.knots_of(m) is None and m.x_dim == 85 and m.n_coef == 71 and m.learned_radial
+    assert sum(p.numel() for p in m.radial.parameters()) == 8 * 32 + 32 * 6
+    r = torch.linspace(0.0, 9.0, 901, dtype=DT)
+    with torch.no_grad():
+        w = m.radial(r)
+    assert w.shape == (901, 6) and torch.all(w[r >= 8.0] == 0)                             # bands vanish at the cutoff
+    assert (w[1:] - w[:-1]).abs().max() < 0.05 * w.abs().max()                               # and are smooth in r
+    kw = nbm.layout_from_sidecar({"radial": "bessel", "nb": 6, "n_radial": 8, "bases": "linear_tr2", "invariants": "full"})
+    assert nbm.layout_of_model(MultiBodyMoments(4.69, **kw)) == lay
+    assert nbm.layout_from_sidecar({"bands": KNOTS5, "bases": "linear_tr2"}) == {"bands": KNOTS5, "bases": "linear_tr2", "invariants": "full"}
+    with pytest.raises(AssertionError):
+        MultiBodyMoments(4.69, radial="bessel", bands=KNOTS5)
+
+
+def test_model_moment_features_matches_knot_path():
+    """For tent-band models the model-built row equals the float64 functional path (to float32 precision)."""
+    from src.model_archs import MultiBodyMoments
+    rng = np.random.default_rng(5)
+    for bands in [None, KNOTS5]:
+        m = MultiBodyMoments(4.69, bands=bands, bases="linear_tr2" if bands else "v2").eval()      # float32 model
+        rows = [random_pair(rng, K=6) for _ in range(5)]
+        S = np.stack([r[0] for r in rows]); N = np.stack([r[1] for r in rows]); Mk = np.ones((5, 6)); Mk[0, -1] = 0.0
+        X64 = nbm.moment_features_knots(*to_t(S, N, Mk), 4.69, torch.as_tensor(bands or nbm.V2_KNOTS, dtype=DT))
+        with torch.no_grad():
+            X = m.moment_features(*to_t(S, N, Mk))
+        assert X.dtype == torch.float32 and X.shape == X64.shape
+        assert torch.allclose(X, X64.to(torch.float32), atol=1e-5, rtol=1e-5)
+
+
+def test_learned_bands_reciprocity():
+    model = random_model_bessel(1)
+    rng = np.random.default_rng(23)
+    for _ in range(3):
+        s_vec, nbr = random_pair(rng, K=6)
+        X_ts = _rows_model(model, s_vec, nbr)
+        X_st = _rows_model(model, -s_vec, nbr - s_vec)          # seen from the source: neighbours relative to it
+        with torch.no_grad():
+            K_ts = model.predict_mobility(X_ts)[0]; K_st = model.predict_mobility(X_st)[0]
+        assert torch.allclose(K_st, K_ts.T, atol=1e-9, rtol=1e-8)
+        assert (K_ts[:3, 3:] - K_ts[3:, :3]).abs().max() > 1e-6 * K_ts.abs().max()         # class 2 active: TR != RT
+
+
+@pytest.mark.parametrize("kind", ["rotation", "reflection", "improper"])
+def test_o3_equivariance_learned_bands(kind):
+    model = random_model_bessel(2)
+    rng = np.random.default_rng(29)
+    if kind == "rotation":
+        R = random_rotation(rng, +1.0)
+    elif kind == "reflection":
+        R = np.diag([1.0, 1.0, -1.0])
+    else:
+        R = random_rotation(rng, +1.0) @ np.diag([1.0, -1.0, 1.0])
+    D = torch.as_tensor(big_D(R), dtype=DT)
+    for _ in range(3):
+        s_vec, nbr = random_pair(rng, K=6)
+        X = _rows_model(model, s_vec, nbr)
+        XR = _rows_model(model, s_vec @ R.T, nbr @ R.T)
+        with torch.no_grad():
+            K = model.predict_mobility(X)[0]; KR = model.predict_mobility(XR)[0]
+            assert torch.allclose(model._invariants(X), model._invariants(XR), atol=1e-9, rtol=1e-9)
+        assert torch.allclose(KR, D @ K @ D.T, atol=1e-9, rtol=1e-8)
+
+
+def test_torchscript_roundtrip_learned_bands(tmp_path):
+    model = random_model_bessel(3, nb=8).to(torch.float32)
+    rng = np.random.default_rng(31)
+    rows = [random_pair(rng, K=5) for _ in range(4)]
+    S = np.stack([r[0] for r in rows]); N = np.stack([r[1] for r in rows]); Mk = np.ones((4, 5))
+    with torch.no_grad():
+        X = model.moment_features(*to_t(S, N, Mk))
+        model.fit_normalisation(X)
+    scripted = torch.jit.script(model)
+    p = tmp_path / "m.pt"
+    scripted.save(str(p))
+    loaded = torch.jit.load(str(p)).eval()
+    assert nbm.layout_of_model(loaded) == nbm.layout_of_model(model) and nbm.knots_of(loaded) is None
+    assert (loaded.nb, loaded.learned_radial, loaded.n_radial, loaded.has_tr2) == (8, True, 8, True)
+    with torch.no_grad():
+        XL = loaded.moment_features(*to_t(S, N, Mk))
+        assert torch.allclose(XL, X, atol=1e-6)
+        assert torch.allclose(model.predict_mobility(X), loaded.predict_mobility(XL), atol=1e-6)
+    model.train()                                                     # gradients reach the radial MLP through the rows
+    X = model.moment_features(*to_t(S, N, Mk))
+    model.predict_mobility(X).square().sum().backward()
+    assert all(p.grad is not None and p.grad.abs().sum() > 0 for p in model.radial.parameters())
+
+
+@pytest.mark.skipif(not MODELS_PRESENT, reason="model files missing")
+def test_operator_learned_bands_rows_and_symmetry(tmp_path):
+    """A learned-radial model in the CPU operator: rows built by the model (per-pair from-scratch check), symmetric
+    grand M, and the .wt + sidecar path equal to the self-describing .pt path."""
+    import json
+    from benchmarks.cluster import uniform_sphere_cluster
+    from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
+    model = random_model_bessel(6, nb=6).to(torch.float32).eval()
+    pt = tmp_path / "b.pt"; wt = tmp_path / "b.wt"
+    torch.jit.script(model).save(str(pt))
+    torch.save(model.state_dict(), wt)
+    common = dict(shape="sphere", self_nn_path="data/models/self_interaction_model.pt",
+                  two_nn_path="data/models/two_body_combined_model.pt", switch_dist=8.0, pair_cutoff=8.0,
+                  neighbor_cutoff=8.0, max_neighbors=None, mean_dist_s=4.69)   # = the model's pair-scalar constant
+    op = Mob_Op_Nbody_Moments(nbody_nn_path=str(pt), **common)
+    assert op.nbody_layout["radial"] == "bessel" and op.nbody_layout["x_dim"] == 85 and op.band_knots is None
+    pos, _ = uniform_sphere_cluster(0.15, 40, seed=5)
+    pairs, X_ts, X_st = op._pair_rows(pos)
+    assert len(pairs) > 50 and X_ts.shape == (len(pairs), 85)
+    for i, (t, s) in list(enumerate(pairs))[:40]:
+        idx = op._select_neighbor_indices(pos, t, s)
+        X = _rows_model(model, pos[s] - pos[t], pos[idx] - pos[t])[0].numpy()
+        assert np.allclose(X, X_ts[i], rtol=1e-5, atol=1e-6)
+    assert np.allclose(X_st[:, :3], -X_ts[:, :3]) and np.array_equal(X_st[:, 3:], X_ts[:, 3:])
+    pos12, _ = uniform_sphere_cluster(0.2, 12, seed=0)
+    n = len(pos12)
+    M = np.zeros((6 * n, 6 * n))
+    for j in range(6 * n):
+        F = np.zeros((n, 6)); F[j // 6, j % 6] = 1.0
+        M[:, j] = op.get_nbody_velocity(pos12, F, 1.0).reshape(-1)
+    assert np.linalg.norm(M) > 0 and np.linalg.norm(M - M.T) / np.linalg.norm(M) < 1e-5
+    config = np.hstack([pos12, np.tile([0.0, 0.0, 0.0, 1.0], (n, 1))])
+    F = np.random.default_rng(0).normal(size=(n, 6))
+    json.dump({"radial": "bessel", "nb": 6, "n_radial": 8, "bases": "linear_tr2", "invariants": "full"}, open(tmp_path / "b.json", "w"))
+    op_wt = Mob_Op_Nbody_Moments(nbody_nn_path=str(wt), **common)
+    assert np.allclose(op_wt.apply(config, F, 1.0), op.apply(config, F, 1.0), atol=1e-6, rtol=1e-5)

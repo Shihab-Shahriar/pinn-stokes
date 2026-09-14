@@ -17,14 +17,20 @@ def load_runs(root: Path) -> dict:
     for d in sorted(root.iterdir()):
         f = d / "metrics.json"
         if d.is_dir() and f.exists() and not d.name.startswith(("pilot", "smoke")):
-            runs[d.name] = json.load(open(f))
+            m = json.load(open(f))
+            if "twobody_only" in m and "by_dist" in m:      # pair-model runs only (the diag_* runs write a different metrics.json)
+                runs[d.name] = m
     return runs
 
 
 def label(name: str, m: dict) -> str:
     if "model_path" in m:
         return f"{Path(m['model_path']).name} (old data) @ {m['variant']}"
-    lay = f" [{m['layout']}: nb {len(m['bands'])}, {m['bases']}, inv {m['invariants']}]" if m.get("layout") == "v3" else ""
+    lay = ""
+    if m.get("layout") == "v3":
+        nb = m.get("nb") or (len(m["bands"]) if m.get("bands") else "?")
+        rad = f" bessel{m.get('n_radial')}" if m.get("radial") == "bessel" else ""
+        lay = f" [v3: nb {nb}{rad}, {m['bases']}, inv {m['invariants']}]"
     return f"{m['model']} v2 @ {m['variant']}" + lay + (f" [{m['loss']}/{m['loss_form']}, bw={m['block_weights']}]" if m.get("block_weights", "none") != "none" or m.get("loss_form", "block") != "block" else "")
 
 

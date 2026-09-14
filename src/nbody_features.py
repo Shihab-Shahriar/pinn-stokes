@@ -98,6 +98,20 @@ def moment_features(s_vec: np.ndarray, nbr: np.ndarray, mask: np.ndarray, mean_d
     return np.concatenate(out, 0)
 
 
+def moment_features_model(s_vec: np.ndarray, nbr: np.ndarray, mask: np.ndarray, model, device=None,
+                          chunk: int = 65536) -> np.ndarray:
+    """Model input rows X[N, x_dim] (float32) built by the model itself (``MultiBodyMoments.moment_features``, eager or
+    TorchScript) -- required for learned radial bands, whose rows depend on the model parameters."""
+    out = []
+    with torch.no_grad():
+        for i in range(0, len(s_vec), chunk):
+            S = torch.as_tensor(s_vec[i:i + chunk], dtype=torch.float32, device=device)
+            Nb = torch.as_tensor(nbr[i:i + chunk], dtype=torch.float32, device=device)
+            Mk = torch.as_tensor(mask[i:i + chunk], dtype=torch.float32, device=device)
+            out.append(model.moment_features(S, Nb, Mk).cpu().numpy())
+    return np.concatenate(out, 0) if out else np.zeros((0, int(model.x_dim)), dtype=np.float32)
+
+
 def baseline_features(s_vec: np.ndarray, nbr: np.ndarray, mask: np.ndarray, mean_dist_s: float,
                       eps: float = 1e-9) -> np.ndarray:
     """The 147-column baseline row (branch1_multibody_pinn.ipynb == Mob_Op_Nbody._build_pair_feature_vector):

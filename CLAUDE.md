@@ -80,30 +80,39 @@ Each operator has an `apply(config, force, viscosity) -> velocity` interface:
    protocol (0.08 → 0.77 %). Same ordering for the translational block of the random-wrench protocol (φ = 0.1: far field
    2.8, NeMO 4.3, SD 8.7, RPY 12.2 % PRMSE); SD's lubrication does make its rotational velocities the best there.
 
-4e. **Moments v3 layout: fewer bands, linear bases, split TR/RT (2026-09-13, branch `moments-v3-main`, `artifacts/nbody_v3_report.md`).**
-   `src/nbody_moments.py` is parametrised: tent bands on an arbitrary knot sequence (`band_weights_knots`; the v2 bands
-   0.5..7.5 are reproduced **bitwise**), `bases_v3(z, v, Q, use_quadratic, has_tr2)` and `assemble_block_v3(c, tt, tr1, tr2)`
-   with `TR = T1 + T2`, `RT = T1 − T2`; the v2-named functions are wrappers, rows are `7 + 13·NB` columns (`unpack_features`
-   reads NB from the width), coefficients `5 + (8 + 3q + 3t)·NB`. `MultiBodyMoments(bands=, bases=, invariants=)` (defaults =
-   v2; knots in the non-persistent buffer `band_knots`, so v2 `.wt` files stay strict-loadable; `nbody_moments.layout_of_model`
-   / `knots_of` read any model incl. TorchScript). **Rows are always built with the model's own knots**: `nf.moment_features(...,
-   knots=)`, the operator's `_build_rows`, and the trainer's `V2Cache(knots=)`; a `.wt` needs its layout (sidecar `.json` next to
-   it, written per run as `<out>/model.json`, or `Mob_Op_Nbody_Moments(nbody_layout=...)`), a `.pt` is self-describing.
-   Trainer: `--bands 0.5 1.5 2.5 3.5 4.5 --bases {v2,linear,linear_tr2,v2_tr2} --invariants {full,reduced}` (non-default
-   layouts need `--publish-name`; sidecar keys `bands/bases/invariants/layout/n_coef/x_dim`). GPU path is v2-only (asserted).
-   **Why (measured on 300k pc8c validation rows of the published model):** (i) the label's TR and RT blocks differ by 80 %
-   (`‖TR−RT‖/‖TR‖`), so writing the same matrix in both corners (`RT = TR`, inherited from Eq. 17) leaves a **40 % floor** on
-   the TR/RT residual that the model sits on (43/45 %) — the reason every encoder ablation left the angular blocks at ~17 %.
-   Reciprocity only needs `TR_ji = RT_ijᵀ`, which admits a second basis class with `T(−z) = −T(z)ᵀ` placed as `TR = +T, RT = −T`:
-   `E(v_a)`, `(z·v_a)E(z)`, `[E(z), Q_a]` per band (`moments_for_nbody.md` §5.4). (ii) Zeroing the coefficients of bands 5–8
-   costs ≤ 0.17 PRMSE points each (band 2: +1.7), so bands are unit-width on r ≤ 4 and one saturating band covers 4.5–8; bands
-   1–2 are low-occupancy but high-leverage (do not drop them as the diag model does). (iii) The quadratic bases are removable
-   (all 24 zeroed: lin 3.864 → 4.015 before refit). Runtime is not the argument (assemble+apply is 0.11 s of a 2.97 s step).
-   Harness ops `M_mom_v3_nb5lin_tr2_pc8c[_diag]` (sidecar layout asserted by `_assert_layout`). **Published
-   `nbody_moments_v3_nb5lin_tr2_kinf_rc8_pc8c.pt`** (60 coef, same selection/diag as pc8c): validation lin/ang 3.87/15.53 →
-   3.25/8.39 %, TR/RT 16.7/15.9 → 8.5/8.2 (the bands + linear bases alone: 3.95/15.55, i.e. the size cut is free and the
-   gain is the split corners); Fig 3 φ=0.2 N=200 total 7.51 → 7.39 %, ang 6.30 → 4.82; Fig 4 φ=0.2 mean 5.77 → 5.37 %, ang
-   5.36 → 3.69; gravity settling bias at φ=0.2 1.11 → 0.56 %; Fig 7 Ω error at S=2.1 +36 → +2 % (`reproduction.md`).
+4e. **Moments v3: split TR/RT corners, linear bases (2026-09-13/14, branch `moments-v3-main`, `artifacts/nbody_v3_report.md`).**
+   `src/nbody_moments.py` is parametrised: tent bands on any knot sequence (`band_weights_knots`; the v2 bands 0.5..7.5
+   reproduced **bitwise**), `bases_v3(z, v, Q, use_quadratic, has_tr2)` and `assemble_block_v3(c, tt, tr1, tr2)` with
+   `TR = T1 + T2`, `RT = T1 − T2`; the v2-named functions are wrappers, rows are `7 + 13·NB` columns (`unpack_features`
+   reads NB from the width), coefficients `5 + (8 + 3q + 3t)·NB`. `MultiBodyMoments(bands=, bases=, invariants=, radial=,
+   nb=, n_radial=)` (defaults = v2; knots in the non-persistent buffer `band_knots`, so v2 `.wt` files stay strict-loadable;
+   `nbody_moments.layout_of_model` / `knots_of` read any model incl. TorchScript). **Rows are always built with the model's
+   own layout**: `nf.moment_features(..., knots=)`, the operator's `_build_rows`, the trainer's `V2Cache(knots=)`; a `.wt`
+   needs its layout (sidecar `.json` next to it, written per run as `<out>/model.json`, or `Mob_Op_Nbody_Moments(nbody_layout=...)`),
+   a `.pt` is self-describing. Trainer: `--bands ... --bases {v2,linear,linear_tr2,v2_tr2} --invariants {full,reduced}
+   --radial {knots,bessel} --nb NB` (non-default layouts need `--publish-name`; sidecar keys `bands/bases/invariants/radial/nb/
+   n_radial/layout/n_coef/x_dim`, asserted by the harness' `_assert_layout`). GPU path is v2-only (asserted).
+   **Why (300k pc8c validation rows of the published v2 model):** the label's TR and RT blocks differ by 80 % (`‖TR−RT‖/‖TR‖`),
+   so writing the same matrix in both corners (`RT = TR`, inherited from Eq. 17) leaves a **40 % floor** on the TR/RT residual
+   that the model sat on (43/45 %) — the reason every encoder ablation left the angular blocks at ~17 %. Reciprocity only
+   needs `TR_ji = RT_ijᵀ`, which admits a second basis class with `T(−z) = −T(z)ᵀ` placed as `TR = +T, RT = −T`: `E(v_a)`,
+   `(z·v_a)E(z)`, `[E(z), Q_a]` per band (`moments_for_nbody.md` §5.4). The 24 quadratic bases are free to drop (an 8-band
+   linear refit equals the v2 control within 0.01; a second training seed shows the noise floor is ≤ 0.01).
+   **Adopted v3 = the v2 unit bands + linear bases + class-2 corners** (`--bases linear_tr2`, default bands): v2's size
+   (76 inputs, 93 coefficients), the quadratic bases replaced by the corner bases. **Published
+   `nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c.pt`** (sidecar None/8/8; run `experiments/runs_v2/v3_nb8lin_tr2`), harness ops
+   `M_mom_v3_nb8lin_tr2_pc8c[_diag]` (same `nbody_diag_v2_pc8c.pt`): validation lin/ang 3.87/15.53 → 3.15/8.29 %, TR/RT
+   16.7/15.9 → 8.4/8.0; Fig 3 φ=0.2 N=200 total 7.51 → 7.01 % (ang 6.30 → 4.69), N=300 10.29 → 9.72 (ang 6.09 → 5.02); Fig 4
+   φ=0.2 mean 5.77 → 5.17 (ang 5.36 → 3.59); gravity φ=0.2 lin 3.19 → 2.82, settling bias 1.11 → 0.79; Fig 7 Ω error at S = 2.1 +36 → −2 % (`reproduction.md`).
+   GPU port = a new assemble kernel only (band count, inputs and coefficient count are v2's).
+   **Evaluated and not adopted (report §6–7):** truncating the bands (5 knots 0.5..4.5 + saturating tail, 60 coefficients —
+   the first candidate `nbody_moments_v3_nb5lin_tr2_kinf_rc8_pc8c.pt`, kept as an ablation op) costs 0.4–0.6 Fig-3 points
+   although post-hoc zeroing of bands 5–8 said ≤ 0.17 each; coarser equal-width bands are worse than v2 in translation
+   (leverage sits at r < 2 from the midpoint); learned radial bands (`--radial bessel --nb 8`: DimeNet Bessel basis × cutoff
+   envelope at rc = 8 through a bias-free 8→32→NB MLP, `model_archs.RadialBands`; rows built by the model,
+   `MultiBodyMoments.moment_features`, operator `nf.moment_features_model`) gain 0.27/0.48 Fig-3 points over the adopted model
+   and were judged not worth a new mechanism — code path kept, off by default, tests in `tests/test_nbody_moments.py` §14.
+   A 64-wide MLP and the reduced 5-invariant set each cost ~0.05 (on the 5-knot layout, untested in combination).
    Pre-existing test failures unrelated to this: `test_v2_split_is_configuration_level` (0.1201 > 0.12 with the chain shards),
    `test_oracle_residual_reproduces_grand_M` (the first shards are now `chain`), `test_harness_cases_and_metric` (Fig 4 has 1536 cells).
 

@@ -13,7 +13,9 @@ nbody_features.baseline_features_torch); the label is the residual block R = Mts
 +s_vec, median 5.01), and both architectures are reciprocal by construction so unordered rows suffice.
 Layout knobs of the moments model (nbody_moments.py "v3"): --bands (tent-band knots), --bases {v2,linear,linear_tr2,v2_tr2},
 --invariants {full,reduced}; the rows are built with the model's own knots (training == inference) and the layout is
-recorded in metrics.json and the sidecar (a non-default layout needs --publish-name).
+recorded in metrics.json and the sidecar (a non-default layout needs --publish-name).  --radial bessel --nb NB
+[--n-radial 8]: learned radial bands (Bessel basis x small MLP, model_archs.RadialBands) instead of tents; the rows then
+depend on the parameters and are built by the model itself (V2Cache.features(..., model)), differentiably.
 Split = configuration level (configs.is_val, seed % 10 == 0).  Loss (default): L1 over the 36 entries of
 6*pi*(predict_mobility(X) - R); Adam + cosine over all steps; the moments model fits its normalisation buffers on a
 train subsample.  Metrics (validation configs, plus 2b-only): block rel-Frobenius error (all / TT / TR / RR),
@@ -132,9 +134,13 @@ class V2Cache:
         dev = self.device
         return s_vec.to(dev), nbr.to(dev), valid.to(torch.float64).to(dev)
 
-    def features(self, idx, kind: str) -> torch.Tensor:
+    def features(self, idx, kind: str, model=None) -> torch.Tensor:
+        """Model input rows.  ``model`` is needed for a moments model with learned radial bands: its rows are a function
+        of the parameters, so the model builds them (``MultiBodyMoments.moment_features``, differentiable)."""
         s_vec, nbr, mask = self.gather(idx)
         if kind == "moments":
+            if model is not None and bool(getattr(model, "learned_radial", False)):
+                return model.moment_features(s_vec, nbr, mask)
             if self.knots is None:
                 return nbm.moment_features(s_vec, nbr, mask, MEAN_DIST_S).to(torch.float32)
             return nbm.moment_features_knots(s_vec, nbr, mask, MEAN_DIST_S, self.knots).to(torch.float32)
@@ -181,7 +187,7 @@ def predict(model, cache: V2Cache, idx, kind: str, chunk: int = 16384) -> np.nda
     out = []
     with torch.no_grad():
         for i in range(0, len(idx), chunk):
-            X = cache.features(idx[i:i + chunk], kind)
+            X = cache.features(idx[i:i + chunk], kind, model)
             out.append(nf.predict_blocks(model, X).cpu().numpy())
     return np.concatenate(out, 0).astype(np.float64)
 
@@ -265,6 +271,10 @@ def main():
                     help="tent-band knots of the moments model (default: the v2 bands 0.5 .. 7.5); e.g. 0.5 1.5 2.5 3.5 4.5")
     ap.add_argument("--bases", choices=list(nbm.BASES), default="v2", help="basis set of the moments model (nbody_moments.BASES)")
     ap.add_argument("--invariants", choices=list(nbm.INVARIANTS), default="full", help="invariant set per band (9 or 5)")
+    ap.add_argument("--radial", choices=list(nbm.RADIAL), default="knots",
+                    help="band weights: tents on --bands knots, or learned radial bands MLP(Bessel basis) with --nb bands")
+    ap.add_argument("--nb", type=int, default=None, help="(--radial bessel) number of learned bands (default 8)")
+    ap.add_argument("--n-radial", type=int, default=nbm.N_RADIAL, help="(--radial bessel) size of the Bessel basis")
     ap.add_argument("--zero-init-head", choices=["auto", "on", "off"], default="auto")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--publish", action="store_true")
@@ -275,8 +285,9 @@ def main():
         ap.error("--eval-only requires --features")
     if features == "baseline":
         assert args.variant == "k10_rc6", "the baseline (147-column) layout is only defined for the k10_rc6 selection"
-    layout = {"bands": args.bands, "bases": args.bases, "invariants": args.invariants}
-    non_default_layout = args.bands is not None or args.bases != "v2" or args.invariants != "full"
+    layout = {"bands": args.bands, "bases": args.bases, "invariants": args.invariants, "radial": args.radial,
+              "nb": args.nb, "n_radial": args.n_radial}
+    non_default_layout = args.bands is not None or args.bases != "v2" or args.invariants != "full" or args.radial != "knots"
     if non_default_layout and args.model != "moments":
         ap.error("--bands / --bases / --invariants only apply to --model moments")
     if args.publish and args.publish_name is None and non_default_layout:
@@ -295,7 +306,8 @@ def main():
                  if args.model == "moments" else MultiBodyCorrectionB1(MEAN_DIST_S, zero_init_head=zero_init)).to(device)
     lay = nbm.layout_of_model(model) if features == "moments" else None
     if lay is not None:
-        print(f"[layout] {lay['version']}: bands {lay['bands']} bases {lay['bases']} invariants {lay['invariants']} "
+        bands = f"bands {lay['bands']}" if lay["radial"] == "knots" else f"learned bessel bands nb {lay['nb']} n_radial {lay['n_radial']}"
+        print(f"[layout] {lay['version']}: {bands} bases {lay['bases']} invariants {lay['invariants']} "
               f"-> n_in {lay['n_in']} n_coef {lay['n_coef']} x_dim {lay['x_dim']}", flush=True)
 
     t0 = time.time()
@@ -306,7 +318,7 @@ def main():
     val_sub = np.sort(rng.choice(val_all, size=min(args.eval_rows, len(val_all)), replace=False))
     print(f"[data] loaded in {time.time() - t0:.0f} s; periodic eval on {len(val_sub)} val rows, final on {len(val_all)}", flush=True)
     if lay is not None:
-        got = cache.features(val_all[:1], features).shape[1]
+        got = cache.features(val_all[:1], features, model).shape[1]
         assert got == lay["x_dim"], f"row width {got} != model x_dim {lay['x_dim']}"
 
     # ---------------------------------------------------------------- eval-only
@@ -325,7 +337,8 @@ def main():
     train_idx = cache.train_idx
     fit_idx = np.sort(rng.choice(train_idx, size=min(args.fit_rows, len(train_idx)), replace=False))
     if args.model == "moments":
-        Xfit = torch.cat([cache.features(fit_idx[i:i + 16384], features) for i in range(0, len(fit_idx), 16384)], 0)
+        with torch.no_grad():
+            Xfit = torch.cat([cache.features(fit_idx[i:i + 16384], features, model) for i in range(0, len(fit_idx), 16384)], 0)
         model.fit_normalisation(Xfit)
         print(f"[norm] fitted on {len(fit_idx)} rows: inv_std range [{model.inv_std.min():.3g}, {model.inv_std.max():.3g}]  "
               f"basis_scale range [{model.basis_scale.min():.3g}, {model.basis_scale.max():.3g}]", flush=True)
@@ -367,7 +380,7 @@ def main():
             if step >= total_steps:
                 break
             idx = perm[it * args.batch:(it + 1) * args.batch]
-            X = cache.features(idx, features)
+            X = cache.features(idx, features, model)
             R = cache.labels(idx)
             optimizer.zero_grad(set_to_none=True)
             if args.loss_form == "block":
@@ -401,6 +414,7 @@ def main():
               "family_weights": args.family_weights, "hidden": args.hidden,
               "bands": lay["bands"] if lay else None, "bases": lay["bases"] if lay else None,
               "invariants": lay["invariants"] if lay else None, "layout": lay["version"] if lay else None,
+              "radial": lay["radial"] if lay else None, "nb": lay["nb"] if lay else None, "n_radial": lay["n_radial"] if lay else None,
               "n_in": lay["n_in"] if lay else None, "n_coef": lay["n_coef"] if lay else None, "x_dim": lay["x_dim"] if lay else None,
               "train_time_s": time.time() - t_start, "device": str(device), "cache": str(args.cache)})
     print(f"[final] {fmt(m)}")
@@ -414,13 +428,17 @@ def main():
         for r in log:
             w.writerow({k: r.get(k, "") for k in keys})
     torch.save(model.state_dict(), args.out / "model.wt")
+    with torch.no_grad():
+        Xc = cache.features(val_all[:64], features, model).cpu()
     scripted = torch.jit.script(model.cpu().eval())
     scripted.save(str(args.out / "model.pt"))
     chk = torch.jit.load(str(args.out / "model.pt")).eval()
-    Xc = cache.features(val_all[:64], features).cpu()
     with torch.no_grad():
         a = model.predict_mobility(Xc); b = chk.predict_mobility(Xc)
-    assert torch.allclose(a, b, atol=1e-6), "TorchScript export mismatch"
+        assert torch.allclose(a, b, atol=1e-6), "TorchScript export mismatch"
+        if lay is not None and lay["radial"] == "bessel":  # the scripted model must build the same rows as the eager one
+            s_vec, nbr, mask = [t.cpu() for t in cache.gather(val_all[:64])]
+            assert torch.allclose(chk.moment_features(s_vec, nbr, mask), Xc, atol=1e-6, rtol=1e-5), "TorchScript row mismatch"
     # sidecar: the selection, label base and layout the model must be run with.  Always written next to the run's
     # model.pt (so `paper_accuracy_v2.py --models KEY=<run>/model.pt` and a `.wt` reload find it); --publish copies it.
     name = args.publish_name or PUBLISH.get((args.model, args.variant), args.out.name)
@@ -430,6 +448,7 @@ def main():
             "median_2b": cache.meta["median_2b"],
             "bands": lay["bands"] if lay else None, "bases": lay["bases"] if lay else None,
             "invariants": lay["invariants"] if lay else None, "layout": lay["version"] if lay else None,
+            "radial": lay["radial"] if lay else None, "nb": lay["nb"] if lay else None, "n_radial": lay["n_radial"] if lay else None,
             "n_in": lay["n_in"] if lay else None, "n_coef": lay["n_coef"] if lay else None, "x_dim": lay["x_dim"] if lay else None,
             "run": str(args.out), "prmse_lin": m["prmse_lin"], "prmse_ang": m["prmse_ang"],
             "rel_total": m["rel_total"], "created": time.strftime("%Y-%m-%d %H:%M:%S")}

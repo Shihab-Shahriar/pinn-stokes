@@ -3,8 +3,8 @@
 regenerated with the new NeMO stack: Mob_Op_Nbody_Moments with the chain-fixed pc8c
 moments pair model (nbody_moments_v2_kinf_rc8_pc8c.pt) + learned per-particle diagonal
 (nbody_diag_v2_pc8c.pt), pair_cutoff = switch_dist = 8, and (2026-09-13) the v3 pair model
-(nbody_moments_v3_nb5lin_tr2_kinf_rc8_pc8c.pt: 5 bands, linear bases, class-2 TR bases that untie
-the pair block's TR and RT corners; moments_for_nbody.md section 5.4) with the same diagonal.
+(nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c.pt: the v2 bands, linear bases, class-2 TR bases that
+untie the pair block's TR and RT corners; moments_for_nbody.md section 5.4) with the same diagonal.
 Omega here is the base sphere's angular velocity from a force on the apex, i.e. an RT-block quantity.
 
 Three unit spheres at the vertices of an equilateral triangle of side S (center-to-center,
@@ -48,9 +48,9 @@ SELF_PATH = "data/models/self_interaction_model.pt"
 TWO_BODY_PATH = "data/models/two_body_combined_model.pt"
 MOMENTS_PATH = "data/models/nbody_moments_v2_kinf_rc8_pc8c.pt"
 DIAG_PATH = "data/models/nbody_diag_v2_pc8c.pt"
-# v3 pair model (nbody_moments.py v3 layout: 5 tent bands on knots 0.5..4.5, linear bases, class-2 TR bases so that
-# the pair block's TR and RT corners are no longer tied; 60 coefficients). Same selection and diagonal model.
-V3_PATH = "data/models/nbody_moments_v3_nb5lin_tr2_kinf_rc8_pc8c.pt"
+# v3 pair model (nbody_moments.py v3 layout: the v2 unit bands, linear bases, class-2 TR bases so that the pair
+# block's TR and RT corners are no longer tied; 93 coefficients). Same selection and diagonal model.
+V3_PATH = "data/models/nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c.pt"   # v2 bands, linear bases, split TR/RT (nbody_v3_report.md)
 OPS = ["2b", "b1_paper", "moments", "diag", "v3", "v3diag"]
 OP_LABELS = {"2b": "2-body only", "b1_paper": "n-body b1 (published figure)",
              "moments": "moments pc8c", "diag": "moments pc8c + diag (NeMO v2)",

@@ -327,17 +327,40 @@ no class-2 term because with no neighbours $\hat{\mathbf z}$ is the only vector,
 from Eq. (17). $\Delta^{TT}$ and $\Delta^{RR}$ are single blocks, so the class-1 rule is necessary there and nothing
 is missing.
 
-**v3 layout** (`src/nbody_moments.py`, configurable; evidence in `artifacts/nbody_v3_report.md`): tent bands on a
-knot sequence instead of 8 unit bands (post-hoc zeroing of the published model's bands 5–8 costs < 0.1 PRMSE point
-each, bands 1–4 carry the correction; the recommended knots are $\{0.5, 1.5, 2.5, 3.5, 4.5\}$ with the last band
-saturating over the 4.5–8 shell), the quadratic bases $\mathbf v_a\mathbf v_a^T$ and
-$(\hat{\mathbf z}\cdot\mathbf v_a)E(\mathbf v_a)$ dropped (zeroing all 24 costs 0.15 PRMSE points before any
-refit), and the class-2 TR bases added. Per band: TT/RR $\{Q_a, S(\hat{\mathbf z}\hat{\mathbf z}^TQ_a),
-\operatorname{Alt}(\hat{\mathbf z}\mathbf v_a^T)\}$, TR class 1 $\{E(Q_a\hat{\mathbf z}),
-S(\hat{\mathbf z}(\hat{\mathbf z}\times\mathbf v_a)^T)\}$, TR class 2 as above; constants $I, \hat{\mathbf z}\hat{\mathbf z}^T$
-(TT, RR) and $E(\hat{\mathbf z})$ (TR): $5 + 11\,\text{NB} = 60$ coefficients at NB = 5 (vs 93), every basis linear in
-the moments, MLP input $4 + 9\,\text{NB} = 49$. Rows are $7 + 13\,\text{NB}$ wide; the v2 functions are the same code at the v2
-parameters (bitwise).
+**v3 layout** (`src/nbody_moments.py`, configurable; evidence in `artifacts/nbody_v3_report.md`): the 8 unit bands of
+Section 3 unchanged, the quadratic bases $\mathbf v_a\mathbf v_a^T$ and $(\hat{\mathbf z}\cdot\mathbf v_a)E(\mathbf v_a)$
+dropped (a refit without them reproduces the v2 model within 0.01 PRMSE point), and the class-2 TR bases added. Per
+band: TT/RR $\{Q_a, S(\hat{\mathbf z}\hat{\mathbf z}^TQ_a), \operatorname{Alt}(\hat{\mathbf z}\mathbf v_a^T)\}$,
+TR class 1 $\{E(Q_a\hat{\mathbf z}), S(\hat{\mathbf z}(\hat{\mathbf z}\times\mathbf v_a)^T)\}$, TR class 2 as above;
+constants $I, \hat{\mathbf z}\hat{\mathbf z}^T$ (TT, RR) and $E(\hat{\mathbf z})$ (TR): $5 + 11\,\text{NB} = 93$
+coefficients at NB = 8 (v2's count: the 24 quadratic bases are replaced by the 24 class-2 bases), every basis linear
+in the moments, MLP input $4 + 9\,\text{NB} = 76$ as in v2. The code takes any knot sequence (rows are
+$7 + 13\,\text{NB}$ wide; the v2 functions are the same code at the v2 parameters, bitwise), but the band study of the
+report (§6) shows that truncating the bands below $r = 8$ costs accuracy in dense boxes (5 knots to 4.5: 0.4–0.6
+Fig-3 points) and that coarser equal-width bands lose the $r < 2$ resolution, so the v2 bands are kept.
+
+### 5.5 Learned radial bands (2026-09-13; evaluated, not adopted)
+
+The tent bands of Section 3 are one choice of radial basis $w_a(r)$, and the only part of the encoding chosen by
+hand. Any family $w_a(r)$ that depends on the scalar midpoint distance alone leaves Sections 4–5 unchanged (the
+invariants stay $O(3)$ scalars, the bases keep their $\hat{\mathbf z}$ parities, reciprocity holds), so the bands can
+be *learned*. Following the radial embedding of equivariant interatomic potentials (DimeNet / NequIP / MACE):
+
+$$
+w_a(r) = \mathrm{MLP}_a\big(b_1(r), \dots, b_n(r)\big), \qquad
+b_k(r) = \sqrt{\tfrac{2}{r_c}}\,\frac{\sin(k\pi r / r_c)}{r}\, u(r/r_c), \qquad
+u(d) = 1 - 28 d^6 + 48 d^7 - 21 d^8 ,
+$$
+
+with $n = 8$, $r_c = 8$ (the selection cutoff; $u$, $u'$, $u''$ vanish at $d = 1$) and a bias-free
+$8 \to 32 \to N_B$ SiLU network, so each band is a smooth function of $r$ that vanishes at the cutoff and the
+operator is continuous when a neighbour crosses it. The moments $(s_a, \mathbf v_a, Q_a)$ are then functions of the
+parameters and the model builds its own input row (`MultiBodyMoments.moment_features`); the loss gradient reaches
+the radial network through them. Trained on the pc8c cache with 8 bands, the learned functions concentrate on
+$r < 4$ with three distinct shapes in $r < 2$ and nothing beyond $r \approx 5$, and the model beats the 8 uniform tent
+bands on every block and every paper protocol (`artifacts/nbody_v3_report.md` §7) — by 0.27–0.48 Fig-3 points, which
+was judged too small to replace the fixed bands (2026-09-14). Code kept as an option: `nbody_moments.bessel_basis`,
+`model_archs.RadialBands`, `MultiBodyMoments(radial="bessel", nb=N_B)`.
 
 ## 6. Where this sits
 

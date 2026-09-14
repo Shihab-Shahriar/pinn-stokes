@@ -54,9 +54,19 @@ works for any band count.
 Coefficient layout: ``[TT (n_tt) | RR (n_tt) | TR class 1 (n_tr1) | TR class 2 (n_tr2)]``,
 ``n_tt = 2 + (3 + q) NB``, ``n_tr1 = 1 + (2 + q) NB``, ``n_tr2 = 3 t NB`` with q = quadratic
 bases on, t = class 2 on; ``N_COEF = 5 + (8 + 3q + 3t) NB`` (93 for v2, 60 for the 5-band v3).
+
+Learned radial bands (``radial="bessel"``): instead of tents on knots, the NB band weights are
+``w(r) = MLP(bessel_basis(r))`` (``model_archs.RadialBands``: the DimeNet/NequIP/MACE radial basis with
+its smooth cutoff envelope through a small bias-free MLP), so every band is a smooth learned function of
+the midpoint distance that vanishes at ``RADIAL_RC``.  Everything downstream is unchanged -- the weights
+still depend on the scalar distance only, so invariance, reciprocity and the row layout are the same --
+but the row now depends on the parameters, so ``MultiBodyMoments.moment_features`` builds it (training
+and inference alike; ``moment_features_weights`` is the shared tail).
 """
 
 from typing import Dict, List, Optional, Tuple
+
+import math
 
 import torch
 from torch import Tensor
@@ -87,6 +97,9 @@ BASES: Dict[str, Tuple[bool, bool]] = {      # name -> (use_quadratic, has_tr2)
     "v2_tr2": (True, True),                 # v2 + class-2 (ablation)
 }
 INVARIANTS: Dict[str, bool] = {"full": False, "reduced": True}   # name -> reduced flag
+RADIAL: Tuple[str, ...] = ("knots", "bessel")   # band-weight families: tents on knots | learned MLP(Bessel basis)
+RADIAL_RC: float = 8.0                           # cutoff of the learned radial bands (= the neighbour-selection cutoff)
+N_RADIAL: int = 8                                # default size of the Bessel basis
 
 
 # TorchScript cannot read closed-over module globals, so scripted code reads the
@@ -172,6 +185,20 @@ def band_weights_knots(r: Tensor, knots: Tensor) -> Tensor:
             right = (k[a + 1] - r) / (k[a + 1] - k[a])
         cols.append(torch.clamp(torch.minimum(left, right), min=0.0, max=1.0))
     return torch.stack(cols, -1)
+
+
+def bessel_basis(r: Tensor, rc: float, n: int) -> Tensor:
+    """Smooth radial basis on [0, rc) (DimeNet; the radial embedding of NequIP / MACE): ``sqrt(2/rc) sin(k pi r/rc) / r``
+    for k = 1..n, times the degree-6 polynomial envelope ``u(d) = 1 - 28 d^6 + 48 d^7 - 21 d^8`` (d = r/rc; u and its
+    first two derivatives vanish at d = 1), zero for r >= rc; finite at r = 0 (-> k pi / rc).  r[...] -> [..., n]."""
+    d = r / rc
+    d2 = d * d
+    d6 = d2 * d2 * d2
+    u = 1.0 - 28.0 * d6 + 48.0 * d6 * d - 21.0 * d6 * d2
+    u = torch.where(d < 1.0, u, torch.zeros_like(u))
+    k = torch.arange(1, n + 1, dtype=r.dtype, device=r.device)
+    b = (math.sqrt(2.0 / rc) * math.pi / rc) * k * torch.sinc(k * d.unsqueeze(-1))   # = sqrt(2/rc) sin(k pi r/rc) / r
+    return b * u.unsqueeze(-1)
 
 
 def _midpoint_geometry(s_vec: Tensor, nbr: Tensor) -> Tuple[Tensor, Tensor]:
@@ -349,6 +376,15 @@ def moment_features_knots(s_vec: Tensor, nbr: Tensor, mask: Tensor, mean_dist_s:
     return pack_features(s_vec, pair, s, v, Q)
 
 
+def moment_features_weights(s_vec: Tensor, rh: Tensor, W: Tensor, mean_dist_s: float) -> Tensor:
+    """Model input row [P, 7 + 13 NB] from *masked* band weights W [P,K,NB] and midpoint unit vectors rh [P,K,3]
+    (``_midpoint_geometry``), whatever produced the weights (tents or the learned radial bands)."""
+    dist = torch.sqrt((s_vec * s_vec).sum(-1))
+    pair = pair_scalars(dist, mean_dist_s)
+    s, v, Q = _moments_from_weights(W, rh)
+    return pack_features(s_vec, pair, s, v, Q)
+
+
 # ----------------------------------------------------------------------------- layout bookkeeping (plain Python)
 def layout_dims(nb: int, use_quadratic: bool, has_tr2: bool, reduced_inv: bool) -> Dict[str, int]:
     """Widths of a layout: MLP inputs, basis counts, coefficient count and row width."""
@@ -370,36 +406,45 @@ def bases_name(use_quadratic: bool, has_tr2: bool) -> str:
 
 def layout_of_model(model) -> dict:
     """Layout of a ``MultiBodyMoments`` (eager or TorchScript-loaded).  Models without a ``band_knots``
-    attribute (the published v2 ``.pt`` files) are the v2 layout."""
+    attribute (the published v2 ``.pt`` files) are the v2 layout.  ``radial`` is "knots" (tent bands on
+    ``bands``) or "bessel" (learned radial bands: ``bands`` None, ``nb`` bands, ``n_radial`` basis functions)."""
     knots = getattr(model, "band_knots", None)
-    if knots is None:
-        bands = list(V2_KNOTS)
+    learned = bool(getattr(model, "learned_radial", False))
+    if knots is None and not learned:
+        bands, nb = list(V2_KNOTS), len(V2_KNOTS)
         use_quadratic, has_tr2, reduced_inv = True, False, False
     else:
-        bands = [float(x) for x in knots.detach().cpu().tolist()]
+        bands = None if learned else [float(x) for x in knots.detach().cpu().tolist()]
+        nb = int(model.nb) if learned else len(bands)
         use_quadratic = bool(model.use_quadratic)
         has_tr2 = bool(model.has_tr2)
         reduced_inv = bool(model.reduced_inv)
-    is_v2 = bands == V2_KNOTS and use_quadratic and not has_tr2 and not reduced_inv
-    return {"version": "v2" if is_v2 else "v3", "bands": bands, "bases": bases_name(use_quadratic, has_tr2),
-            "invariants": "reduced" if reduced_inv else "full",
-            **layout_dims(len(bands), use_quadratic, has_tr2, reduced_inv)}
+    is_v2 = not learned and bands == V2_KNOTS and use_quadratic and not has_tr2 and not reduced_inv
+    return {"version": "v2" if is_v2 else "v3", "radial": "bessel" if learned else "knots",
+            "n_radial": int(model.n_radial) if learned else 0, "bands": bands,
+            "bases": bases_name(use_quadratic, has_tr2), "invariants": "reduced" if reduced_inv else "full",
+            **layout_dims(nb, use_quadratic, has_tr2, reduced_inv)}
 
 
 def knots_of(model) -> Optional[Tensor]:
-    """Band knots of a v3 model as a float64 CPU tensor; None for a v2 model (use the v2 wrappers)."""
+    """Band knots of a v3 tent-band model as a float64 CPU tensor; None for a v2 model (use the v2 wrappers) and
+    for learned radial bands (rows come from ``model.moment_features``)."""
     knots = getattr(model, "band_knots", None)
-    if knots is None:
+    if knots is None or bool(getattr(model, "learned_radial", False)):
         return None
     lay = layout_of_model(model)
     return None if lay["version"] == "v2" else torch.as_tensor(lay["bands"], dtype=torch.float64)
 
 
 def layout_from_sidecar(meta: dict) -> dict:
-    """``MultiBodyMoments`` layout kwargs (bands, bases, invariants) from a model sidecar; v2 when absent."""
+    """``MultiBodyMoments`` layout kwargs from a model sidecar: bands / bases / invariants, plus radial / nb / n_radial
+    for learned radial bands; v2 when absent."""
     bands = meta.get("bands")
-    return {"bands": None if bands is None or list(bands) == V2_KNOTS else [float(b) for b in bands],
-            "bases": meta.get("bases", "v2"), "invariants": meta.get("invariants", "full")}
+    kw = {"bands": None if bands is None or list(bands) == V2_KNOTS else [float(b) for b in bands],
+          "bases": meta.get("bases", "v2"), "invariants": meta.get("invariants", "full")}
+    if (meta.get("radial") or "knots") == "bessel":
+        kw.update(bands=None, radial="bessel", nb=int(meta["nb"]), n_radial=int(meta.get("n_radial") or N_RADIAL))
+    return kw
 
 # ---------------------------------------------------------------------------
 # Self-block (per-particle diagonal) correction: moments about the particle.
