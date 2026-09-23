@@ -48,7 +48,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from benchmarks.performance_grand_M import build_far_field, build_near_field  # noqa: E402
+from benchmarks.performance_grand_M import (  # noqa: E402
+    NEAR_OPS, build_far_field, build_near_field)
 
 PHI = 0.1
 SPACING = ((4.0 / 3.0) * math.pi / PHI) ** (1.0 / 3.0)   # 3.472931 radii
@@ -109,6 +110,9 @@ def main() -> int:
     ap.add_argument("--warm", type=int, default=3,
                     help="warm applies after the cold one (0 = single shot)")
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--near-op", default="baseline", choices=sorted(NEAR_OPS),
+                    help="baseline = published n-body at switch 6; moments-v3 = "
+                         "current NeMO (moments + diag, switch 8)")
     ap.add_argument("--mem-fraction", type=float, default=None,
                     help="torch.cuda.set_per_process_memory_fraction: cap the "
                          "caching allocator so it recycles its cache instead of "
@@ -142,7 +146,8 @@ def main() -> int:
           f"extent {positions.min().item():.1f} .. {positions.max().item():.1f}",
           flush=True)
 
-    op = build_far_field(build_near_field("nbody", "sphere", 6.0), "widebvh", 6.0)
+    kind, cutoff = NEAR_OPS[args.near_op]
+    op = build_far_field(build_near_field(kind, "sphere", cutoff), "widebvh", cutoff)
     torch.cuda.reset_peak_memory_stats(device)
 
     cold_ok = False
@@ -197,7 +202,9 @@ def main() -> int:
           f"proc_mb={proc if proc is not None else 'na'} "
           f"gpu_used_mb_now={used if used is not None else 'na'} "
           f"fp32_level={level} mem_fraction={args.mem_fraction} "
-          f"empty_cache={int(args.empty_cache)} {sanity} fail=\"{fail}\"", flush=True)
+          f"empty_cache={int(args.empty_cache)} near_op={args.near_op} cutoff={cutoff} "
+          f"pair_budget_gb={os.environ.get('TC_PAIR_BUDGET_GB', 'default')} "
+          f"{sanity} fail=\"{fail}\"", flush=True)
     return 0 if (cold_ok and warm_ok == args.warm) else 2
 
 

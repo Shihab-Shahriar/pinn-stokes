@@ -20,6 +20,12 @@ Usage:
     source ~/warp_env.sh
     python benchmarks/figure12_grand_M.py --backend widebvh
     python benchmarks/figure12_grand_M.py --backend warp
+    NEMO_FAR_FP32_LEVEL=2 python benchmarks/figure12_grand_M.py --backend widebvh \
+        --near-op moments-v3 --csv data/fig12_scaling_h200_v3_f32l2.csv   # current NeMO
+
+Rows are replaced per (backend, near_op, cutoff, fp32_level, N), so a sweep can
+be split across processes (above ~1.5M one size per process: torch.compile's
+recompile limit, artifacts/fig12_h200_f32l2_report.md).
     python figures/grand_M_perf.py            # renders from the CSV
 """
 
@@ -42,7 +48,7 @@ if str(ROOT) not in sys.path:
 
 from benchmarks.performance_grand_M import (  # noqa: E402
     BenchmarkConfig, build_far_field, build_near_field, build_forces,
-    load_configuration, TMP_DIR,
+    load_configuration, TMP_DIR, NEAR_OPS,
 )
 
 DEFAULT_SIZES = (50_000, 100_000, 200_000, 500_000, 750_000)
@@ -50,7 +56,13 @@ CSV_PATH = ROOT / "data" / "fig12_scaling_h200.csv"
 
 FIELDS = ("backend", "n", "total_ms", "std_ms", "min_ms", "far_ms", "near_ms",
           "updates_per_sec", "peak_vram_gb", "mac", "theta", "pdeg", "order",
-          "max_leaf", "gpu", "git_sha")
+          "max_leaf", "gpu", "git_sha", "near_op", "cutoff", "fp32_level")
+
+
+def row_key(r) -> tuple:
+    """CSV identity of a row; rows from before --near-op existed are baseline at 6."""
+    return (str(r["backend"]), r.get("near_op") or "baseline",
+            float(r.get("cutoff") or 6.0), str(r.get("fp32_level") or ""), int(r["n"]))
 
 
 def git_sha() -> str:
@@ -68,7 +80,8 @@ def git_sha() -> str:
         return "unknown"
 
 
-def measure(n: int, backend: str, bench_cfg: BenchmarkConfig, **kwargs) -> dict:
+def measure(n: int, backend: str, bench_cfg: BenchmarkConfig,
+            near_op: str = "baseline", **kwargs) -> dict:
     device = torch.device("cuda")
     config = load_configuration(TMP_DIR / f"uniform_large_0.1_{n}.csv")
     assert config.shape[0] == n, f"{n} requested, CSV has {config.shape[0]}"
@@ -87,7 +100,8 @@ def measure(n: int, backend: str, bench_cfg: BenchmarkConfig, **kwargs) -> dict:
         from src.treecode_widebvh import cart_hilbert_q
         kwargs.setdefault("hilbert_q", cart_hilbert_q(n))
 
-    op = build_far_field(build_near_field("nbody", "sphere", 6.0), backend, 6.0,
+    kind, cutoff = NEAR_OPS[near_op]
+    op = build_far_field(build_near_field(kind, "sphere", cutoff), backend, cutoff,
                          **kwargs)
 
     torch.cuda.reset_peak_memory_stats(device)
@@ -136,6 +150,7 @@ def measure(n: int, backend: str, bench_cfg: BenchmarkConfig, **kwargs) -> dict:
         pdeg=getattr(op, "pdeg", ""), order=getattr(op, "order", ""),
         max_leaf=getattr(op, "max_leaf", ""),
         gpu=torch.cuda.get_device_name(device), git_sha=git_sha(),
+        near_op=near_op, cutoff=cutoff, fp32_level=getattr(op, "fp32_level", ""),
     )
 
     if hasattr(op, "close"):
@@ -153,6 +168,9 @@ def main() -> None:
     ap.add_argument("--warmup", type=int, default=6)
     ap.add_argument("--runs", type=int, default=6)
     ap.add_argument("--csv", default=str(CSV_PATH))
+    ap.add_argument("--near-op", default="baseline", choices=sorted(NEAR_OPS),
+                    help="baseline = published nbody at switch 6; moments-v3 = "
+                         "current NeMO (moments pair + diag, switch 8)")
     args = ap.parse_args()
 
     sizes = [int(s) for s in args.sizes.split(",") if s]
@@ -161,7 +179,7 @@ def main() -> None:
     rows = []
     for n in sizes:
         print(f"\n########## {args.backend}  N={n:,} ##########", flush=True)
-        row = measure(n, args.backend, bench_cfg)
+        row = measure(n, args.backend, bench_cfg, near_op=args.near_op)
         rows.append(row)
         print(f"@@ N={n:,}  total={row['total_ms']:.2f} ms "
               f"(+-{row['std_ms']:.2f})  far={row['far_ms']:.2f} ms  "
@@ -170,12 +188,13 @@ def main() -> None:
 
     out = Path(args.csv)
     out.parent.mkdir(parents=True, exist_ok=True)
-    # Rewrite this backend's rows, keep the other backend's.
+    # Replace the rows this run measured, keep everything else.
+    measured = {row_key(r) for r in rows}
     existing = []
     if out.exists():
         with out.open() as fh:
             existing = [r for r in csv.DictReader(fh)
-                        if r["backend"] != args.backend]
+                        if row_key(r) not in measured]
     with out.open("w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=FIELDS)
         w.writeheader()

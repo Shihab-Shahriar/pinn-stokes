@@ -95,7 +95,8 @@ FAR_FIELDS = ("backend", "n", "mac", "pdeg", "max_leaf", "near_cutoff", "loading
               "rel_asym", "rel_asym_stderr", "fro_asym", "fro_M",
               "hutch_K", "hutch_seed", "hutch_wall_s",
               "nbody_num_pairs", "pair_chunk_size", "nbody_chunks",
-              "peak_vram_gb", "compile_disabled", "gpu", "git_sha")
+              "peak_vram_gb", "compile_disabled", "gpu", "git_sha",
+              "near_op", "fp32_level")
 
 # Published rel_asym for the full grand operator at mac 0.8, post-chunking-fix,
 # from data/symmetry_widebvh.csv (phase `postfix_full`, K=24, seed=2). Used only
@@ -260,6 +261,8 @@ def run_right(args) -> None:
 
     dev = torch.device("cuda")
     sha, gpu = git_sha(), torch.cuda.get_device_name(0)
+    far_csv = Path(args.far_csv)
+    kind, cutoff = {"baseline": ("nbody", mc.CUTOFF), "moments-v3": ("moments", 8.0)}[args.near_op]
     sizes = args.sizes or list(FAR_SIZES)
     rows = []
 
@@ -277,12 +280,21 @@ def run_right(args) -> None:
         f_np = mc.make_force(n, args.loading)
         f3 = torch.as_tensor(f_np, dtype=torch.float32, device=dev).contiguous()
 
-        near_op = sym.make_nbody(far_field=None)
+        if args.near_op == "baseline":
+            near_op = sym.make_nbody(far_field=None)
+        else:
+            # Imported here, not at module level: performance_grand_M sets
+            # process-global inductor/grad state that would move panel (a).
+            from benchmarks.performance_grand_M import build_near_field
+            near_op = build_near_field(kind, "sphere", cutoff)
+        # n-body chunk size (provenance only): the moments operator chunks
+        # unordered pairs with its own knob.
+        chunk = getattr(near_op, "pair_chunk_size", None) or near_op.moments_pair_chunk
         # Constructed directly, not via sym.make_solver: that helper reads `mac`
         # from a module constant frozen at import from $NEMO_MAC, which would let
         # a stale env var silently override the value recorded in the CSV.
         solver = WidebvhFMM(near_field_operator=near_op, mac=args.mac,
-                            near_field_cutoff=mc.CUTOFF, policy="bary",
+                            near_field_cutoff=cutoff, policy="bary",
                             pdeg=args.pdeg, max_leaf=args.max_leaf, device="cuda")
         torch.cuda.reset_peak_memory_stats()
 
@@ -312,7 +324,7 @@ def run_right(args) -> None:
         f64 = torch.as_tensor(f_np, dtype=torch.float64, device=dev).contiguous()
 
         t0 = time.perf_counter()
-        ref = mc.far_ref_tt(pos64, f64, sample, cutoff=mc.CUTOFF)
+        ref = mc.far_ref_tt(pos64, f64, sample, cutoff=cutoff)
         ref_s = time.perf_counter() - t0
 
         with mc.quiet():
@@ -337,9 +349,9 @@ def run_right(args) -> None:
         num_pairs, n_chunks = float("nan"), float("nan")
         try:
             with mc.quiet():
-                edges = solver.get_edge_indexes(pos_t, mc.CUTOFF)
+                edges = solver.get_edge_indexes(pos_t, cutoff)
             num_pairs = int(edges[0].numel())
-            n_chunks = math.ceil(num_pairs / near_op.pair_chunk_size)
+            n_chunks = math.ceil(num_pairs / chunk)
         except Exception as exc:          # provenance only, never fatal
             print(f"  (edge count unavailable: {type(exc).__name__}: {exc})")
 
@@ -357,7 +369,7 @@ def run_right(args) -> None:
 
         rows.append(dict(
             backend="widebvh", n=n, mac=args.mac, pdeg=args.pdeg,
-            max_leaf=args.max_leaf, near_cutoff=mc.CUTOFF, loading=args.loading,
+            max_leaf=args.max_leaf, near_cutoff=cutoff, loading=args.loading,
             far_ms=far_ms, far_ms_std=far_std, far_updates_per_sec=updates,
             far_repeats=args.far_repeats,
             near_pairs=int(st.get("near_pairs", 0)),
@@ -367,25 +379,28 @@ def run_right(args) -> None:
             build_ms=st.get("build_bvh_ms", 0.0) + st.get("bucket_ms", 0.0),
             upward_ms=st.get("upward_ms", ""),
             rel_far=rel_far, rel_total=rel_total, ref_samples=s,
-            ref_cutoff=mc.CUTOFF, ref_s=ref_s,
+            ref_cutoff=cutoff, ref_s=ref_s,
             rel_asym=hs["rel_asym"], rel_asym_stderr=hs["rel_asym_stderr"],
             fro_asym=hs["fro_asym"], fro_M=hs["fro_M"],
             hutch_K=args.K, hutch_seed=args.seed, hutch_wall_s=hutch_s,
-            nbody_num_pairs=num_pairs, pair_chunk_size=near_op.pair_chunk_size,
+            nbody_num_pairs=num_pairs, pair_chunk_size=chunk,
             nbody_chunks=n_chunks,
             peak_vram_gb=torch.cuda.max_memory_allocated() / 1024**3,
-            compile_disabled=1, gpu=gpu, git_sha=sha))
+            compile_disabled=1, gpu=gpu, git_sha=sha,
+            near_op=args.near_op, fp32_level=solver.fp32_level))
 
         # Flush every N: a crash at 1M must not discard nine good rows.
-        write_rows(FAR_CSV, FAR_FIELDS, rows,
-                   lambda r: (str(r["backend"]), int(r["n"])))
+        write_rows(far_csv, FAR_FIELDS, rows,
+                   lambda r: (str(r["backend"]), int(r["n"]),
+                              r.get("near_op") or "baseline",
+                              str(r.get("fp32_level") or "0")))
 
         solver.close()
         del solver, near_op, pos_t, orient_t, vis, f3, apply_fn
         gc.collect()
         torch.cuda.empty_cache()
 
-    print(f"\nwrote {len(rows)} rows -> {FAR_CSV}")
+    print(f"\nwrote {len(rows)} rows -> {far_csv}")
 
     print("\n N            far ms   M upd/s     rel_far    rel_asym   vs known")
     for r in rows:
@@ -430,6 +445,13 @@ def main() -> None:
     p.add_argument("--far-repeats", type=int, default=7)
     p.add_argument("--K", type=int, default=24, help="Hutchinson probes")
     p.add_argument("--seed", type=int, default=2)
+    p.add_argument("--near-op", choices=("baseline", "moments-v3"), default="baseline",
+                   help="panel (b) near field wrapped by the far field: baseline = "
+                        "published n-body at cutoff 6; moments-v3 = current NeMO "
+                        "(moments + diag) at cutoff 8, which the far field and "
+                        "its reference follow")
+    p.add_argument("--far-csv", type=Path, default=FAR_CSV,
+                   help="panel (b) output CSV")
     args = p.parse_args()
 
     if args.panel == "both":

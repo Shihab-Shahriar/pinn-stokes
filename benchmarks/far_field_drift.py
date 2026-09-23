@@ -22,6 +22,11 @@ allocator churn when several solvers are built in one process (see the header of
 
     python benchmarks/far_field_drift.py --backend widebvh --steps 150
     python benchmarks/far_field_drift.py --backend warp --steps 150
+    python benchmarks/far_field_drift.py --near-op moments-v3 --fp32-level 2 \
+        --label widebvh-v3-f32l2 --csv data/far_field_drift_1M_h200_v3_f32l2.csv
+
+--near-op moments-v3 swaps in the current NeMO near field (moments pair + learned
+diagonal, switch 8); the far field's near cutoff follows it to 8.
 """
 
 import argparse
@@ -52,6 +57,7 @@ sys.path.insert(0, str(ROOT))
 
 from benchmarks.figure11_breakdown import parse_components  # noqa: E402
 from benchmarks.two_suspensions_1M import generate_suspension_drop  # noqa: E402
+from benchmarks.performance_grand_M import NEAR_OPS, build_near_field  # noqa: E402
 from src.gpu_nbody_mob import Mob_Nbody_Torch  # noqa: E402
 from src.treecode import WarpFMM  # noqa: E402
 from src.treecode_widebvh import (  # noqa: E402
@@ -67,7 +73,7 @@ FIELDS = ("backend", "n", "step", "t", "far_ms", "nsearch_ms", "self2b_ms",
           # is the row-replacement key (defaults to the backend name, which is
           # what the H200 rows carry implicitly).
           "label", "mac", "max_leaf", "pdeg", "fp32_level", "hilbert_q",
-          "pair_budget_gb")
+          "pair_budget_gb", "near_op", "cutoff")
 
 # From two_suspensions_1M.main().
 R_DROP = 175.0
@@ -90,7 +96,8 @@ def git_sha() -> str:
 
 
 def build_solver(backend: str, mob, mac=None, max_leaf=DEFAULT_MAX_LEAF,
-                 hilbert_q=None, pdeg=7, fp32_level=0, pair_budget_gb=None):
+                 hilbert_q=None, pdeg=7, fp32_level=0, pair_budget_gb=None,
+                 cutoff=6.0):
     """The same construction two_suspensions_1M.py performs, per backend."""
     if backend.startswith("widebvh"):
         cart = backend == "widebvh-cart"
@@ -106,7 +113,7 @@ def build_solver(backend: str, mob, mac=None, max_leaf=DEFAULT_MAX_LEAF,
             hilbert_q = None          # explicit request for the engine's auto
         solver = WidebvhFMM(
             near_field_operator=mob,
-            near_field_cutoff=6.0,
+            near_field_cutoff=cutoff,
             device="cuda",
             policy="cart" if cart else "bary",
             mac=mac,
@@ -123,7 +130,7 @@ def build_solver(backend: str, mob, mac=None, max_leaf=DEFAULT_MAX_LEAF,
               f"pair_budget_gb={solver.env['TC_PAIR_BUDGET_GB']}")
     else:
         solver = WarpFMM(near_field_operator=mob, theta=0.3, leaf_size=16,
-                         near_field_cutoff=6.0, device="cuda", block_dim=256)
+                         near_field_cutoff=cutoff, device="cuda", block_dim=256)
         print("Far field: Warp treecode, theta=0.3")
     return solver
 
@@ -141,7 +148,7 @@ def last(raw: dict, key: str, default=""):
 def run(backend: str, steps: int, csv_path: Path, mac=None,
         max_leaf=DEFAULT_MAX_LEAF, hilbert_q=None, pdeg=7, fp32_level=0,
         pair_budget_gb=None, two_body_chunk=None, pair_chunk=None,
-        label=None) -> list:
+        label=None, near_op="baseline") -> list:
     label = label or backend
     np.random.seed(0)
     print("Generating Drop 1...")
@@ -152,26 +159,33 @@ def run(backend: str, steps: int, csv_path: Path, mac=None,
     n = len(all_particles)
     print(f"Total particles: {n}")
 
-    mob = Mob_Nbody_Torch(
-        shape="sphere",
-        self_nn_path=str(ROOT / "data/models/self_interaction_model.pt"),
-        two_nn_path=str(ROOT / "data/models/combined_2body.wt"),
-        nbody_nn_path=str(ROOT / "data/models/nbody_cross_tmp.wt"),
-        near_field_2b="nn",
-        far_field_2b=None,
-        near_far_switch=6.0,
-        **({"two_body_chunk_size": two_body_chunk} if two_body_chunk else {}),
-        **({"pair_chunk_size": pair_chunk} if pair_chunk else {}),
-    )
+    kind, cutoff = NEAR_OPS[near_op]
+    if kind == "nbody":
+        mob = Mob_Nbody_Torch(
+            shape="sphere",
+            self_nn_path=str(ROOT / "data/models/self_interaction_model.pt"),
+            two_nn_path=str(ROOT / "data/models/combined_2body.wt"),
+            nbody_nn_path=str(ROOT / "data/models/nbody_cross_tmp.wt"),
+            near_field_2b="nn",
+            far_field_2b=None,
+            near_far_switch=cutoff,
+            **({"two_body_chunk_size": two_body_chunk} if two_body_chunk else {}),
+            **({"pair_chunk_size": pair_chunk} if pair_chunk else {}),
+        )
+    else:
+        assert pair_chunk is None, "--pair-chunk is the baseline n-body's knob"
+        assert two_body_chunk is None, "--two-body-chunk is not wired for moments"
+        mob = build_near_field(kind, "sphere", cutoff)
     solver = build_solver(backend, mob, mac=mac, max_leaf=max_leaf,
                           hilbert_q=hilbert_q, pdeg=pdeg, fp32_level=fp32_level,
-                          pair_budget_gb=pair_budget_gb)
+                          pair_budget_gb=pair_budget_gb, cutoff=cutoff)
     cfg = dict(label=label, mac=getattr(solver, "mac", ""),
                max_leaf=getattr(solver, "max_leaf", ""),
                pdeg=getattr(solver, "pdeg", ""),
                fp32_level=getattr(solver, "fp32_level", ""),
                hilbert_q="" if hilbert_q is None else hilbert_q,
-               pair_budget_gb=getattr(solver, "env", {}).get("TC_PAIR_BUDGET_GB", ""))
+               pair_budget_gb=getattr(solver, "env", {}).get("TC_PAIR_BUDGET_GB", ""),
+               near_op=near_op, cutoff=cutoff)
 
     device = torch.device("cuda")
     positions = torch.from_numpy(all_particles.astype(np.float32)).to(device)
@@ -312,6 +326,10 @@ def main() -> None:
                     help="two-body NN chunk size (default: operator default)")
     ap.add_argument("--pair-chunk", type=int, default=None,
                     help="n-body NN chunk size (default: operator default)")
+    ap.add_argument("--near-op", default="baseline",
+                    choices=["baseline", "moments-v3"],
+                    help="near field: baseline = published n-body at switch 6; "
+                         "moments-v3 = current NeMO (moments + diag, switch 8)")
     ap.add_argument("--label", default=None,
                     help="row key in the CSV (default: the backend name); "
                          "give each configuration its own label so runs do "
@@ -321,7 +339,7 @@ def main() -> None:
         max_leaf=args.max_leaf, hilbert_q=args.hilbert_q, pdeg=args.pdeg,
         fp32_level=args.fp32_level, pair_budget_gb=args.pair_budget_gb,
         two_body_chunk=args.two_body_chunk, pair_chunk=args.pair_chunk,
-        label=args.label)
+        label=args.label, near_op=args.near_op)
 
 
 if __name__ == "__main__":

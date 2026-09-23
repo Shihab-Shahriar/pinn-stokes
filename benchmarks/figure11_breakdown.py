@@ -40,6 +40,8 @@ Usage:
     source ~/warp_env.sh
     python benchmarks/figure11_breakdown.py --from-logs      # backfill warp, no GPU
     python benchmarks/figure11_breakdown.py --backend widebvh
+    python benchmarks/figure11_breakdown.py --backend widebvh --near-op moments-v3 \
+        --csv data/fig11_breakdown_h200_v3_f32l2.csv   # current NeMO, all ops at switch 8
     python figures/grand_M_perf.py                           # renders from the CSV
 """
 
@@ -64,7 +66,7 @@ if str(ROOT) not in sys.path:
 from benchmarks.figure10_components import git_sha, write_rows  # noqa: E402
 from benchmarks.performance_grand_M import (  # noqa: E402
     BenchmarkConfig, build_far_field, build_near_field, build_forces,
-    load_configuration, TMP_DIR,
+    load_configuration, TMP_DIR, NEAR_OPS,
 )
 
 DEFAULT_SIZES = (10_000, 50_000, 100_000, 200_000, 1_000_000)
@@ -72,14 +74,28 @@ CSV_PATH = ROOT / "data" / "fig11_breakdown_h200.csv"
 LOG_DIR = ROOT / "figures" / "runtime_breakdown"
 
 # Bar/curve order in both panels. The labels are the published ones.
+# --near-op picks the full-NeMO operator (the third bar) and the near/far switch
+# every operator in the run uses: "baseline" = nbody at 6 (published protocol),
+# "moments-v3" = the moments stack at 8 (the 2b comparison ops move to 8 too).
 OPERATORS = ("2b_rpy", "2b_nn", "nbody")
 OP_LABELS = {"2b_rpy": "FMM_2body_RPY", "2b_nn": "FMM_2body_NN",
-             "nbody": "FMM_Nbody_NN"}
+             "nbody": "FMM_Nbody_NN", "moments": "FMM_Nbody_Moments"}
+
+
+def operators_for(near_op: str) -> tuple:
+    return ("2b_rpy", "2b_nn", NEAR_OPS[near_op][0])
 
 FIELDS = ("backend", "n", "operator", "far_ms", "self2b_ms", "nbody_ms",
           "nsearch_ms", "total_sum_ms", "total_gpu_ms", "unaccounted_ms",
           "overall_near_ms", "near_pairs", "peak_vram_gb", "peak_total_gb",
-          "mac", "theta", "pdeg", "max_leaf", "gpu", "git_sha", "source")
+          "mac", "theta", "pdeg", "max_leaf", "gpu", "git_sha", "source",
+          "near_op", "cutoff", "fp32_level")
+
+
+def row_key(r) -> tuple:
+    """CSV identity of a row; rows from before --near-op existed are baseline at 6."""
+    return (str(r["backend"]), int(r["n"]), r["operator"],
+            r.get("near_op") or "baseline", float(r.get("cutoff") or 6.0))
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +200,7 @@ def reduce_components(raw: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def measure(n: int, backend: str, bench_cfg: BenchmarkConfig, only=None,
-            **kwargs) -> list:
+            near_op: str = "baseline", **kwargs) -> list:
     """One row per operator at this N, or just `only` if given."""
     device = torch.device("cuda")
     config = load_configuration(TMP_DIR / f"uniform_large_0.1_{n}.csv")
@@ -201,10 +217,11 @@ def measure(n: int, backend: str, bench_cfg: BenchmarkConfig, only=None,
         from src.treecode_widebvh import cart_hilbert_q
         kwargs.setdefault("hilbert_q", cart_hilbert_q(n))
 
+    cutoff = NEAR_OPS[near_op][1]
     rows = []
-    for kind in (OPERATORS if only is None else (only,)):
-        op = build_far_field(build_near_field(kind, "sphere", 6.0), backend, 6.0,
-                             **kwargs)
+    for kind in (operators_for(near_op) if only is None else (only,)):
+        op = build_far_field(build_near_field(kind, "sphere", cutoff), backend,
+                             cutoff, **kwargs)
 
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -245,7 +262,8 @@ def measure(n: int, backend: str, bench_cfg: BenchmarkConfig, only=None,
             mac=getattr(op, "mac", ""), theta=getattr(op, "theta", ""),
             pdeg=getattr(op, "pdeg", ""), max_leaf=getattr(op, "max_leaf", ""),
             gpu=torch.cuda.get_device_name(device), git_sha=git_sha(),
-            source="measured",
+            source="measured", near_op=near_op, cutoff=cutoff,
+            fp32_level=getattr(op, "fp32_level", ""),
         ))
 
         gap = comp["unaccounted_ms"]
@@ -376,7 +394,11 @@ def main() -> None:
     ap.add_argument("--backend", default="widebvh",
                     choices=("widebvh", "widebvh-cart", "warp"))
     ap.add_argument("--sizes", default=",".join(str(s) for s in DEFAULT_SIZES))
-    ap.add_argument("--operator", default=None, choices=OPERATORS,
+    ap.add_argument("--near-op", default="baseline", choices=sorted(NEAR_OPS),
+                    help="full-NeMO operator and near/far switch for the run "
+                         "(baseline = published nbody at 6; moments-v3 = "
+                         "moments stack at 8, 2b ops also at 8)")
+    ap.add_argument("--operator", default=None, choices=sorted(OP_LABELS),
                     help="measure one operator in this process; omit to fan "
                          "out over all three, one subprocess each")
     ap.add_argument("--warmup", type=int, default=6)
@@ -414,11 +436,15 @@ def main() -> None:
         #
         # The published run happened to avoid the first (one invocation per
         # size) and never hit the second (WarpFMM allocates differently).
+        ops = operators_for(args.near_op)
+        assert args.operator is None or args.operator in ops, \
+            f"--operator {args.operator} is not part of --near-op {args.near_op}: {ops}"
         if len(sizes) > 1 or args.operator is None:
             for n in sizes:
-                for kind in (OPERATORS if args.operator is None
+                for kind in (ops if args.operator is None
                              else (args.operator,)):
                     cmd = [sys.executable, __file__, "--backend", args.backend,
+                           "--near-op", args.near_op,
                            "--sizes", str(n), "--operator", kind,
                            "--warmup", str(args.warmup),
                            "--runs", str(args.runs), "--csv", str(out)]
@@ -427,7 +453,8 @@ def main() -> None:
                     subprocess.run(cmd, check=True, cwd=ROOT)
             with out.open() as fh:
                 rows = [r for r in csv.DictReader(fh)
-                        if r["backend"] == args.backend and int(r["n"]) in sizes]
+                        if r["backend"] == args.backend and int(r["n"]) in sizes
+                        and row_key(r)[3] == args.near_op]
             rows.sort(key=lambda r: (int(r["n"]),
                                      list(OP_LABELS.values()).index(r["operator"])))
             for r in rows:
@@ -442,10 +469,10 @@ def main() -> None:
         for n in sizes:
             print(f"\n########## {args.backend}  N={n:,} "
                   f"{OP_LABELS[args.operator]} ##########", flush=True)
-            rows.extend(measure(n, args.backend, bench_cfg, only=args.operator))
+            rows.extend(measure(n, args.backend, bench_cfg, only=args.operator,
+                                near_op=args.near_op))
 
-    write_rows(out, FIELDS, rows,
-               key_fn=lambda r: (str(r["backend"]), int(r["n"]), r["operator"]))
+    write_rows(out, FIELDS, rows, key_fn=row_key)
     print(f"\nwrote {len(rows)} rows -> {out}")
 
     _summarize(rows)

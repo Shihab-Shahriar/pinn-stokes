@@ -278,6 +278,19 @@ def build_operators(shape: str) -> List[tuple[str, object]]:
 SELF_MODEL = MODELS_DIR / "self_interaction_model.pt"
 TWO_BODY_MODEL = MODELS_DIR / "combined_2body.wt"
 NBODY_MODEL = MODELS_DIR / "nbody_cross_tmp.wt"
+# Moments n-body stack (kind="moments", Mob_Nbody_Moments_Torch): the adopted v3
+# pair model + the pc8c learned diagonal. Both are locked to switch_dist =
+# pair_cutoff = 8, so the far field's near cutoff must be 8 too. The .wt files
+# need their layout sidecars (data/models/<name>.json), found automatically.
+EXPERIMENTS_DIR = ROOT / "experiments"
+MOMENTS_PAIR_MODEL = EXPERIMENTS_DIR / "nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c.wt"
+MOMENTS_DIAG_MODEL = EXPERIMENTS_DIR / "nbody_diag_v2_pc8c.wt"
+MOMENTS_SWITCH = 8.0
+
+# Near-field operator families selectable by the perf scripts' --near-op:
+# name -> (build_near_field kind of the full NeMO operator, near/far cutoff).
+# "baseline" is the published operator (old K=10 n-body, switch 6).
+NEAR_OPS = {"baseline": ("nbody", 6.0), "moments-v3": ("moments", MOMENTS_SWITCH)}
 
 # Far-field defaults. `theta` belongs to WarpFMM (Warp BVH, monopole+dipole),
 # `mac` to WidebvhFMM (widebvh BaryStokes); they are different acceptance
@@ -332,7 +345,9 @@ def build_near_field(kind: str, shape: str, near_field_cutoff: float = 6.0):
 
     kind="2b_rpy" -> analytic RPY pair kernel inside the cutoff
     kind="2b_nn"  -> learned two-body kernel
-    kind="nbody"  -> learned two-body + many-body correction (the full NeMO)
+    kind="nbody"  -> learned two-body + many-body correction (the published NeMO)
+    kind="moments"-> learned two-body + v3 moments pair correction + learned
+                     diagonal (the current NeMO; switch must be 8)
     """
     assert SELF_MODEL.exists(), f"Missing model: {SELF_MODEL}"
     assert TWO_BODY_MODEL.exists(), f"Missing model: {TWO_BODY_MODEL}"
@@ -357,6 +372,21 @@ def build_near_field(kind: str, shape: str, near_field_cutoff: float = 6.0):
             far_field_2b=None,
             near_far_switch=near_field_cutoff,
         )
+    if kind == "moments":
+        from src.gpu_nbody_moments import Mob_Nbody_Moments_Torch
+        assert near_field_cutoff == MOMENTS_SWITCH, \
+            f"moments models are locked to switch {MOMENTS_SWITCH}, got {near_field_cutoff}"
+        assert MOMENTS_PAIR_MODEL.exists() and MOMENTS_DIAG_MODEL.exists()
+        return Mob_Nbody_Moments_Torch(
+            shape=shape,
+            self_nn_path=str(SELF_MODEL),
+            two_nn_path=str(TWO_BODY_MODEL),
+            moments_nn_path=str(MOMENTS_PAIR_MODEL),
+            diag_nn_path=str(MOMENTS_DIAG_MODEL),
+            near_field_2b="nn",
+            far_field_2b=None,
+            switch_dist=near_field_cutoff,
+        )
     raise ValueError(f"unknown near-field kind {kind!r}")
 
 
@@ -369,7 +399,7 @@ def build_fmm_operators(shape: str, near_field_cutoff: float = 6.0,
     far field disabled, so the treecode owns r >= cutoff exclusively.
     """
     labels = {"2b_rpy": "FMM_2body_RPY", "2b_nn": "FMM_2body_NN",
-              "nbody": "FMM_Nbody_NN"}
+              "nbody": "FMM_Nbody_NN", "moments": "FMM_Nbody_Moments"}
     return [
         (labels[k],
          build_far_field(build_near_field(k, shape, near_field_cutoff),
