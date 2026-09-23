@@ -205,17 +205,23 @@ def main(theta, benchmark_mode=True, t_final=0.5, *, mac=None,
     # "moments" is the dataset-v2 stack (moments pair model kinf_rc8_pc8 + learned
     # diagonal, both locked to switch_dist = pair_cutoff = 8, so the near/far
     # switch -- and with it the treecode's nearCutoff -- moves to 8 as well).
-    if near_op == "moments":
-        print("Initializing Mob_Nbody_Moments_Torch (pc8 moments + diag)...")
+    # "moments-v3" is the adopted v3 pair model (split TR/RT corners, chain-fixed
+    # pc8c training) with the matching pc8c diagonal, under the same constraints.
+    if near_op in ("moments", "moments-v3"):
+        pair_name, diag_name = {
+            "moments": ("nbody_moments_v2_kinf_rc8_pc8", "nbody_diag_v2_pc8"),
+            "moments-v3": ("nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c", "nbody_diag_v2_pc8c"),
+        }[near_op]
+        print(f"Initializing Mob_Nbody_Moments_Torch ({pair_name} + {diag_name})...")
         near_cutoff = 8.0
         mob_fmm = Mob_Nbody_Moments_Torch(
             shape=shape,
             self_nn_path=self_model,
             two_nn_path=two_body_model,
             moments_nn_path=os.path.join(
-                project_root, "experiments/nbody_moments_v2_kinf_rc8_pc8.wt"),
+                project_root, f"experiments/{pair_name}.wt"),
             diag_nn_path=os.path.join(
-                project_root, "experiments/nbody_diag_v2_pc8.wt"),
+                project_root, f"experiments/{diag_name}.wt"),
             near_field_2b="nn",
             far_field_2b=None,
             switch_dist=near_cutoff,
@@ -483,12 +489,13 @@ if __name__ == "__main__":
                     help="pairs per two-body NN chunk (default %(default)s)")
     ap.add_argument("--pair-chunk", type=int, default=DEFAULT_PAIR_CHUNK,
                     help="pairs per n-body NN chunk (default %(default)s)")
-    ap.add_argument("--near-op", choices=("baseline", "moments"),
+    ap.add_argument("--near-op", choices=("baseline", "moments", "moments-v3"),
                     default="baseline",
                     help="near-field operator: 'baseline' = published stack "
                          "(old n-body, switch 6), 'moments' = pc8 moments pair "
                          "model + learned diagonal (switch 8, far field cutoff "
-                         "8 to match)")
+                         "8 to match), 'moments-v3' = adopted v3 pair model + "
+                         "pc8c diagonal (same switch)")
     ap.add_argument("--log-csv", default=None,
                     help="write a per-step breakdown CSV (far/near/nsearch/"
                          "self2b/nbody/total ms, wall s, peak memory) parsed "

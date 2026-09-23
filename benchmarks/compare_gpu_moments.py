@@ -5,6 +5,7 @@ Runs inside the docker image (needs warp + CUDA):
 
     bash docker/run_local.sh python benchmarks/compare_gpu_moments.py            # compiled
     TORCH_COMPILE_DISABLE=1 bash docker/run_local.sh python benchmarks/compare_gpu_moments.py
+    ... compare_gpu_moments.py --model v3     # adopted v3 pair model (split TR/RT) + pc8c diag
 
 Checks, per random RSA configuration:
   0. the .wt weights the GPU loads == the published TorchScript .pt (pair + diag);
@@ -14,6 +15,7 @@ Checks, per random RSA configuration:
 Expected disagreement is fp32-vs-fp64 feature/accumulation noise, ~1e-5 relative."""
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 
@@ -30,10 +32,12 @@ from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
 SELF_PT = "data/models/self_interaction_model.pt"
 TWO_PT = "data/models/two_body_combined_model.pt"
 TWO_WT = "data/models/combined_2body.wt"
-PAIR_PT = "data/models/nbody_moments_v2_kinf_rc8_pc8.pt"
-PAIR_WT = "experiments/nbody_moments_v2_kinf_rc8_pc8.wt"
-DIAG_PT = "data/models/nbody_diag_v2_pc8.pt"
-DIAG_WT = "experiments/nbody_diag_v2_pc8.wt"
+# (pair, diag) model names per --model; weights in experiments/*.wt, published in data/models/*.pt
+MODELS = {
+    "v2": ("nbody_moments_v2_kinf_rc8_pc8", "nbody_diag_v2_pc8"),
+    "v3": ("nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c", "nbody_diag_v2_pc8c"),
+}
+PAIR_PT = PAIR_WT = DIAG_PT = DIAG_WT = None   # set in main()
 
 
 def rsa_box(n: int, phi: float, seed: int) -> np.ndarray:
@@ -95,6 +99,14 @@ def check_wt_vs_pt(mob_gpu):
 
 
 def main():
+    global PAIR_PT, PAIR_WT, DIAG_PT, DIAG_WT
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", choices=sorted(MODELS), default="v2")
+    args = ap.parse_args()
+    pair, diag = MODELS[args.model]
+    PAIR_PT, PAIR_WT = f"data/models/{pair}.pt", f"experiments/{pair}.wt"
+    DIAG_PT, DIAG_WT = f"data/models/{diag}.pt", f"experiments/{diag}.wt"
+    print(f"pair model {pair}, diag model {diag}")
     torch.manual_seed(0)
     dev = torch.device("cuda")
 

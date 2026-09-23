@@ -121,6 +121,8 @@ PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summ
                 "M_mom_v3_nb8lin_tr2_pc8c": "moments v3 (8 unit bands, linear bases, split TR/RT; no diag)",
                 "M_mom_v3_nb8lin_tr2_pc8c_diag": "NeMO v3 (moments v3 pair + learned diagonal)",
                 "M_mom_gpu_pc8c_diag": "NeMO (moments pc8c + diag, GPU)",
+                "M_mom_gpu_v3_diag": "NeMO v3 (GPU, fp32 MLP)",
+                "M_mom_gpu_v3_diag_fp16": "NeMO v3 (GPU, fp16 MLP = production)",
                 "HIGNN_2b": "HIGNN 2-body (their engine's kernel, dense)",
                 "HIGNN_full": "HIGNN 2-body + 3-body + self",
                 "SD": "Stokesian Dynamics (FTS far field + pairwise lubrication)",
@@ -130,7 +132,8 @@ OP_ORDER = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_gpu", "M_nbody_b1_v2
             "M_mom_v2_kinf_rc8_pc8_diag", "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag",
             "M_mom_v3_nb5lin_tr2_pc8c", "M_mom_v3_nb5lin_tr2_pc8c_diag",
             "M_mom_v3_nb8lin_tr2_pc8c", "M_mom_v3_nb8lin_tr2_pc8c_diag",
-            "M_mom_gpu_pc8c_diag", "HIGNN_2b", "HIGNN_full", "SD", "SD_Minf", "mfs_coarse"]
+            "M_mom_gpu_pc8c_diag", "M_mom_gpu_v3_diag", "M_mom_gpu_v3_diag_fp16",
+            "HIGNN_2b", "HIGNN_full", "SD", "SD_Minf", "mfs_coarse"]
 
 
 # ----------------------------------------------------------------------------- cases
@@ -274,6 +277,9 @@ def build_op(name: str):
         return op
     if name == "M_mom_gpu_pc8c_diag":
         return _GpuMomentsAdapter()
+    if name in ("M_mom_gpu_v3_diag", "M_mom_gpu_v3_diag_fp16"):  # fp16 = the production MLP precision
+        return _GpuMomentsAdapter("experiments/nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c.wt",
+                                  fp16=name.endswith("_fp16"))
     if name.startswith("M_mom_"):
         from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
         key = name[len("M_"):]
@@ -310,14 +316,14 @@ class _GpuMomentsAdapter:
     Full-apply parity vs the CPU op is ~5e-7 (benchmarks/compare_gpu_moments.py); needs warp+CUDA."""
     FAR_CHUNK = 1_000_000
 
-    def __init__(self):
+    def __init__(self, pair_wt: str = "experiments/nbody_moments_v2_kinf_rc8_pc8c.wt", fp16: bool = False):
         from src.gpu_nbody_moments import Mob_Nbody_Moments_Torch
         self.op = Mob_Nbody_Moments_Torch(
             shape=SHAPE, self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_WT,
-            moments_nn_path="experiments/nbody_moments_v2_kinf_rc8_pc8c.wt",
+            moments_nn_path=pair_wt,
             diag_nn_path="experiments/nbody_diag_v2_pc8c.wt",
             near_field_2b="nn", far_field_2b=None, switch_dist=8.0, neighbor_cutoff=8.0,
-            moments_backend="warp", moments_mlp_fp16=False)
+            moments_backend="warp", moments_mlp_fp16=fp16)
 
     def apply_cpu(self, positions, orientations, forces, viscosity=1.0):
         import contextlib
@@ -353,7 +359,8 @@ CPU_OPS = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_b1_v2", "M_mom_old", 
            "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag",
            "M_mom_v3_nb5lin_tr2_pc8c", "M_mom_v3_nb5lin_tr2_pc8c_diag",
            "M_mom_v3_nb8lin_tr2_pc8c", "M_mom_v3_nb8lin_tr2_pc8c_diag"]
-GPU_OPS = ["mfs_coarse", "M_nbody_gpu", "M_mom_gpu_pc8c_diag", "HIGNN_2b", "HIGNN_full"]
+GPU_OPS = ["mfs_coarse", "M_nbody_gpu", "M_mom_gpu_pc8c_diag", "M_mom_gpu_v3_diag", "M_mom_gpu_v3_diag_fp16",
+           "HIGNN_2b", "HIGNN_full"]
 OP_MODEL = {"M_3b": "3b", "M_nbody_b1": "b1", "M_nbody_b1_v2": "b1_v2", "M_mom_old": "mom_old",
             "M_mom_v2_k10_rc6": "mom_v2_k10_rc6", "M_mom_v2_kinf_rc6": "mom_v2_kinf_rc6",
             "M_mom_v2_kinf_rc8": "mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8": "mom_v2_kinf_rc8_pc8",

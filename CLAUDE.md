@@ -91,7 +91,7 @@ Each operator has an `apply(config, force, viscosity) -> velocity` interface:
    needs its layout (sidecar `.json` next to it, written per run as `<out>/model.json`, or `Mob_Op_Nbody_Moments(nbody_layout=...)`),
    a `.pt` is self-describing. Trainer: `--bands ... --bases {v2,linear,linear_tr2,v2_tr2} --invariants {full,reduced}
    --radial {knots,bessel} --nb NB` (non-default layouts need `--publish-name`; sidecar keys `bands/bases/invariants/radial/nb/
-   n_radial/layout/n_coef/x_dim`, asserted by the harness' `_assert_layout`). GPU path is v2-only (asserted).
+   n_radial/layout/n_coef/x_dim`, asserted by the harness' `_assert_layout`). GPU path (`gpu_nbody_moments.py`) takes v2 and v3 `linear_tr2` on the v2 bands + full invariants (asserted); a `.wt` needs its sidecar (next to it or in `data/models/`) because v2/v3 weights have identical shapes.
    **Why (300k pc8c validation rows of the published v2 model):** the label's TR and RT blocks differ by 80 % (`‖TR−RT‖/‖TR‖`),
    so writing the same matrix in both corners (`RT = TR`, inherited from Eq. 17) leaves a **40 % floor** on the TR/RT residual
    that the model sat on (43/45 %) — the reason every encoder ablation left the angular blocks at ~17 %. Reciprocity only
@@ -104,7 +104,10 @@ Each operator has an `apply(config, force, viscosity) -> velocity` interface:
    `M_mom_v3_nb8lin_tr2_pc8c[_diag]` (same `nbody_diag_v2_pc8c.pt`): validation lin/ang 3.87/15.53 → 3.15/8.29 %, TR/RT
    16.7/15.9 → 8.4/8.0; Fig 3 φ=0.2 N=200 total 7.51 → 7.01 % (ang 6.30 → 4.69), N=300 10.29 → 9.72 (ang 6.09 → 5.02); Fig 4
    φ=0.2 mean 5.77 → 5.17 (ang 5.36 → 3.59); gravity φ=0.2 lin 3.19 → 2.82, settling bias 1.11 → 0.79; Fig 7 Ω error at S = 2.1 +36 → −2 % (`reproduction.md`).
-   GPU port = a new assemble kernel only (band count, inputs and coefficient count are v2's).
+   **GPU port done (2026-09-22):** `pair_assemble_apply_v3_kernel` (TR = T1 + T2, RT = T1 − T2, in registers); parity vs the
+   CPU op ~1e-6 (`benchmarks/compare_gpu_moments.py --model v3`, compiled and eager); 1M two-drop pair stage 2338 → 2363 ms on
+   the 4060 (assemble 117 → 128 ms); run it with `two_suspensions_1M.py --near-op moments-v3` (+ pc8c diag;
+   `profile_moments_stage.py 0 v3`). `--near-op moments` stays v2 pc8 for Fig 11/12 reproducibility.
    **Evaluated and not adopted (report §6–7):** truncating the bands (5 knots 0.5..4.5 + saturating tail, 60 coefficients —
    the first candidate `nbody_moments_v3_nb5lin_tr2_kinf_rc8_pc8c.pt`, kept as an ablation op) costs 0.4–0.6 Fig-3 points
    although post-hoc zeroing of bands 5–8 said ≤ 0.17 each; coarser equal-width bands are worse than v2 in translation

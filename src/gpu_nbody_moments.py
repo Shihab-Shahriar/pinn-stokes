@@ -1,9 +1,15 @@
 """GPU moments-based n-body mobility operator: pair correction + learned diagonal.
 
 Port of the CPU ``Mob_Op_Nbody_Moments`` (src/mob_op_nbody_moments.py) to the GPU
-stack, for the published pc8 configuration (``nbody_moments_v2_kinf_rc8_pc8`` +
-``nbody_diag_v2_pc8``): switch_dist = pair_cutoff = neighbor_cutoff = diag_cutoff = 8,
-max_neighbors = None (every particle within 8 of the pair midpoint contributes).
+stack, for the published pc8 configuration (``nbody_moments_v2_kinf_rc8_pc8[c]`` or the
+adopted v3 ``nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c``, + ``nbody_diag_v2_pc8[c]``):
+switch_dist = pair_cutoff = neighbor_cutoff = diag_cutoff = 8, max_neighbors = None
+(every particle within 8 of the pair midpoint contributes).
+
+Layouts: v2 and v3 "linear_tr2" share the bands, the 76 invariants and the 93
+coefficients, so only the assemble kernel differs (``pair_assemble_apply_kernel``:
+RT = TR; ``pair_assemble_apply_v3_kernel``: TR = T1 + T2, RT = T1 - T2). A .wt needs
+its .json sidecar -- the two layouts have identical tensor shapes.
 
 Design notes (what makes this fast, and where it deliberately differs from the CPU
 operator in *mechanics* while matching it in *math*):
@@ -50,6 +56,7 @@ Semantics matched to the CPU operator:
 from __future__ import annotations
 
 import copy
+import json
 import os
 import time
 from typing import Optional, Tuple
@@ -341,6 +348,83 @@ def pair_assemble_apply_kernel(
     RRt = wp.transpose(RR)
     us = TTt * Ft_f + TRt * Ft_t        # K^T rows
     os = TRt * Ft_f + RRt * Ft_t
+    for j in range(3):
+        v_t[tid, j] = ut[j]
+        v_t[tid, 3 + j] = ot[j]
+        v_s[tid, j] = us[j]
+        v_s[tid, 3 + j] = os[j]
+
+
+@wp.kernel
+def pair_assemble_apply_v3_kernel(
+    positions: wp.array(dtype=wp.vec3),
+    t_idx: wp.array(dtype=wp.int32),
+    s_idx: wp.array(dtype=wp.int32),
+    mom: wp.array2d(dtype=wp.float32),    # (P, 80) band moments
+    coef: wp.array2d(dtype=wp.float32),   # (P, 93) scaled coefficients
+    force: wp.array2d(dtype=wp.float32),  # (N, 6)
+    v_t: wp.array2d(dtype=wp.float32),    # (P, 6) out: K_ts F_s
+    v_s: wp.array2d(dtype=wp.float32),    # (P, 6) out: K_ts^T F_t
+):
+    """v3 "linear_tr2" layout: nbody_moments.bases_v3(use_quadratic=False,
+    has_tr2=True) + assemble_block_v3 + both force products, in registers.
+    tt = [I, zz'] + per band {Q, sym(zz'Q), alt(zv')} (26); tr1 = [E(z)] + per
+    band {E(Qz), sym(z (zxv)')} (17); tr2 = per band {E(v), (z.v) E(z),
+    E(z)Q - QE(z)} (24). TT = c[0:26].tt, RR = c[26:52].tt, T1 = c[52:69].tr1,
+    T2 = c[69:93].tr2; K = [[TT, T1 + T2], [T1 - T2, RR]]."""
+    tid = wp.tid()
+    t = t_idx[tid]
+    s = s_idx[tid]
+    s_vec = positions[s] - positions[t]
+    z = -s_vec / wp.max(wp.length(s_vec), 1.0e-6)
+
+    total = float(0.0)
+    for a in range(8):
+        total += mom[tid, a * 10 + 0]
+    if total <= 0.0:    # zero-neighbour pair: no correction (CPU drops them)
+        for j in range(6):
+            v_t[tid, j] = 0.0
+            v_s[tid, j] = 0.0
+        return
+
+    I3 = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+    zz = wp.outer(z, z)
+    TT = coef[tid, 0] * I3 + coef[tid, 1] * zz
+    RR = coef[tid, 26] * I3 + coef[tid, 27] * zz
+    Ez = _skew(z)
+    T1 = coef[tid, 52] * Ez
+    T2 = wp.mat33(0.0)
+    for a in range(8):
+        v = _band_v(mom, tid, a)
+        Q = _band_Q(mom, tid, a)
+        zzQ = zz * Q
+        s_zzQ = zzQ + wp.transpose(zzQ)
+        zvT = wp.outer(z, v)
+        a_zvT = zvT - wp.transpose(zvT)
+        b = 2 + 3 * a
+        TT += coef[tid, b] * Q + coef[tid, b + 1] * s_zzQ + coef[tid, b + 2] * a_zvT
+        RR += coef[tid, 26 + b] * Q + coef[tid, 26 + b + 1] * s_zzQ \
+            + coef[tid, 26 + b + 2] * a_zvT
+        zxv = wp.cross(z, v)
+        z_zxv = wp.outer(z, zxv)
+        c1 = 52 + 1 + 2 * a
+        T1 += coef[tid, c1] * _skew(Q * z) \
+            + coef[tid, c1 + 1] * (z_zxv + wp.transpose(z_zxv))
+        c2 = 69 + 3 * a
+        T2 += coef[tid, c2] * _skew(v) + (coef[tid, c2 + 1] * wp.dot(z, v)) * Ez \
+            + coef[tid, c2 + 2] * (Ez * Q - Q * Ez)
+    TR = T1 + T2
+    RT = T1 - T2
+
+    Fs_f = wp.vec3(force[s, 0], force[s, 1], force[s, 2])
+    Fs_t = wp.vec3(force[s, 3], force[s, 4], force[s, 5])
+    Ft_f = wp.vec3(force[t, 0], force[t, 1], force[t, 2])
+    Ft_t = wp.vec3(force[t, 3], force[t, 4], force[t, 5])
+
+    ut = TT * Fs_f + TR * Fs_t          # top row of K = [TT, TR]
+    ot = RT * Fs_f + RR * Fs_t          # bottom row  = [RT, RR]
+    us = wp.transpose(TT) * Ft_f + wp.transpose(RT) * Ft_t   # K^T rows
+    os = wp.transpose(TR) * Ft_f + wp.transpose(RR) * Ft_t
     for j in range(3):
         v_t[tid, j] = ut[j]
         v_t[tid, 3 + j] = ot[j]
@@ -653,10 +737,18 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
             os.environ.get("NEMO_MID_CELL_SCALE", mid_cell_scale))
 
         self.moments_nn = self._load_model(
-            moments_nn_path, lambda: MultiBodyMoments(self.mean_dist_s))
-        # the warp kernels hard-code the v2 layout (8 unit bands, 76 invariants, 93 coefficients, RT = TR)
-        assert nbm.layout_of_model(self.moments_nn)["version"] == "v2", \
-            f"GPU moments path supports the v2 layout only, got {nbm.layout_of_model(self.moments_nn)}"
+            moments_nn_path, lambda: MultiBodyMoments(
+                self.mean_dist_s, **self._sidecar_layout(moments_nn_path)))
+        # The accumulate / invariants kernels hard-code the v2 bands (8 unit tents)
+        # and the full 76-input invariant set; the assemble kernel exists for the
+        # v2 bases (RT = TR) and the adopted v3 "linear_tr2" bases (split corners).
+        lay = nbm.layout_of_model(self.moments_nn)
+        assert (lay["radial"] == "knots" and lay["bands"] == nbm.V2_KNOTS
+                and lay["invariants"] == "full" and lay["bases"] in ("v2", "linear_tr2")), \
+            f"GPU moments path supports v2 bands + full invariants + v2/linear_tr2 bases, got {lay}"
+        self.moments_layout = lay
+        self._pair_assemble_kernel = (pair_assemble_apply_kernel if lay["bases"] == "v2"
+                                      else pair_assemble_apply_v3_kernel)
         self.diag_nn = (
             self._load_model(diag_nn_path, SelfBlockMoments) if diag_nn_path else None)
 
@@ -687,6 +779,25 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
             self._diag_finish_k = _maybe_compile(_DiagFinishKernel(self.diag_nn))
 
     # ------------------------------------------------------------------
+    @staticmethod
+    def _sidecar_layout(path: str) -> dict:
+        """MultiBodyMoments layout kwargs for a .wt from its .json sidecar (next to the
+        weights, else the published one in data/models/). v2 and v3 weights have
+        identical tensor shapes, so a .wt loads into the wrong layout without error:
+        the sidecar is required. A .pt is self-describing."""
+        if not path.endswith(".wt"):
+            return {}
+        stem = os.path.splitext(path)[0]
+        cands = [stem + ".json", os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "data", "models",
+            os.path.basename(stem) + ".json")]
+        side = next((c for c in cands if os.path.exists(c)), None)
+        assert side is not None, f"no layout sidecar for {path} (looked at {cands})"
+        with open(side) as fh:
+            meta = json.load(fh)
+        return dict(nbm.layout_from_sidecar(meta), hidden=meta.get("hidden"),
+                    inv_norm=bool(meta.get("inv_norm", False)))
+
     def _load_model(self, path: str, factory):
         """Load .wt weights into a fresh module (compilable end-to-end; preferred)
         or fall back to TorchScript .pt (runs with graph breaks)."""
@@ -762,7 +873,7 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
                 v_t = self._get_flat("v_t", Pc, 6)
                 v_s = self._get_flat("v_s", Pc, 6)
                 self._mid_search.launch_pair_finish(
-                    pos, t_c, s_c, mom, pair_assemble_apply_kernel,
+                    pos, t_c, s_c, mom, self._pair_assemble_kernel,
                     [c, force.contiguous()], [v_t, v_s])
             else:
                 edge_pair, edge_nbr = self._mid_search.query(

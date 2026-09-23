@@ -4,9 +4,11 @@ Splits the pair-moments stage into (grid build | accumulate | finish) and the
 diag stage into (scatter | finish), each timed with CUDA syncs, so optimization
 effort lands where the time actually is.
 
-    bash docker/run_local.sh python benchmarks/profile_moments_stage.py [n_sub]
+    bash docker/run_local.sh python benchmarks/profile_moments_stage.py [n_sub] [v2|v3]
 
-n_sub (optional) subsamples the cloud for quicker iterations; default full 1M.
+n_sub (optional) subsamples the cloud for quicker iterations; default (0) full 1M.
+v2 (default) = nbody_moments_v2_kinf_rc8_pc8 + nbody_diag_v2_pc8;
+v3 = nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c + nbody_diag_v2_pc8c.
 """
 from __future__ import annotations
 
@@ -33,6 +35,11 @@ def sync_ms(fn):
 
 def main():
     n_sub = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+    which = sys.argv[2] if len(sys.argv) > 2 else "v2"
+    pair_wt, diag_wt = {
+        "v2": ("nbody_moments_v2_kinf_rc8_pc8", "nbody_diag_v2_pc8"),
+        "v3": ("nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c", "nbody_diag_v2_pc8c"),
+    }[which]
     np.random.seed(0)
     drop1 = generate_suspension_drop((0, 0, 0.0), 175.0)
     drop2 = generate_suspension_drop((0, 0, 450.0), 175.0)
@@ -51,8 +58,8 @@ def main():
         shape="sphere",
         self_nn_path="data/models/self_interaction_model.pt",
         two_nn_path="data/models/combined_2body.wt",
-        moments_nn_path="experiments/nbody_moments_v2_kinf_rc8_pc8.wt",
-        diag_nn_path="experiments/nbody_diag_v2_pc8.wt",
+        moments_nn_path=f"experiments/{pair_wt}.wt",
+        diag_nn_path=f"experiments/{diag_wt}.wt",
         near_field_2b="nn", far_field_2b=None, switch_dist=8.0)
 
     ms, (t_idx, s_idx) = sync_ms(lambda: mob.get_neighbor_pairs(pos))
@@ -82,8 +89,7 @@ def main():
         ms, _ = sync_ms(lambda: mob._mid_search.accumulate(
             pos, mid, t_c, s_c, mob.neighbor_cutoff, buf))
         acc_ms += ms
-        from src.gpu_nbody_moments import (
-            pair_invariants_kernel, pair_assemble_apply_kernel)
+        from src.gpu_nbody_moments import pair_invariants_kernel
         buf80 = buf.view(Pc, 80)
         X76 = mob._get_flat("X76", Pc, 76)
         ms, _ = sync_ms(lambda: mob._mid_search.launch_pair_finish(
@@ -96,7 +102,7 @@ def main():
         v_t = mob._get_flat("v_t", Pc, 6)
         v_s = mob._get_flat("v_s", Pc, 6)
         ms, _ = sync_ms(lambda: mob._mid_search.launch_pair_finish(
-            pos, t_c, s_c, buf80, pair_assemble_apply_kernel,
+            pos, t_c, s_c, buf80, mob._pair_assemble_kernel,
             [c, force.contiguous()], [v_t, v_s]))
         fin_ms += ms
     print(f"pair stage ({P} unordered pairs):")
