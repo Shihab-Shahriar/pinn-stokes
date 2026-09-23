@@ -1,0 +1,48 @@
+widebvh env: CUDAARCHS=80;90 PETSC_DIR=/mnt/ffs24/home/khanmd/programs/petsc/install-cuda-nompi PETSC_ARCH=<empty>
+-- The CXX compiler identification is GNU 14.3.0
+-- The CUDA compiler identification is NVIDIA 12.9.86 with host compiler GNU 14.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /opt/software-current/2023.06/x86_64/amd/zen4/software/GCCcore/14.3.0/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Detecting CUDA compiler ABI info
+-- Detecting CUDA compiler ABI info - done
+-- Check for working CUDA compiler: /opt/software-current/2023.06/x86_64/amd/zen4/software/CUDA/12.9.1/bin/nvcc - skipped
+-- Detecting CUDA compile features
+-- Detecting CUDA compile features - done
+-- CUDA architectures: 90
+-- The C compiler identification is GNU 14.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /opt/software-current/2023.06/x86_64/amd/zen4/software/GCCcore/14.3.0/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+#cuBQL: CUDA _FOUND_! building both cuda and host libs
+#cuBQL: compiling with CMAKE_CUDA_ARCHITECTURES=90
+-- Found CUDAToolkit: /opt/software-current/2023.06/x86_64/amd/zen4/software/CUDA/12.9.1/targets/x86_64-linux/include (found version "12.9.86")
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Found OpenMP_CXX: -fopenmp (found version "4.5")
+-- Found OpenMP: TRUE (found version "4.5") found components: CXX
+-- Found PkgConfig: /usr/bin/pkg-config (found version "0.29.2")
+-- Checking for module 'PETSc'
+--   Found PETSc, version 3.25.99
+-- Checking for module 'openblas'
+--   Found openblas, version 0.3.30
+-- Configuring done (11.9s)
+-- Generating done (0.6s)
+-- Build files have been written to: /mnt/scratch/khanmd/widebvh-f32/build-h200-f32
+[1/12] Building CUDA object cuBQL/cuBQL/CMakeFiles/cuBQL_cuda_float3.dir/builder/cuda/instantiate_builders.cu.o
+[2/12] Linking CUDA shared library cuBQL/cuBQL/libcuBQL_cuda_float3.so
+[3/12] Building CUDA object CMakeFiles/widebvh_nemo.dir/src/common.cu.o
+[4/12] Building CUDA object CMakeFiles/widebvh_nemo_f32l2.dir/src/common.cu.o
+[5/12] Building CUDA object CMakeFiles/widebvh_nemo.dir/src/grid_buckets.cu.o
+[6/12] Building CUDA object CMakeFiles/widebvh_nemo_f32l2.dir/src/grid_buckets.cu.o
+[7/12] Building CUDA object CMakeFiles/widebvh_nemo.dir/src/nemo_capi.cu.o
+[8/12] Building CUDA object CMakeFiles/widebvh_nemo_f32l2.dir/src/nemo_capi.cu.o
+[9/12] Linking CUDA shared library CMakeFiles/widebvh_nemo.dir/cmake_device_link.o
+[10/12] Linking CUDA shared library CMakeFiles/widebvh_nemo_f32l2.dir/cmake_device_link.o
+[11/12] Linking CUDA shared library libwidebvh_nemo_f32l2.so
+[12/12] Linking CUDA shared library libwidebvh_nemo.so

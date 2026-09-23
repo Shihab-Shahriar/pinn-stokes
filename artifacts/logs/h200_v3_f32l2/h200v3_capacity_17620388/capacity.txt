@@ -1,0 +1,1 @@
+CAPACITY n_side=340 N=39304000 (first failure at n_side=341)

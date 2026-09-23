@@ -1,0 +1,100 @@
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 94768564022400
+
+########## panel (b): N=5,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field      7.095 ms (+-0.010)    0.70 M updates/s
+  rel_far     3.1015e-04   rel_total 2.6466e-04   (ref 0.1 s, 2048 targets)
+  rel_asym    1.8344e-04 +- 2.7e-05  (K=24, 0.3 s)
+
+########## panel (b): N=10,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field      7.132 ms (+-0.029)    1.40 M updates/s
+  rel_far     1.9373e-04   rel_total 1.8430e-04   (ref 0.0 s, 2048 targets)
+  rel_asym    2.3881e-04 +- 2.8e-05  (K=24, 0.4 s)
+
+########## panel (b): N=50,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field      9.969 ms (+-0.013)    5.02 M updates/s
+  rel_far     3.0882e-04   rel_total 2.9720e-04   (ref 0.0 s, 2048 targets)
+  rel_asym    3.6596e-04 +- 5.1e-05  (K=24, 0.9 s)
+
+########## panel (b): N=100,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field     12.527 ms (+-0.036)    7.98 M updates/s
+  rel_far     3.5544e-04   rel_total 3.4229e-04   (ref 0.0 s, 2048 targets)
+  rel_asym    3.8502e-04 +- 5.5e-05  (K=24, 1.6 s)
+
+########## panel (b): N=200,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field     18.395 ms (+-0.035)   10.87 M updates/s
+  rel_far     4.9009e-04   rel_total 4.6610e-04   (ref 0.0 s, 2048 targets)
+  rel_asym    3.6298e-04 +- 5.0e-05  (K=24, 3.1 s)
+
+########## panel (b): N=300,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field     23.666 ms (+-0.027)   12.68 M updates/s
+  rel_far     3.6273e-04   rel_total 3.5551e-04   (ref 0.0 s, 2048 targets)
+  rel_asym    3.8594e-04 +- 5.3e-05  (K=24, 4.6 s)
+
+########## panel (b): N=400,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field     28.871 ms (+-0.028)   13.85 M updates/s
+  rel_far     2.5186e-04   rel_total 2.4969e-04   (ref 0.0 s, 2048 targets)
+  rel_asym    4.2163e-04 +- 6.1e-05  (K=24, 6.1 s)
+
+########## panel (b): N=500,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field     34.428 ms (+-0.007)   14.52 M updates/s
+  rel_far     3.3001e-04   rel_total 3.2554e-04   (ref 0.1 s, 2048 targets)
+  rel_asym    4.5270e-04 +- 5.9e-05  (K=24, 7.8 s)
+
+########## panel (b): N=750,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field     48.585 ms (+-0.041)   15.44 M updates/s
+  rel_far     3.2868e-04   rel_total 3.2386e-04   (ref 0.2 s, 2048 targets)
+  rel_asym    4.1827e-04 +- 5.8e-05  (K=24, 11.8 s)
+
+########## panel (b): N=1,000,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field     63.625 ms (+-0.039)   15.72 M updates/s
+  rel_far     2.2632e-04   rel_total 2.2508e-04   (ref 0.3 s, 2048 targets)
+  rel_asym    4.5441e-04 +- 6.5e-05  (K=24, 16.0 s)
+
+########## panel (b): N=2,000,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field    128.620 ms (+-0.058)   15.55 M updates/s
+  rel_far     2.2997e-04   rel_total 2.2863e-04   (ref 0.6 s, 2048 targets)
+  rel_asym    3.9495e-04 +- 5.8e-05  (K=24, 33.1 s)
+
+########## panel (b): N=4,000,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field    256.339 ms (+-0.075)   15.60 M updates/s
+  rel_far     3.7344e-04   rel_total 3.7011e-04   (ref 1.3 s, 2048 targets)
+  rel_asym    4.2118e-04 +- 6.3e-05  (K=24, 67.8 s)
+
+wrote 12 rows -> data/fig10_far_field_h200_v3_f32l2.csv
+
+ N            far ms   M upd/s     rel_far    rel_asym   vs known
+     5,000      7.095     0.70   3.102e-04   1.834e-04       --
+    10,000      7.132     1.40   1.937e-04   2.388e-04   0.740x
+    50,000      9.969     5.02   3.088e-04   3.660e-04       --
+   100,000     12.527     7.98   3.554e-04   3.850e-04   0.934x
+   200,000     18.395    10.87   4.901e-04   3.630e-04       --
+   300,000     23.666    12.68   3.627e-04   3.859e-04   0.966x
+   400,000     28.871    13.85   2.519e-04   4.216e-04       --
+   500,000     34.428    14.52   3.300e-04   4.527e-04   1.015x
+   750,000     48.585    15.44   3.287e-04   4.183e-04   0.973x
+ 1,000,000     63.625    15.72   2.263e-04   4.544e-04   0.986x
+ 2,000,000    128.620    15.55   2.300e-04   3.950e-04       --
+ 4,000,000    256.339    15.60   3.734e-04   4.212e-04       --
+  !! rel_far at N=100,000 is 3.5544e-04, expected ~3.8530e-04 -- check the reference wiring
+
+  flatness: rel_far spans 2.53x, rel_asym spans 2.48x across N=5,000..4,000,000

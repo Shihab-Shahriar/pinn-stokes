@@ -1,0 +1,2 @@
+backend,n,total_ms,std_ms,min_ms,far_ms,near_ms,updates_per_sec,peak_vram_gb,mac,theta,pdeg,order,max_leaf,gpu,git_sha,near_op,cutoff,fp32_level
+widebvh,50000,33.52052333260266,0.14413836522449205,33.35416999470908,9.90390396118164,23.616619371421017,1491623.4899999043,0.8758649826049805,0.8,nan,7,0,1024,NVIDIA H200,bc4b227,moments-v3,8.0,2

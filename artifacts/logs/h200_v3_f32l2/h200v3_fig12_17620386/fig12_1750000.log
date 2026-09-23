@@ -1,0 +1,288 @@
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 94372283101968
+
+########## widebvh  N=1,750,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+[MobFMM] far-field FMM GPU time: 122.907 ms
+Building spatial grid for neighbor search...
+Positions shape: (1750000,)
+Counting neighbors per particle...
+    Module src.hashgrid_neighbors fa5b16d load on device 'cuda:0' took 4.65 ms  (cached)
+Total near-field pairs found: 87675282
+Collecting neighbor edge indexes...
+Warp::HashGrid took 22.67 ms
+no of NN interactions: 87675282
+Module src.gpu_mob_2b c79e500 load on device 'cuda:0' took 4.42 ms  (cached)
+[Mob_Nbody] Base velocity compute time: 28.918 ms
+Module src.gpu_nbody_moments 96e48a8 load on device 'cuda:0' took 9.92 ms  (cached)
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_nbody_moments.py", line 648, in forward
+    x = (X76 - m.inv_mean) / m.inv_std
+
+
+[MobMoments] pair moments time: 1938.030 ms (43837641 pairs)
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_nbody_moments.py", line 658, in forward
+    rel = pos[s_c] - pos[t_c]
+
+
+W0923 01:55:13.592000 3886110 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/fx/experimental/symbolic_shapes.py:6823] [2/0] _maybe_guard_rel() was called on non-relation expression Eq(s30, 1) | Eq(s30, s81)
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_nbody_moments.py", line 677, in forward
+    s_a, v_a, Q = _moments_from_buf(buf_chunk)
+  File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_nbody_moments.py", line 582, in _moments_from_buf
+    v_a = buf[:, :, 1:4]
+
+
+[MobMoments] diag correction time: 4773.556 ms
+[Mob_Nbody] Post-base path time: 6711.617 ms
+[MobFMM] peak GPU memory: allocated 2520.74 MB, reserved 3248.00 MB
+[MobFMM] near-field construction: 22.833 ms
+[MobFMM] near-field operator time: 6740.712 ms
+[MobFMM] overall Nearfield time: 6,779.707 ms
+[MobFMM] near-field particles updates per sec: 258,123.25
+[MobFMM] total GPU time: 6904.047 ms
+[MobFMM] total particles updates per sec: 253,474.52
+
+
+[MobFMM] far-field FMM GPU time: 110.483 ms
+Building spatial grid for neighbor search...
+Positions shape: (1750000,)
+Counting neighbors per particle...
+Total near-field pairs found: 87675282
+Collecting neighbor edge indexes...
+Warp::HashGrid took 7.51 ms
+no of NN interactions: 87675282
+[Mob_Nbody] Base velocity compute time: 14.518 ms
+[MobMoments] pair moments time: 766.041 ms (43837641 pairs)
+[MobMoments] diag correction time: 105.816 ms
+[Mob_Nbody] Post-base path time: 871.887 ms
+[MobFMM] peak GPU memory: allocated 2739.74 MB, reserved 3584.00 MB
+[MobFMM] near-field construction: 7.751 ms
+[MobFMM] near-field operator time: 886.529 ms
+[MobFMM] overall Nearfield time: 894.616 ms
+[MobFMM] near-field particles updates per sec: 1,956,145.69
+[MobFMM] total GPU time: 1005.880 ms
+[MobFMM] total particles updates per sec: 1,739,769.83
+
+
+[MobFMM] far-field FMM GPU time: 110.277 ms
+Building spatial grid for neighbor search...
+Positions shape: (1750000,)
+Counting neighbors per particle...
+Total near-field pairs found: 87675282
+Collecting neighbor edge indexes...
+Warp::HashGrid took 7.34 ms
+no of NN interactions: 87675282
+[Mob_Nbody] Base velocity compute time: 14.633 ms
+[MobMoments] pair moments time: 765.375 ms (43837641 pairs)
+[MobMoments] diag correction time: 106.244 ms
+[Mob_Nbody] Post-base path time: 871.650 ms
+[MobFMM] peak GPU memory: allocated 2739.74 MB, reserved 3584.00 MB
+[MobFMM] near-field construction: 7.476 ms
+[MobFMM] near-field operator time: 886.451 ms
+[MobFMM] overall Nearfield time: 894.244 ms
+[MobFMM] near-field particles updates per sec: 1,956,959.72
+[MobFMM] total GPU time: 1005.306 ms
+[MobFMM] total particles updates per sec: 1,740,763.14
+
+
+[MobFMM] far-field FMM GPU time: 110.825 ms
+Building spatial grid for neighbor search...
+Positions shape: (1750000,)
+Counting neighbors per particle...
+Total near-field pairs found: 87675282
+Collecting neighbor edge indexes...
+Warp::HashGrid took 7.28 ms
+no of NN interactions: 87675282
+[Mob_Nbody] Base velocity compute time: 14.435 ms
+[MobMoments] pair moments time: 765.645 ms (43837641 pairs)
+[MobMoments] diag correction time: 105.986 ms
+[Mob_Nbody] Post-base path time: 871.657 ms
+[MobFMM] peak GPU memory: allocated 2739.74 MB, reserved 3584.00 MB
+[MobFMM] near-field construction: 7.403 ms
+[MobFMM] near-field operator time: 886.216 ms
+[MobFMM] overall Nearfield time: 893.933 ms
+[MobFMM] near-field particles updates per sec: 1,957,640.62
+[MobFMM] total GPU time: 1005.537 ms
+[MobFMM] total particles updates per sec: 1,740,363.10
+
+
+[MobFMM] far-field FMM GPU time: 110.962 ms
+Building spatial grid for neighbor search...
+Positions shape: (1750000,)
+Counting neighbors per particle...
+Total near-field pairs found: 87675282
+Collecting neighbor edge indexes...
+Warp::HashGrid took 7.29 ms
+no of NN interactions: 87675282
+[Mob_Nbody] Base velocity compute time: 14.419 ms
+[MobMoments] pair moments time: 765.814 ms (43837641 pairs)
+[MobMoments] diag correction time: 105.778 ms
+[Mob_Nbody] Post-base path time: 871.622 ms
+[MobFMM] peak GPU memory: allocated 2739.74 MB, reserved 3584.00 MB
+[MobFMM] near-field construction: 7.434 ms
+[MobFMM] near-field operator time: 886.163 ms
+[MobFMM] overall Nearfield time: 893.924 ms
+[MobFMM] near-field particles updates per sec: 1,957,660.14
+[MobFMM] total GPU time: 1005.616 ms
+[MobFMM] total particles updates per sec: 1,740,227.05
+
+
+[MobFMM] far-field FMM GPU time: 111.072 ms
+Building spatial grid for neighbor search...
+Positions shape: (1750000,)
+Counting neighbors per particle...
+Total near-field pairs found: 87675282
+Collecting neighbor edge indexes...
+Warp::HashGrid took 7.21 ms
+no of NN interactions: 87675282
+[Mob_Nbody] Base velocity compute time: 14.413 ms
+[MobMoments] pair moments time: 765.213 ms (43837641 pairs)
+[MobMoments] diag correction time: 105.850 ms
+[Mob_Nbody] Post-base path time: 871.092 ms
+[MobFMM] peak GPU memory: allocated 2739.74 MB, reserved 3584.00 MB
+[MobFMM] near-field construction: 7.309 ms
+[MobFMM] near-field operator time: 885.617 ms
+[MobFMM] overall Nearfield time: 893.251 ms
+[MobFMM] near-field particles updates per sec: 1,959,135.03
+[MobFMM] total GPU time: 1005.046 ms
+[MobFMM] total particles updates per sec: 1,741,213.48
+
+
+[MobFMM] far-field FMM GPU time: 110.783 ms
+Building spatial grid for neighbor search...
+Positions shape: (1750000,)
+Counting neighbors per particle...
+Total near-field pairs found: 87675282
+Collecting neighbor edge indexes...
+Warp::HashGrid took 7.15 ms
+no of NN interactions: 87675282
+[Mob_Nbody] Base velocity compute time: 14.381 ms
+[MobMoments] pair moments time: 765.155 ms (43837641 pairs)
+[MobMoments] diag correction time: 106.310 ms
+[Mob_Nbody] Post-base path time: 871.496 ms
+[MobFMM] peak GPU memory: allocated 2739.74 MB, reserved 3584.00 MB
+[MobFMM] near-field construction: 7.247 ms
+[MobFMM] near-field operator time: 886.011 ms
+[MobFMM] overall Nearfield time: 893.568 ms
+[MobFMM] near-field particles updates per sec: 1,958,440.11
+[MobFMM] total GPU time: 1005.226 ms
+[MobFMM] total particles updates per sec: 1,740,901.71
+
+
+[MobFMM] far-field FMM GPU time: 110.462 ms
+Building spatial grid for neighbor search...
+Positions shape: (1750000,)
+Counting neighbors per particle...
+Total near-field pairs found: 87675282
+Collecting neighbor edge indexes...
+Warp::HashGrid took 7.35 ms
+no of NN interactions: 87675282
+[Mob_Nbody] Base velocity compute time: 14.439 ms
+[MobMoments] pair moments time: 765.947 ms (43837641 pairs)
+[MobMoments] diag correction time: 106.257 ms
+[Mob_Nbody] Post-base path time: 872.236 ms
+[MobFMM] peak GPU memory: allocated 2739.74 MB, reserved 3584.00 MB
+[MobFMM] near-field construction: 7.556 ms
+[MobFMM] near-field operator time: 886.827 ms
+[MobFMM] overall Nearfield time: 894.692 ms
+[MobFMM] near-field particles updates per sec: 1,955,979.68
+[MobFMM] total GPU time: 1006.031 ms
+[MobFMM] total particles updates per sec: 1,739,509.01
+
+
+[MobFMM] far-field FMM GPU time: 110.726 ms
+Building spatial grid for neighbor search...
+Positions shape: (1750000,)
+Counting neighbors per particle...
+Total near-field pairs found: 87675282
+Collecting neighbor edge indexes...
+Warp::HashGrid took 7.25 ms
+no of NN interactions: 87675282
+[Mob_Nbody] Base velocity compute time: 14.433 ms
+[MobMoments] pair moments time: 765.316 ms (43837641 pairs)
+[MobMoments] diag correction time: 105.885 ms
+[Mob_Nbody] Post-base path time: 871.231 ms
+[MobFMM] peak GPU memory: allocated 2739.74 MB, reserved 3584.00 MB
+[MobFMM] near-field construction: 7.386 ms
+[MobFMM] near-field operator time: 885.788 ms
+[MobFMM] overall Nearfield time: 893.493 ms
+[MobFMM] near-field particles updates per sec: 1,958,605.74
+[MobFMM] total GPU time: 1005.089 ms
+[MobFMM] total particles updates per sec: 1,741,140.21
+
+
+[MobFMM] far-field FMM GPU time: 110.514 ms
+Building spatial grid for neighbor search...
+Positions shape: (1750000,)
+Counting neighbors per particle...
+Total near-field pairs found: 87675282
+Collecting neighbor edge indexes...
+Warp::HashGrid took 7.19 ms
+no of NN interactions: 87675282
+[Mob_Nbody] Base velocity compute time: 14.400 ms
+[MobMoments] pair moments time: 765.398 ms (43837641 pairs)
+[MobMoments] diag correction time: 105.795 ms
+[Mob_Nbody] Post-base path time: 871.223 ms
+[MobFMM] peak GPU memory: allocated 2739.74 MB, reserved 3584.00 MB
+[MobFMM] near-field construction: 7.314 ms
+[MobFMM] near-field operator time: 885.739 ms
+[MobFMM] overall Nearfield time: 893.378 ms
+[MobFMM] near-field particles updates per sec: 1,958,857.57
+[MobFMM] total GPU time: 1004.718 ms
+[MobFMM] total particles updates per sec: 1,741,783.09
+
+
+[MobFMM] far-field FMM GPU time: 110.808 ms
+Building spatial grid for neighbor search...
+Positions shape: (1750000,)
+Counting neighbors per particle...
+Total near-field pairs found: 87675282
+Collecting neighbor edge indexes...
+Warp::HashGrid took 7.25 ms
+no of NN interactions: 87675282
+[Mob_Nbody] Base velocity compute time: 14.428 ms
+[MobMoments] pair moments time: 766.043 ms (43837641 pairs)
+[MobMoments] diag correction time: 105.866 ms
+[Mob_Nbody] Post-base path time: 871.939 ms
+[MobFMM] peak GPU memory: allocated 2739.74 MB, reserved 3584.00 MB
+[MobFMM] near-field construction: 7.352 ms
+[MobFMM] near-field operator time: 886.487 ms
+[MobFMM] overall Nearfield time: 894.155 ms
+[MobFMM] near-field particles updates per sec: 1,957,154.35
+[MobFMM] total GPU time: 1005.798 ms
+[MobFMM] total particles updates per sec: 1,739,911.19
+
+
+[MobFMM] far-field FMM GPU time: 111.340 ms
+Building spatial grid for neighbor search...
+Positions shape: (1750000,)
+Counting neighbors per particle...
+Total near-field pairs found: 87675282
+Collecting neighbor edge indexes...
+Warp::HashGrid took 7.14 ms
+no of NN interactions: 87675282
+[Mob_Nbody] Base velocity compute time: 14.423 ms
+[MobMoments] pair moments time: 765.464 ms (43837641 pairs)
+[MobMoments] diag correction time: 105.693 ms
+[Mob_Nbody] Post-base path time: 871.185 ms
+[MobFMM] peak GPU memory: allocated 2739.74 MB, reserved 3584.00 MB
+[MobFMM] near-field construction: 7.237 ms
+[MobFMM] near-field operator time: 885.724 ms
+[MobFMM] overall Nearfield time: 893.265 ms
+[MobFMM] near-field particles updates per sec: 1,959,105.85
+[MobFMM] total GPU time: 1005.398 ms
+[MobFMM] total particles updates per sec: 1,740,604.73
+
+
+@@ N=1,750,000  total=1005.34 ms (+-0.15)  far=111.34 ms  1.741 M updates/s  VRAM 2.68 GB
+
+wrote 1 rows -> data/fig12_scaling_h200_v3_f32l2.csv
+
+ N          total ms    far ms   M updates/s   VRAM GB
+ 1,750,000   1005.34    111.34        1.741      2.68

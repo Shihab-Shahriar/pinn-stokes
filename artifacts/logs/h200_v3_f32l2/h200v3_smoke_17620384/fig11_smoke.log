@@ -1,0 +1,97 @@
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 93905129206768
+
+===== subprocess: widebvh N=10,000 FMM_2body_RPY =====
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 94157176275776
+
+########## widebvh  N=10,000 FMM_2body_RPY ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_mob_2b.py", line 331, in forward
+    return self.parent._rpy_velocity(rel_vecs, src_wrench, viscosity)
+  File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_mob_2b.py", line 399, in _rpy_velocity
+    mobility_batch = two_body_rpy_batch(rel_vecs, radii)
+  File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/benchmarks/bench_rpy.py", line 344, in two_body_rpy_batch
+    mu_tt = torch.zeros((batch, 2, 2, 3, 3), dtype=dtype, device=device)
+
+
+  FMM_2body_RPY    far=    7.26 self+2b=   1.13 nbody=    0.00 nsearch= 0.73 | sum=    9.12 vs total=    9.64 (unaccounted +0.52 ms, +5.4%)
+
+wrote 1 rows -> artifacts/logs/h200_v3_f32l2/h200v3_smoke_17620384/fig11_smoke.csv
+
+         N  operator            far    self+2b     nbody  nsearch       sum     total   far share
+    10,000  FMM_2body_RPY        7.26      1.13      0.00    0.73      9.12      9.64      75.3%
+
+===== subprocess: widebvh N=10,000 FMM_2body_NN =====
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 93886073375904
+
+########## widebvh  N=10,000 FMM_2body_NN ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  FMM_2body_NN     far=    7.28 self+2b=   0.64 nbody=    0.00 nsearch= 0.72 | sum=    8.64 vs total=    9.17 (unaccounted +0.52 ms, +5.7%)
+
+wrote 1 rows -> artifacts/logs/h200_v3_f32l2/h200v3_smoke_17620384/fig11_smoke.csv
+
+         N  operator            far    self+2b     nbody  nsearch       sum     total   far share
+    10,000  FMM_2body_NN         7.28      0.64      0.00    0.72      8.64      9.17      79.4%
+
+===== subprocess: widebvh N=10,000 FMM_Nbody_Moments =====
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 94048137630528
+
+########## widebvh  N=10,000 FMM_Nbody_Moments ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_nbody_moments.py", line 648, in forward
+    x = (X76 - m.inv_mean) / m.inv_std
+
+
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_nbody_moments.py", line 658, in forward
+    rel = pos[s_c] - pos[t_c]
+
+
+W0923 01:51:32.378000 2567721 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/fx/experimental/symbolic_shapes.py:6823] [2/0] _maybe_guard_rel() was called on non-relation expression Eq(s30, 1) | Eq(s30, s81)
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_nbody_moments.py", line 677, in forward
+    s_a, v_a, Q = _moments_from_buf(buf_chunk)
+  File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_nbody_moments.py", line 582, in _moments_from_buf
+    v_a = buf[:, :, 1:4]
+
+
+  FMM_Nbody_Moments far=    7.30 self+2b=   0.51 nbody=    5.16 nsearch= 0.73 | sum=   13.71 vs total=   14.40 (unaccounted +0.69 ms, +4.8%)
+
+wrote 1 rows -> artifacts/logs/h200_v3_f32l2/h200v3_smoke_17620384/fig11_smoke.csv
+
+         N  operator            far    self+2b     nbody  nsearch       sum     total   far share
+    10,000  FMM_Nbody_Moments     7.30      0.51      5.16    0.73     13.71     14.40      50.7%
+
+         N  operator            far    self+2b     nbody  nsearch       sum     total   far share
+    10,000  FMM_2body_RPY        7.26      1.13      0.00    0.73      9.12      9.64      75.3%
+    10,000  FMM_2body_NN         7.28      0.64      0.00    0.72      8.64      9.17      79.4%
+    10,000  FMM_Nbody_Moments     7.30      0.51      5.16    0.73     13.71     14.40      50.7%

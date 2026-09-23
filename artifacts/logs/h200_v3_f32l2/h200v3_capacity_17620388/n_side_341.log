@@ -1,0 +1,43 @@
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 94598830682944
+n_side=341  N=39,651,821  phi=0.1  a=3.472931  fp32_level=2  mem_fraction=None  expandable_segments=True
+gpu=NVIDIA H200  total=139.80 GiB
+lattice built in 0.08 s, extent -590.6 .. 590.6
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+[MobFMM] far-field FMM GPU time: 2854.241 ms
+Building spatial grid for neighbor search...
+Positions shape: (39651821,)
+Counting neighbors per particle...
+    Module src.hashgrid_neighbors fa5b16d load on device 'cuda:0' took 15.00 ms  (cached)
+Total near-field pairs found: -2139711726
+Collecting neighbor edge indexes...
+Warp::HashGrid took 105.74 ms
+Traceback (most recent call last):
+  File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/benchmarks/max_particles.py", line 161, in main
+    vel = op.apply(positions, orientations, forces, vis)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/treecode.py", line 506, in apply
+    near_vel = self._gpu_near_field_pass(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/treecode.py", line 327, in _gpu_near_field_pass
+    t_idx, s_idx = self.get_edge_indexes(positions_t, cutoff)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/treecode.py", line 297, in get_edge_indexes
+    return self._neighbor_search.get_edge_indexes(positions_t, radius, verbose=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/hashgrid_neighbors.py", line 179, in get_edge_indexes
+    wp_edges_t = wp.from_torch(self.edge_indexes_t, dtype=wp.int32)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/ffs24/home/khanmd/programs/warp/warp/_src/torch.py", line 210, in from_torch
+    elif not dtype_is_compatible(t.dtype, dtype):
+                                 ^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'dtype'
+FAILED after cold_ok=False warm_ok=0: AttributeError: 'NoneType' object has no attribute 'dtype'
+RESULT n_side=341 N=39651821 cold=fail warm_ok=0/3 warm_s=- torch_alloc_gib=4.61 torch_reserved_gib=4.75 proc_mb=6700.0 gpu_used_mb_now=6711.0 fp32_level=2 mem_fraction=None empty_cache=1 near_op=moments-v3 cutoff=8.0 pair_budget_gb=8.388043212890624  fail="AttributeError: 'NoneType' object has no attribute 'dtype'"

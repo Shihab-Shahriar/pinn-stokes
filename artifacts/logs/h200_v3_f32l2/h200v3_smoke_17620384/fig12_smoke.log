@@ -1,0 +1,493 @@
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 94815256086528
+
+########## widebvh  N=50,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+[MobFMM] far-field FMM GPU time: 27.228 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+    Module src.hashgrid_neighbors fa5b16d load on device 'cuda:0' took 15.78 ms  (cached)
+Total near-field pairs found: 2449228
+Collecting neighbor edge indexes...
+Warp::HashGrid took 27.59 ms
+no of NN interactions: 2449228
+Module src.gpu_mob_2b c79e500 load on device 'cuda:0' took 13.40 ms  (cached)
+[Mob_Nbody] Base velocity compute time: 27.839 ms
+Module src.gpu_nbody_moments 96e48a8 load on device 'cuda:0' took 68578.68 ms  (compiled)
+AUTOTUNE mm(524288x76, 76x128)
+strides: [76, 1], [1, 76]
+dtypes: torch.float16, torch.float16
+  triton_mm_16 0.0777 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_12 0.0818 ms 95.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=128, BLOCK_M=64, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=4
+  triton_mm_9 0.0836 ms 92.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_10 0.0929 ms 83.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_13 0.0938 ms 82.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_14 0.0952 ms 81.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_15 0.0954 ms 81.4% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=8
+  triton_mm_8 0.0994 ms 78.1% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=128, BLOCK_M=64, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=4
+  triton_mm_6 0.1108 ms 70.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  triton_mm_17 0.1135 ms 68.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=128, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 0.4223 seconds and 1.1934 seconds precompiling for 20 choices
+AUTOTUNE mm(524288x64, 64x128)
+strides: [64, 1], [1, 64]
+dtypes: torch.float16, torch.float16
+  triton_mm_48 0.0574 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_49 0.0576 ms 99.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=4
+  triton_mm_53 0.0577 ms 99.4% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  mm 0.0581 ms 98.8% 
+  triton_mm_50 0.0617 ms 93.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_45 0.0659 ms 87.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=4
+  triton_mm_55 0.0685 ms 83.8% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=128, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=8
+  triton_mm_47 0.0688 ms 83.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_46 0.0689 ms 83.3% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_54 0.0693 ms 82.8% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=128, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 0.3296 seconds and 0.0002 seconds precompiling for 20 choices
+AUTOTUNE mm(524288x128, 128x64)
+strides: [128, 1], [1, 128]
+dtypes: torch.float16, torch.float16
+  triton_mm_35 0.0542 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  mm 0.0571 ms 94.9% 
+  triton_mm_30 0.0582 ms 93.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_32 0.0604 ms 89.8% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_33 0.0609 ms 89.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_26 0.0619 ms 87.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=8
+  triton_mm_34 0.0666 ms 81.4% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=8
+  triton_mm_27 0.0676 ms 80.1% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=128, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=4
+  triton_mm_31 0.0690 ms 78.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=128, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=4
+  triton_mm_25 0.0724 ms 74.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 0.2993 seconds and 0.0002 seconds precompiling for 19 choices
+AUTOTUNE mm(524288x64, 64x96)
+strides: [64, 1], [96, 1]
+dtypes: torch.float16, torch.float16
+  mm 0.0487 ms 100.0% 
+  triton_mm_90 0.0528 ms 92.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_86 0.0534 ms 91.1% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=4
+  triton_mm_85 0.0535 ms 90.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_92 0.0608 ms 80.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=128, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=8
+  triton_mm_91 0.0626 ms 77.8% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=128, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_87 0.0627 ms 77.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_82 0.0633 ms 76.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=4
+  triton_mm_88 0.0660 ms 73.8% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_78 0.0704 ms 69.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=32, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 0.3034 seconds and 0.0001 seconds precompiling for 20 choices
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_nbody_moments.py", line 648, in forward
+    x = (X76 - m.inv_mean) / m.inv_std
+
+
+[MobMoments] pair moments time: 79140.445 ms (1224614 pairs)
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_nbody_moments.py", line 658, in forward
+    rel = pos[s_c] - pos[t_c]
+
+
+W0923 01:50:22.839000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/fx/experimental/symbolic_shapes.py:6823] [2/0] _maybe_guard_rel() was called on non-relation expression Eq(s30, 1) | Eq(s30, s81)
+AUTOTUNE mm(50000x48, 48x128)
+strides: [48, 1], [1, 48]
+dtypes: torch.float32, torch.float32
+  triton_mm_107 0.0163 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_103 0.0167 ms 97.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  mm 0.0170 ms 96.0% 
+  triton_mm_111 0.0173 ms 94.3% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_104 0.0174 ms 93.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  triton_mm_114 0.0178 ms 91.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_116 0.0178 ms 91.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=128, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=8
+  triton_mm_113 0.0178 ms 91.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=8
+  triton_mm_109 0.0180 ms 90.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_110 0.0182 ms 89.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=128, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 0.1838 seconds and 0.0002 seconds precompiling for 20 choices
+AUTOTUNE mm(50000x64, 64x128)
+strides: [64, 1], [1, 64]
+dtypes: torch.float32, torch.float32
+  triton_mm_141 0.0172 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  triton_mm_144 0.0172 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_151 0.0173 ms 99.1% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_148 0.0180 ms 95.4% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_150 0.0181 ms 94.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=8
+  triton_mm_153 0.0182 ms 94.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=128, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=8
+  triton_mm_147 0.0183 ms 93.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=4
+  triton_mm_146 0.0184 ms 93.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  mm 0.0190 ms 90.4% 
+  triton_mm_140 0.0190 ms 90.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 0.1829 seconds and 0.0002 seconds precompiling for 20 choices
+E0923 01:50:28.713000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Runtime error during autotuning: 
+E0923 01:50:28.713000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] No valid triton configs. OutOfMemoryError: out of resource: triton_mm Required: 245760 Hardware limit:232448 Reducing block sizes or `num_stages` may help.. 
+E0923 01:50:28.713000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Ignoring this choice.
+AUTOTUNE mm(50000x128, 128x64)
+strides: [128, 1], [1, 128]
+dtypes: torch.float32, torch.float32
+  triton_mm_123 0.0153 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  triton_mm_132 0.0157 ms 97.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=8
+  triton_mm_130 0.0160 ms 95.8% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_126 0.0164 ms 93.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_127 0.0180 ms 85.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_128 0.0182 ms 84.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_131 0.0183 ms 83.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_124 0.0190 ms 80.6% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=8
+  triton_mm_122 0.0194 ms 78.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  triton_mm_133 0.0204 ms 75.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 0.1671 seconds and 0.0002 seconds precompiling for 19 choices
+E0923 01:50:30.807000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Runtime error during autotuning: 
+E0923 01:50:30.807000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] CUDA driver error: invalid argument
+E0923 01:50:30.807000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:30.807000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] This may mean this GPU is too small for max_autotune mode.
+E0923 01:50:30.807000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:30.807000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] . 
+E0923 01:50:30.807000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Ignoring this choice.
+E0923 01:50:30.812000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Runtime error during autotuning: 
+E0923 01:50:30.812000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] CUDA driver error: invalid argument
+E0923 01:50:30.812000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:30.812000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] This may mean this GPU is too small for max_autotune mode.
+E0923 01:50:30.812000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:30.812000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] . 
+E0923 01:50:30.812000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Ignoring this choice.
+E0923 01:50:30.816000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Runtime error during autotuning: 
+E0923 01:50:30.816000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] CUDA driver error: invalid argument
+E0923 01:50:30.816000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:30.816000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] This may mean this GPU is too small for max_autotune mode.
+E0923 01:50:30.816000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:30.816000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] . 
+E0923 01:50:30.816000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Ignoring this choice.
+E0923 01:50:30.820000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Runtime error during autotuning: 
+E0923 01:50:30.820000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] CUDA driver error: invalid argument
+E0923 01:50:30.820000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:30.820000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] This may mean this GPU is too small for max_autotune mode.
+E0923 01:50:30.820000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:30.820000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] . 
+E0923 01:50:30.820000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Ignoring this choice.
+E0923 01:50:30.825000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Runtime error during autotuning: 
+E0923 01:50:30.825000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] CUDA driver error: invalid argument
+E0923 01:50:30.825000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:30.825000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] This may mean this GPU is too small for max_autotune mode.
+E0923 01:50:30.825000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:30.825000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] . 
+E0923 01:50:30.825000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Ignoring this choice.
+AUTOTUNE bmm(400000x3x3, 400000x3x3)
+strides: [9, 3, 1], [9, 3, 1]
+dtypes: torch.float32, torch.float32
+  bmm 0.7705 ms 100.0% 
+  triton_bmm_93 inf ms 0.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=16, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=1, num_warps=1
+  triton_bmm_94 inf ms 0.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=16, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=1
+  triton_bmm_95 inf ms 0.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=16, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=1
+  triton_bmm_96 inf ms 0.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=16, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=1
+  triton_bmm_97 inf ms 0.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=16, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=1
+SingleProcess AUTOTUNE benchmarking takes 0.0562 seconds and 0.0001 seconds precompiling for 6 choices
+AUTOTUNE mm(50000x64, 64x90)
+strides: [64, 1], [1, 64]
+dtypes: torch.float32, torch.float32
+  triton_mm_181 0.0177 ms 100.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_188 0.0178 ms 99.3% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_178 0.0179 ms 98.7% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  triton_mm_185 0.0184 ms 96.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+  triton_mm_187 0.0185 ms 95.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=128, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=8
+  triton_mm_177 0.0192 ms 91.8% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=4
+  triton_mm_182 0.0196 ms 90.2% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=32, BLOCK_M=64, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=8
+  triton_mm_180 0.0196 ms 89.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=64, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=4
+  triton_mm_190 0.0196 ms 89.9% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=128, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=8
+  triton_mm_183 0.0202 ms 87.5% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=64, BLOCK_M=64, BLOCK_N=128, EVEN_K=True, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=4
+SingleProcess AUTOTUNE benchmarking takes 0.1822 seconds and 0.0002 seconds precompiling for 20 choices
+E0923 01:50:31.046000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Runtime error during autotuning: 
+E0923 01:50:31.046000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] CUDA driver error: invalid argument
+E0923 01:50:31.046000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:31.046000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] This may mean this GPU is too small for max_autotune mode.
+E0923 01:50:31.046000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:31.046000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] . 
+E0923 01:50:31.046000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Ignoring this choice.
+E0923 01:50:31.051000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Runtime error during autotuning: 
+E0923 01:50:31.051000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] CUDA driver error: invalid argument
+E0923 01:50:31.051000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:31.051000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] This may mean this GPU is too small for max_autotune mode.
+E0923 01:50:31.051000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:31.051000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] . 
+E0923 01:50:31.051000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Ignoring this choice.
+E0923 01:50:31.055000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Runtime error during autotuning: 
+E0923 01:50:31.055000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] CUDA driver error: invalid argument
+E0923 01:50:31.055000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:31.055000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] This may mean this GPU is too small for max_autotune mode.
+E0923 01:50:31.055000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:31.055000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] . 
+E0923 01:50:31.055000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Ignoring this choice.
+E0923 01:50:31.059000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Runtime error during autotuning: 
+E0923 01:50:31.059000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] CUDA driver error: invalid argument
+E0923 01:50:31.059000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:31.059000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] This may mean this GPU is too small for max_autotune mode.
+E0923 01:50:31.059000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:31.059000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] . 
+E0923 01:50:31.059000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Ignoring this choice.
+E0923 01:50:31.063000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Runtime error during autotuning: 
+E0923 01:50:31.063000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] CUDA driver error: invalid argument
+E0923 01:50:31.063000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:31.063000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] This may mean this GPU is too small for max_autotune mode.
+E0923 01:50:31.063000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] 
+E0923 01:50:31.063000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] . 
+E0923 01:50:31.063000 2559660 /mnt/ffs24/home/khanmd/.conda/envs/torch_pyg/lib/python3.12/site-packages/torch/_inductor/select_algorithm.py:2691] [2/0] Ignoring this choice.
+AUTOTUNE bmm(400000x3x3, 400000x3x3)
+strides: [9, 3, 1], [9, 3, 1]
+dtypes: torch.float32, torch.float32
+  bmm 0.7704 ms 100.0% 
+  triton_bmm_191 inf ms 0.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=16, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=1, num_warps=1
+  triton_bmm_192 inf ms 0.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=16, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=2, num_warps=1
+  triton_bmm_193 inf ms 0.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=16, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=5, num_warps=1
+  triton_bmm_194 inf ms 0.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=16, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=3, num_warps=1
+  triton_bmm_195 inf ms 0.0% ACC_TYPE='tl.float32', ALLOW_TF32=True, BLOCK_K=16, BLOCK_M=16, BLOCK_N=16, EVEN_K=False, GROUP_M=8, USE_FAST_ACCUM=False, num_stages=4, num_warps=1
+SingleProcess AUTOTUNE benchmarking takes 0.0549 seconds and 0.0001 seconds precompiling for 6 choices
+skipping cudagraphs due to graph with symbolic shapes inputs and config.triton.cudagraph_skip_dynamic_graphs=True. Found from   File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_nbody_moments.py", line 677, in forward
+    s_a, v_a, Q = _moments_from_buf(buf_chunk)
+  File "/mnt/gs21/scratch/khanmd/nemo_v3_timing/src/gpu_nbody_moments.py", line 582, in _moments_from_buf
+    v_a = buf[:, :, 1:4]
+
+
+[MobMoments] diag correction time: 31520.650 ms
+[Mob_Nbody] Post-base path time: 110661.113 ms
+[MobFMM] peak GPU memory: allocated 881.25 MB, reserved 1408.00 MB
+[MobFMM] near-field construction: 27.711 ms
+[MobFMM] near-field operator time: 110689.883 ms
+[MobFMM] overall Nearfield time: 110,734.383 ms
+[MobFMM] near-field particles updates per sec: 451.53
+[MobFMM] total GPU time: 110762.516 ms
+[MobFMM] total particles updates per sec: 451.42
+
+
+[MobFMM] far-field FMM GPU time: 10.133 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+Total near-field pairs found: 2449228
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.93 ms
+no of NN interactions: 2449228
+[Mob_Nbody] Base velocity compute time: 0.912 ms
+[MobMoments] pair moments time: 17.740 ms (1224614 pairs)
+[MobMoments] diag correction time: 3.316 ms
+[Mob_Nbody] Post-base path time: 21.068 ms
+[MobFMM] peak GPU memory: allocated 896.89 MB, reserved 1408.00 MB
+[MobFMM] near-field construction: 1.061 ms
+[MobFMM] near-field operator time: 22.040 ms
+[MobFMM] overall Nearfield time: 23.273 ms
+[MobFMM] near-field particles updates per sec: 2,148,377.57
+[MobFMM] total GPU time: 33.871 ms
+[MobFMM] total particles updates per sec: 1,476,181.83
+
+
+[MobFMM] far-field FMM GPU time: 9.682 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+Total near-field pairs found: 2449228
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.63 ms
+no of NN interactions: 2449228
+[Mob_Nbody] Base velocity compute time: 0.750 ms
+[MobMoments] pair moments time: 17.673 ms (1224614 pairs)
+[MobMoments] diag correction time: 3.309 ms
+[Mob_Nbody] Post-base path time: 20.992 ms
+[MobFMM] peak GPU memory: allocated 896.89 MB, reserved 1408.00 MB
+[MobFMM] near-field construction: 0.702 ms
+[MobFMM] near-field operator time: 21.793 ms
+[MobFMM] overall Nearfield time: 22.605 ms
+[MobFMM] near-field particles updates per sec: 2,211,853.78
+[MobFMM] total GPU time: 32.683 ms
+[MobFMM] total particles updates per sec: 1,529,830.42
+
+
+[MobFMM] far-field FMM GPU time: 9.622 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+Total near-field pairs found: 2449228
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.63 ms
+no of NN interactions: 2449228
+[Mob_Nbody] Base velocity compute time: 0.748 ms
+[MobMoments] pair moments time: 17.695 ms (1224614 pairs)
+[MobMoments] diag correction time: 3.297 ms
+[Mob_Nbody] Post-base path time: 21.001 ms
+[MobFMM] peak GPU memory: allocated 896.89 MB, reserved 1408.00 MB
+[MobFMM] near-field construction: 0.693 ms
+[MobFMM] near-field operator time: 21.799 ms
+[MobFMM] overall Nearfield time: 22.599 ms
+[MobFMM] near-field particles updates per sec: 2,212,533.50
+[MobFMM] total GPU time: 32.624 ms
+[MobFMM] total particles updates per sec: 1,532,624.57
+
+
+[MobFMM] far-field FMM GPU time: 9.704 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+Total near-field pairs found: 2449228
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.64 ms
+no of NN interactions: 2449228
+[Mob_Nbody] Base velocity compute time: 0.772 ms
+[MobMoments] pair moments time: 17.680 ms (1224614 pairs)
+[MobMoments] diag correction time: 3.287 ms
+[Mob_Nbody] Post-base path time: 20.976 ms
+[MobFMM] peak GPU memory: allocated 896.89 MB, reserved 1408.00 MB
+[MobFMM] near-field construction: 0.710 ms
+[MobFMM] near-field operator time: 21.801 ms
+[MobFMM] overall Nearfield time: 22.620 ms
+[MobFMM] near-field particles updates per sec: 2,210,389.55
+[MobFMM] total GPU time: 32.743 ms
+[MobFMM] total particles updates per sec: 1,527,064.41
+
+
+[MobFMM] far-field FMM GPU time: 9.603 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+Total near-field pairs found: 2449228
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.65 ms
+no of NN interactions: 2449228
+[Mob_Nbody] Base velocity compute time: 0.758 ms
+[MobMoments] pair moments time: 18.234 ms (1224614 pairs)
+[MobMoments] diag correction time: 3.276 ms
+[Mob_Nbody] Post-base path time: 21.522 ms
+[MobFMM] peak GPU memory: allocated 896.89 MB, reserved 1408.00 MB
+[MobFMM] near-field construction: 0.721 ms
+[MobFMM] near-field operator time: 22.331 ms
+[MobFMM] overall Nearfield time: 23.173 ms
+[MobFMM] near-field particles updates per sec: 2,157,645.47
+[MobFMM] total GPU time: 33.173 ms
+[MobFMM] total particles updates per sec: 1,507,239.98
+
+
+[MobFMM] far-field FMM GPU time: 9.706 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+Total near-field pairs found: 2449228
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.68 ms
+no of NN interactions: 2449228
+[Mob_Nbody] Base velocity compute time: 0.780 ms
+[MobMoments] pair moments time: 17.688 ms (1224614 pairs)
+[MobMoments] diag correction time: 3.293 ms
+[Mob_Nbody] Post-base path time: 20.991 ms
+[MobFMM] peak GPU memory: allocated 896.89 MB, reserved 1408.00 MB
+[MobFMM] near-field construction: 0.753 ms
+[MobFMM] near-field operator time: 21.825 ms
+[MobFMM] overall Nearfield time: 22.690 ms
+[MobFMM] near-field particles updates per sec: 2,203,618.51
+[MobFMM] total GPU time: 32.808 ms
+[MobFMM] total particles updates per sec: 1,524,003.71
+
+
+[MobFMM] far-field FMM GPU time: 9.910 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+Total near-field pairs found: 2449228
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.72 ms
+no of NN interactions: 2449228
+[Mob_Nbody] Base velocity compute time: 0.824 ms
+[MobMoments] pair moments time: 17.933 ms (1224614 pairs)
+[MobMoments] diag correction time: 3.290 ms
+[Mob_Nbody] Post-base path time: 21.233 ms
+[MobFMM] peak GPU memory: allocated 896.89 MB, reserved 1408.00 MB
+[MobFMM] near-field construction: 0.818 ms
+[MobFMM] near-field operator time: 22.118 ms
+[MobFMM] overall Nearfield time: 23.068 ms
+[MobFMM] near-field particles updates per sec: 2,167,549.86
+[MobFMM] total GPU time: 33.543 ms
+[MobFMM] total particles updates per sec: 1,490,622.14
+
+
+[MobFMM] far-field FMM GPU time: 9.950 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+Total near-field pairs found: 2449228
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.73 ms
+no of NN interactions: 2449228
+[Mob_Nbody] Base velocity compute time: 0.812 ms
+[MobMoments] pair moments time: 17.869 ms (1224614 pairs)
+[MobMoments] diag correction time: 3.290 ms
+[Mob_Nbody] Post-base path time: 21.169 ms
+[MobFMM] peak GPU memory: allocated 896.89 MB, reserved 1408.00 MB
+[MobFMM] near-field construction: 0.822 ms
+[MobFMM] near-field operator time: 22.039 ms
+[MobFMM] overall Nearfield time: 22.990 ms
+[MobFMM] near-field particles updates per sec: 2,174,863.17
+[MobFMM] total GPU time: 33.509 ms
+[MobFMM] total particles updates per sec: 1,492,131.06
+
+
+[MobFMM] far-field FMM GPU time: 9.899 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+Total near-field pairs found: 2449228
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.72 ms
+no of NN interactions: 2449228
+[Mob_Nbody] Base velocity compute time: 0.810 ms
+[MobMoments] pair moments time: 17.646 ms (1224614 pairs)
+[MobMoments] diag correction time: 3.302 ms
+[Mob_Nbody] Post-base path time: 20.958 ms
+[MobFMM] peak GPU memory: allocated 896.89 MB, reserved 1408.00 MB
+[MobFMM] near-field construction: 0.815 ms
+[MobFMM] near-field operator time: 21.825 ms
+[MobFMM] overall Nearfield time: 22.770 ms
+[MobFMM] near-field particles updates per sec: 2,195,913.47
+[MobFMM] total GPU time: 33.220 ms
+[MobFMM] total particles updates per sec: 1,505,123.22
+
+
+[MobFMM] far-field FMM GPU time: 9.920 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+Total near-field pairs found: 2449228
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.79 ms
+no of NN interactions: 2449228
+[Mob_Nbody] Base velocity compute time: 0.830 ms
+[MobMoments] pair moments time: 17.899 ms (1224614 pairs)
+[MobMoments] diag correction time: 3.322 ms
+[Mob_Nbody] Post-base path time: 21.230 ms
+[MobFMM] peak GPU memory: allocated 896.89 MB, reserved 1408.00 MB
+[MobFMM] near-field construction: 0.883 ms
+[MobFMM] near-field operator time: 22.122 ms
+[MobFMM] overall Nearfield time: 23.138 ms
+[MobFMM] near-field particles updates per sec: 2,160,978.67
+[MobFMM] total GPU time: 33.625 ms
+[MobFMM] total particles updates per sec: 1,486,993.40
+
+
+[MobFMM] far-field FMM GPU time: 9.904 ms
+Building spatial grid for neighbor search...
+Positions shape: (50000,)
+Counting neighbors per particle...
+Total near-field pairs found: 2449228
+Collecting neighbor edge indexes...
+Warp::HashGrid took 0.72 ms
+no of NN interactions: 2449228
+[Mob_Nbody] Base velocity compute time: 0.809 ms
+[MobMoments] pair moments time: 17.902 ms (1224614 pairs)
+[MobMoments] diag correction time: 3.316 ms
+[Mob_Nbody] Post-base path time: 21.227 ms
+[MobFMM] peak GPU memory: allocated 896.89 MB, reserved 1408.00 MB
+[MobFMM] near-field construction: 0.815 ms
+[MobFMM] near-field operator time: 22.099 ms
+[MobFMM] overall Nearfield time: 23.043 ms
+[MobFMM] near-field particles updates per sec: 2,169,852.65
+[MobFMM] total GPU time: 33.516 ms
+[MobFMM] total particles updates per sec: 1,491,803.46
+
+
+@@ N=50,000  total=33.52 ms (+-0.14)  far=9.90 ms  1.492 M updates/s  VRAM 0.88 GB
+
+wrote 1 rows -> artifacts/logs/h200_v3_f32l2/h200v3_smoke_17620384/fig12_smoke.csv
+
+ N          total ms    far ms   M updates/s   VRAM GB
+    50,000     33.52      9.90        1.492      0.88

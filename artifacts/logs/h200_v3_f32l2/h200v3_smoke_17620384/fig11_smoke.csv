@@ -1,0 +1,4 @@
+backend,n,operator,far_ms,self2b_ms,nbody_ms,nsearch_ms,total_sum_ms,total_gpu_ms,unaccounted_ms,overall_near_ms,near_pairs,peak_vram_gb,peak_total_gb,mac,theta,pdeg,max_leaf,gpu,git_sha,source,near_op,cutoff,fp32_level
+widebvh,10000,FMM_2body_RPY,7.260999999999999,1.1320000000000001,0.0,0.731,9.123999999999999,9.6445,0.520500000000002,1.863,475506,0.40443359375,,0.8,nan,7,1024,NVIDIA H200,bc4b227,measured,moments-v3,8.0,2
+widebvh,10000,FMM_2body_NN,7.2755,0.644,0.0,0.723,8.6425,9.166,0.5235000000000003,1.367,475506,0.037197265625,,0.8,nan,7,1024,NVIDIA H200,bc4b227,measured,moments-v3,8.0,2
+widebvh,10000,FMM_Nbody_Moments,7.3035,0.509,5.1645,0.729,13.706,14.3995,0.6935000000000002,6.573499999999999,475506,0.318896484375,,0.8,nan,7,1024,NVIDIA H200,bc4b227,measured,moments-v3,8.0,2
