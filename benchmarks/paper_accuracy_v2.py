@@ -105,7 +105,8 @@ SELECTION = {"mom_old": (10, 6.0, 6.0), "mom_v2_k10_rc6": (10, 6.0, 6.0), "mom_v
 DIAG_OPS = {"M_mom_v2_kinf_rc8_pc8_diag": ("mom_v2_kinf_rc8_pc8", "diag_v2_pc8"),
             "M_mom_v2_kinf_rc8_pc8c_diag": ("mom_v2_kinf_rc8_pc8c", "diag_v2_pc8c"),
             "M_mom_v3_nb8lin_tr2_pc8c_diag": ("mom_v3_nb8lin_tr2_pc8c", "diag_v2_pc8c")}
-PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summations", "M_nbody_b1": "NeMO n-body (b1)",
+PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summations",
+                "M_2b_sw8": "NeMO 2-body (2b NN to d=8)", "M_3b_sw8": "NeMO 3-body summations (2b NN to d=8, triplets <= 6)", "M_nbody_b1": "NeMO n-body (b1)",
                 "M_nbody_gpu": "NeMO n-body (GPU, Fig 4)", "mfs_coarse": "MFS coarse",
                 "M_nbody_b1_v2": "b1 retrained on v2", "M_mom_old": "moments (old data)",
                 "M_mom_v2_k10_rc6": "moments v2 (K=10, r_c=6)", "M_mom_v2_kinf_rc6": "moments v2 (all, r_c=6)",
@@ -126,7 +127,7 @@ PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summ
                 "HIGNN_full": "HIGNN 2-body + 3-body + self",
                 "SD": "Stokesian Dynamics (FTS far field + pairwise lubrication)",
                 "SD_Minf": "Stokesian Dynamics far field only (FTS multipole, no lubrication)"}
-OP_ORDER = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_gpu", "M_nbody_b1_v2", "M_mom_old",
+OP_ORDER = ["M_rpy", "M_2b", "M_3b", "M_2b_sw8", "M_3b_sw8", "M_nbody_b1", "M_nbody_gpu", "M_nbody_b1_v2", "M_mom_old",
             "M_mom_v2_k10_rc6", "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8",
             "M_mom_v2_kinf_rc8_pc8_diag", "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag",
             "M_mom_v3_nb5lin_tr2_pc8c", "M_mom_v3_nb5lin_tr2_pc8c_diag",
@@ -247,13 +248,15 @@ def _assert_layout(op, pair_key: str):
 
 
 def build_op(name: str):
-    if name == "M_rpy" or name == "M_2b":
+    if name in ("M_rpy", "M_2b", "M_2b_sw8"):
         from src.mob_op_2b_combined import NNMob
-        return NNMob(SHAPE, SELF_PATH, TWO_BODY_PATH, nn_only=False, rpy_only=(name == "M_rpy"))
-    if name == "M_3b":
+        return NNMob(SHAPE, SELF_PATH, TWO_BODY_PATH, nn_only=False, rpy_only=(name == "M_rpy"),
+                     switch_dist=8.0 if name == "M_2b_sw8" else 6.0)
+    if name in ("M_3b", "M_3b_sw8"):  # _sw8: the moments stack's 2b base (NN to d=8); triplets stay within 6
         from src.mob_op_3body import NNMob3B
         return NNMob3B(shape=SHAPE, self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_PATH, three_nn_path=MODELS["3b"],
-                       nn_only=False, rpy_only=False, switch_dist=6.0, triplet_cutoff=6.0)
+                       nn_only=False, rpy_only=False, switch_dist=8.0 if name == "M_3b_sw8" else 6.0,
+                       triplet_cutoff=6.0)
     if name in ("M_nbody_b1", "M_nbody_b1_v2"):
         from src.mob_op_nbody import Mob_Op_Nbody
         return Mob_Op_Nbody(shape=SHAPE, self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_PATH,
@@ -368,13 +371,13 @@ class _GpuRpyAdapter(_GpuMomentsAdapter):
         return self.op._self_velocity(F, viscosity), none, none
 
 
-CPU_OPS = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_b1_v2", "M_mom_old", "M_mom_v2_k10_rc6",
+CPU_OPS = ["M_rpy", "M_2b", "M_3b", "M_2b_sw8", "M_3b_sw8", "M_nbody_b1", "M_nbody_b1_v2", "M_mom_old", "M_mom_v2_k10_rc6",
            "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8", "M_mom_v2_kinf_rc8_pc8_diag",
            "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag",
            "M_mom_v3_nb8lin_tr2_pc8c", "M_mom_v3_nb8lin_tr2_pc8c_diag"]
 GPU_OPS = ["mfs_coarse", "M_nbody_gpu", "M_mom_gpu_pc8c_diag", "M_mom_gpu_v3_diag", "M_mom_gpu_v3_diag_fp16", "M_rpy_gpu",
            "HIGNN_2b", "HIGNN_full"]
-OP_MODEL = {"M_3b": "3b", "M_nbody_b1": "b1", "M_nbody_b1_v2": "b1_v2", "M_mom_old": "mom_old",
+OP_MODEL = {"M_3b": "3b", "M_3b_sw8": "3b", "M_nbody_b1": "b1", "M_nbody_b1_v2": "b1_v2", "M_mom_old": "mom_old",
             "M_mom_v2_k10_rc6": "mom_v2_k10_rc6", "M_mom_v2_kinf_rc6": "mom_v2_kinf_rc6",
             "M_mom_v2_kinf_rc8": "mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8": "mom_v2_kinf_rc8_pc8",
             "M_mom_v2_kinf_rc8_pc8_diag": ("mom_v2_kinf_rc8_pc8", "diag_v2_pc8"),

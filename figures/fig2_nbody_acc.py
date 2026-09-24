@@ -6,16 +6,20 @@ The four stages are the shipped operators, each evaluated end-to-end on sampled 
 configurations (truth = the configuration's full MFS grand mobility matrix from data/multibody_v2/):
   2b       2-body only                    NNMob (self + 2-body NN within 6, RPY beyond)
   b1       + n-body (l=1)                 Mob_Op_Nbody, nbody_pinn_b1_v2.pt (K=10, r_c=6)
-  moments  + n-body moments (l=2)         Mob_Op_Nbody_Moments, nbody_moments_v2_kinf_rc8_pc8.pt
+  moments  + n-body moments (l=2)         Mob_Op_Nbody_Moments, v3 pair model
+                                          nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c.pt
                                           (all neighbours, r_c=8, pair_cutoff=switch_dist=8)
-  diag     + learned diagonal             ... + nbody_diag_v2_pc8.pt (locked to pair_cutoff=8)
+  diag     + learned diagonal             ... + nbody_diag_v2_pc8c.pt (locked to pair_cutoff=8)
+Configurations are sampled from the validation split of the pc8c cache (all four families, chain included);
+the figure pools --families (default: the three box families, as in the original Figure 2).
 PRMSE is pooled over all sampled configurations (L2 of the stacked errors / L2 of the stacked truth,
 as in the original Figure 2), translational and rotational separately.
 
-    TORCH_COMPILE_DISABLE=1 python figures/fig2_nbody_acc.py                  # eval + figure
+    TORCH_COMPILE_DISABLE=1 python figures/fig2_nbody_acc.py                  # eval + figures
     python figures/fig2_nbody_acc.py --plot-only                              # re-render from the CSV
 
-Outputs: figures/fig2_nbody_acc.{pdf,png} and figures/fig2_nbody_acc.csv (per-config errors).
+Outputs: figures/fig2_nbody_acc.{pdf,png} (log-scale arrow chart), figures/fig2_nbody_acc_bars.{pdf,png}
+(horizontal ablation bars, the paper's Figure 2) and figures/fig2_nbody_acc.csv (per-config errors).
 """
 from __future__ import annotations
 
@@ -43,6 +47,8 @@ STAGES = ["2b", "b1", "moments", "diag"]
 STAGE_LABELS = {"2b": "2-body only", "b1": r"+ $n$-body ($\ell=1$)",
                 "moments": r"+ $n$-body moments ($\ell=2$)", "diag": "+ learned diagonal"}
 # Okabe-Ito, warm -> cool; the endpoints are Figure 2's original pair (#D55E00 / #0072B2).
+PAIR_MODEL = "data/models/nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c.pt"
+DIAG_MODEL = "data/models/nbody_diag_v2_pc8c.pt"
 STAGE_COLORS = {"2b": "#D55E00", "b1": "#E69F00", "moments": "#56B4E9", "diag": "#0072B2"}
 C_CONN = "#BDBDBD"
 INK = "#2F2F2F"
@@ -54,12 +60,16 @@ def build_ops():
     from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
 
     common = dict(shape="sphere", self_nn_path=SELF_PATH, two_nn_path=TWO_BODY_PATH)
-    mom = dict(common, nbody_nn_path="data/models/nbody_moments_v2_kinf_rc8_pc8.pt",
+    mom = dict(common, nbody_nn_path=PAIR_MODEL,
                switch_dist=8.0, pair_cutoff=8.0, neighbor_cutoff=8.0, max_neighbors=None)
-    return {"2b": NNMob(**common),
-            "b1": Mob_Op_Nbody(**common, nbody_nn_path="data/models/nbody_pinn_b1_v2.pt", switch_dist=6.0),
-            "moments": Mob_Op_Nbody_Moments(**mom),
-            "diag": Mob_Op_Nbody_Moments(**mom, diag_nn_path="data/models/nbody_diag_v2_pc8.pt", diag_cutoff=8.0)}
+    ops = {"2b": NNMob(**common),
+           "b1": Mob_Op_Nbody(**common, nbody_nn_path="data/models/nbody_pinn_b1_v2.pt", switch_dist=6.0),
+           "moments": Mob_Op_Nbody_Moments(**mom),
+           "diag": Mob_Op_Nbody_Moments(**mom, diag_nn_path=DIAG_MODEL, diag_cutoff=8.0)}
+    for stage in ("moments", "diag"):
+        lay = ops[stage].nbody_layout
+        assert (lay["version"], lay["bases"]) == ("v3", "linear_tr2"), lay
+    return ops
 
 
 def evaluate(args) -> pd.DataFrame:
@@ -77,14 +87,16 @@ def evaluate(args) -> pd.DataFrame:
     picked = picked[np.argsort(cfg["shard"][picked], kind="stable")]  # one shard in memory at a time
     ops = build_ops()
     rows, t0 = [], time.time()
-    shard_id, shard_M = -1, None
+    shard_id, shard = -1, None
     for k, c in enumerate(picked):
         sh = int(cfg["shard"][c])
         if sh != shard_id:
-            shard_id, shard_M = sh, np.load(shards[sh])["M"]
-        P = int(cfg["P"][c])
+            shard_id, shard = sh, np.load(shards[sh])
+        P, i = int(cfg["P"][c]), int(cfg["index"][c])
         pos = cfg["positions"][c, :P].astype(np.float64)
-        M = shard_M[int(cfg["index"][c])].astype(np.float64)
+        # the cache's shard ids index the sorted glob at build time; a cache older than a family added later is stale
+        assert np.allclose(shard["positions"][i][:P], pos, atol=1e-5), f"{args.cache}: shard ids out of date"
+        M = shard["M"][i].astype(np.float64)
         F = np.random.default_rng([args.seed, int(c)]).normal(size=(P, 6))
         v_true = (M @ F.reshape(-1)).reshape(P, 6)
         config = np.zeros((P, 7)); config[:, :3] = pos; config[:, 6] = 1.0
@@ -166,14 +178,47 @@ def plot(df: pd.DataFrame, out_stem: Path):
     print(f"-> {out_stem}.pdf, {out_stem}.png")
 
 
+def plot_bars(df: pd.DataFrame, out_stem: Path):
+    """Horizontal ablation bars: one panel per velocity type, stages top to bottom, value at each tip."""
+    import matplotlib.pyplot as plt
+
+    p = pooled_prmse(df)
+    groups = [("Translational PRMSE", "lin"), ("Rotational PRMSE", "ang")]
+    y = np.arange(len(STAGES))
+    xmax = p.values.max() * 1.22  # shared scale, room for the tip labels
+    fig, axes = plt.subplots(1, 2, figsize=(6.0, 1.9), sharey=True, gridspec_kw=dict(wspace=0.08))
+    for ax, (title, col) in zip(axes, groups):
+        vals = p[col].values
+        ax.barh(y, vals, height=0.62, color=[STAGE_COLORS[s] for s in STAGES], edgecolor="none", zorder=2)
+        for yi, v in zip(y, vals):
+            ax.text(v + xmax * 0.015, yi, f"{v:.1f}%", ha="left", va="center", fontsize=8.5, color=INK)
+        ax.set_title(title, fontsize=9, color=INK, loc="left", pad=4)
+        ax.set_xlim(0, xmax)
+        ax.set_xticks([])
+        ax.tick_params(axis="y", length=0, pad=4)
+        for sp in ("top", "right", "bottom"):
+            ax.spines[sp].set_visible(False)
+        ax.spines["left"].set_color("#BDBDBD")
+        ax.spines["left"].set_linewidth(0.8)
+    axes[0].set_yticks(y)
+    axes[0].set_yticklabels([STAGE_LABELS[s] for s in STAGES], fontsize=8.5, color=INK)
+    axes[0].set_ylim(len(STAGES) - 0.5, -0.5)  # 2-body on top
+    for ext in ("pdf", "png"):
+        fig.savefig(out_stem.with_suffix(f".{ext}"), dpi=600, bbox_inches="tight")
+    print(f"-> {out_stem}.pdf, {out_stem}.png")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--cache", type=Path, default=Path("data/multibody_v2_cache_pc8"),
+    ap.add_argument("--cache", type=Path, default=Path("data/multibody_v2_cache_pc8c"),
                     help="only configs.npz (positions, shard indices, is_val) is read")
     ap.add_argument("--per-item", type=int, default=6, help="validation configurations per (family, param, P)")
     ap.add_argument("--max-configs", type=int, default=None, help="cap on sampled configs (smoke tests)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, default=Path("figures/fig2_nbody_acc"))
+    ap.add_argument("--out-bars", type=Path, default=Path("figures/fig2_nbody_acc_bars"))
+    ap.add_argument("--families", nargs="+", default=["uniform", "grown", "lattice"], choices=FAMILIES,
+                    help="families pooled in the figure (all are evaluated and broken down in the printout)")
     ap.add_argument("--plot-only", action="store_true", help="re-render the figure from the existing CSV")
     args = ap.parse_args()
     csv = args.out.with_suffix(".csv")
@@ -183,7 +228,9 @@ def main():
         df = evaluate(args)
         df.to_csv(csv, index=False, float_format="%.8g")
         print(f"-> {csv} ({df['cfg'].nunique()} configs x {len(STAGES)} stages)")
-    plot(df, args.out)
+    fig_df = df[df["family"].isin(args.families)]
+    plot(fig_df, args.out)
+    plot_bars(fig_df, args.out_bars)
 
 
 if __name__ == "__main__":

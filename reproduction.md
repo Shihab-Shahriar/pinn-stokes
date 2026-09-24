@@ -13,7 +13,12 @@ TORCH_COMPILE_DISABLE=1 python figures/fig2_nbody_acc.py    # eval + figure
 python figures/fig2_nbody_acc.py --plot-only                # re-render from its CSV
 ```
 
-Out: `figures/fig2_nbody_acc.{pdf,png}` (+ per-config errors in `figures/fig2_nbody_acc.csv`).
+Out: `figures/fig2_nbody_acc_bars.{pdf,png}` (horizontal ablation bars — the paper's Figure 2, copied to
+`~/nemo/figs/fig2_nbody_acc_bars.pdf`), the older log-scale arrow chart `figures/fig2_nbody_acc.{pdf,png}`,
+and per-config errors in `figures/fig2_nbody_acc.csv`.
+Stack: 2-body → b1 (ℓ=1) → moments **v3** (`nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c`) → + `nbody_diag_v2_pc8c`;
+configurations from the `data/multibody_v2_cache_pc8c` validation split (the pc8 cache's shard ids predate the
+`chain` shards and now point at the wrong shards — the script asserts positions against the shard).
 
 ## Figures 3 & 4 — accuracy vs φ (fixed N) and vs N
 
@@ -29,6 +34,20 @@ python benchmarks/paper_accuracy_v2.py --summary --figures
 Rows accumulate in `data/paper_accuracy_v2.csv`.
 Out: `figures/paper_v2_fig3_P{200,300}.*`, `figures/paper_v2_fig4_*.*`.
 Optional: `--gpu-ops` adds mfs_coarse + the paper's GPU n-body operator (needs CUDA + warp).
+
+The paper-ready Figure 3 (seed-mean PRMSE vs φ at N = 200, original four series) plots the v3 stack
+with every learned term cut off at 8 radii: `M_rpy`, `M_2b_sw8` (2-body NN to d = 8), `M_3b_sw8` (same base +
+triplets within 6) and `M_mom_v3_nb8lin_tr2_pc8c_diag`. **Early look only (2026-09-24):** the 12 N = 200 truths at
+φ ∈ {0.05, 0.1, 0.15, 0.2}, seeds 123–125, are still the Dec-2025 generator's (min gap 0.05, uncentred box) and inflate
+those points. To finish: move them aside, `--truth-only` for those cells (2 fresh ones are already in
+`tmp/nbody_moments_truth/fresh_gap01/`), re-score every registered op there (no `--skip-done`), drop the removed
+ablation variants' rows on those cells, re-render. Tracked in `~/nemo/update_plan.md` (BLOCKING section).
+
+```sh
+TORCH_COMPILE_DISABLE=1 python benchmarks/paper_accuracy_v2.py --exp fig3 --N 200 \
+    --ops M_rpy M_2b_sw8 M_3b_sw8 M_mom_v3_nb8lin_tr2_pc8c_diag --workers 8 --skip-done
+python figures/fig3_phi_acc.py               # -> figures/fig3_phi_acc.{pdf,png} (paper: figs/fig3_phi_acc.pdf)
+```
 
 The paper's Figure 4 (seed-mean PRMSE vs N, random forcing, N = 20–1000, φ = 2.5/5/10/15 %, one curve per φ) plots
 `M_mom_gpu_v3_diag`: the GPU twin of `M_mom_v3_nb8lin_tr2_pc8c_diag` (fp32 MLP; the two match to 1e-5 points at N = 200).
