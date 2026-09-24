@@ -698,6 +698,7 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
         far_field_2b: Optional[str] = None,
         switch_dist: float = 8.0,
         neighbor_cutoff: float = 8.0,
+        pair_cutoff: Optional[float] = None,
         mean_dist_s: float = DEFAULT_MEAN_DIST_S,
         diag_nn_path: Optional[str] = None,
         two_body_chunk_size: int = DEFAULT_TWO_BODY_CHUNK,
@@ -723,6 +724,13 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
         # near pair is corrected, no RPY pair ever is. The diagonal labels subtract
         # K_s over d <= pair_cutoff while the operator adds K_s over d <= switch;
         # they must coincide or K_s is double-counted (see the CPU operator).
+        # pair_cutoff < switch_dist (a timing variant, not a trained operating
+        # point) corrects only the near pairs with d <= pair_cutoff; the 2b NN and
+        # the diagonal still run over the full switch-distance list, so the
+        # diagonal's K_s bookkeeping above is unchanged.
+        self.pair_cutoff = float(switch_dist if pair_cutoff is None else pair_cutoff)
+        assert 0 < self.pair_cutoff <= float(switch_dist), \
+            "n-body correction must not be applied to RPY pairs"
         self.neighbor_cutoff = float(neighbor_cutoff)
         self.mean_dist_s = float(mean_dist_s)
         self.moments_pair_chunk = int(moments_pair_chunk)
@@ -847,6 +855,9 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
         keep = t_idx < s_idx                     # unordered pairs, once each
         t_u = t_idx[keep].contiguous()
         s_u = s_idx[keep].contiguous()
+        if self.pair_cutoff < self.switch_dist:
+            near = (pos[s_u] - pos[t_u]).square().sum(-1) <= self.pair_cutoff ** 2
+            t_u, s_u = t_u[near].contiguous(), s_u[near].contiguous()
         P = int(t_u.shape[0])
         if P == 0:
             return v

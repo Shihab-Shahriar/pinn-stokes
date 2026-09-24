@@ -327,9 +327,10 @@ def main() -> None:
     ap.add_argument("--pair-chunk", type=int, default=None,
                     help="n-body NN chunk size (default: operator default)")
     ap.add_argument("--near-op", default="baseline",
-                    choices=["baseline", "moments-v3"],
+                    choices=["baseline", "moments-v3", "moments-v3-pc6"],
                     help="near field: baseline = published n-body at switch 6; "
-                         "moments-v3 = current NeMO (moments + diag, switch 8)")
+                         "moments-v3 = current NeMO (moments + diag, switch 8); "
+                         "moments-v3-pc6 = same, moments pairs only d <= 6")
     ap.add_argument("--label", default=None,
                     help="row key in the CSV (default: the backend name); "
                          "give each configuration its own label so runs do "

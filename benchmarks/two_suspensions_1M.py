@@ -207,10 +207,13 @@ def main(theta, benchmark_mode=True, t_final=0.5, *, mac=None,
     # switch -- and with it the treecode's nearCutoff -- moves to 8 as well).
     # "moments-v3" is the adopted v3 pair model (split TR/RT corners, chain-fixed
     # pc8c training) with the matching pc8c diagonal, under the same constraints.
-    if near_op in ("moments", "moments-v3"):
+    # "moments-v3-pc6" (timing variant): v3, but only pairs with d <= 6 get the
+    # moments correction; the 2b NN and the diagonal still run out to 8.
+    if near_op in ("moments", "moments-v3", "moments-v3-pc6"):
         pair_name, diag_name = {
             "moments": ("nbody_moments_v2_kinf_rc8_pc8", "nbody_diag_v2_pc8"),
             "moments-v3": ("nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c", "nbody_diag_v2_pc8c"),
+            "moments-v3-pc6": ("nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c", "nbody_diag_v2_pc8c"),
         }[near_op]
         print(f"Initializing Mob_Nbody_Moments_Torch ({pair_name} + {diag_name})...")
         near_cutoff = 8.0
@@ -225,6 +228,7 @@ def main(theta, benchmark_mode=True, t_final=0.5, *, mac=None,
             near_field_2b="nn",
             far_field_2b=None,
             switch_dist=near_cutoff,
+            pair_cutoff=6.0 if near_op == "moments-v3-pc6" else None,
             two_body_chunk_size=two_body_chunk,
         )
     else:
@@ -489,13 +493,14 @@ if __name__ == "__main__":
                     help="pairs per two-body NN chunk (default %(default)s)")
     ap.add_argument("--pair-chunk", type=int, default=DEFAULT_PAIR_CHUNK,
                     help="pairs per n-body NN chunk (default %(default)s)")
-    ap.add_argument("--near-op", choices=("baseline", "moments", "moments-v3"),
+    ap.add_argument("--near-op", choices=("baseline", "moments", "moments-v3", "moments-v3-pc6"),
                     default="baseline",
                     help="near-field operator: 'baseline' = published stack "
                          "(old n-body, switch 6), 'moments' = pc8 moments pair "
                          "model + learned diagonal (switch 8, far field cutoff "
                          "8 to match), 'moments-v3' = adopted v3 pair model + "
-                         "pc8c diagonal (same switch)")
+                         "pc8c diagonal (same switch), 'moments-v3-pc6' = "
+                         "v3 with the moments correction only on pairs d <= 6")
     ap.add_argument("--log-csv", default=None,
                     help="write a per-step breakdown CSV (far/near/nsearch/"
                          "self2b/nbody/total ms, wall s, peak memory) parsed "

@@ -290,7 +290,10 @@ MOMENTS_SWITCH = 8.0
 # Near-field operator families selectable by the perf scripts' --near-op:
 # name -> (build_near_field kind of the full NeMO operator, near/far cutoff).
 # "baseline" is the published operator (old K=10 n-body, switch 6).
-NEAR_OPS = {"baseline": ("nbody", 6.0), "moments-v3": ("moments", MOMENTS_SWITCH)}
+# "moments-v3-pc6" is a timing variant: the same stack, but only pairs with d <= 6
+# get the moments correction (2b NN and diagonal still out to 8).
+NEAR_OPS = {"baseline": ("nbody", 6.0), "moments-v3": ("moments", MOMENTS_SWITCH),
+            "moments-v3-pc6": ("moments-pc6", MOMENTS_SWITCH)}
 
 # Far-field defaults. `theta` belongs to WarpFMM (Warp BVH, monopole+dipole),
 # `mac` to WidebvhFMM (widebvh BaryStokes); they are different acceptance
@@ -372,7 +375,7 @@ def build_near_field(kind: str, shape: str, near_field_cutoff: float = 6.0):
             far_field_2b=None,
             near_far_switch=near_field_cutoff,
         )
-    if kind == "moments":
+    if kind in ("moments", "moments-pc6"):
         from src.gpu_nbody_moments import Mob_Nbody_Moments_Torch
         assert near_field_cutoff == MOMENTS_SWITCH, \
             f"moments models are locked to switch {MOMENTS_SWITCH}, got {near_field_cutoff}"
@@ -386,6 +389,7 @@ def build_near_field(kind: str, shape: str, near_field_cutoff: float = 6.0):
             near_field_2b="nn",
             far_field_2b=None,
             switch_dist=near_field_cutoff,
+            pair_cutoff=6.0 if kind == "moments-pc6" else None,
         )
     raise ValueError(f"unknown near-field kind {kind!r}")
 

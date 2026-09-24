@@ -23,3 +23,7 @@ widebvh fp32 build: widebvh 03efcdb (laptop `~/envs/nemo-ctx/widebvh`, shipped a
 | fig10b | `data/fig10_far_field_h200_v3_f32l2.csv` | far-field throughput / rel_far / rel_asym vs N, 5k..4M |
 
 Raw data: `artifacts/logs/h200_v3_f32l2/<job>_<jobid>/` (every process log, manifest, slurm .out, CSV copy).
+
+`twodrop_pc6` (2026-09-23): the two-drop job with `--near-op moments-v3-pc6` -- the same v3 stack, but the moments pair
+correction only on pairs with d <= 6 (2b NN, diagonal and the far field's near cutoff stay at 8). A timing variant for
+the HIGNN comparison, not a trained operating point. CSVs `data/{twodrop,far_field_drift}_1M_h200_v3_pc6_f32l2.csv`.
