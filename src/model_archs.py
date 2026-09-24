@@ -510,27 +510,11 @@ class MultiBodyCorrectionB1(nn.Module):
         return torch.einsum('bij,bj->bi', K, force_s)
 
 
-class RadialBands(nn.Module):
-    """Learned radial band weights for the moments encoder: ``w(r) [..., NB] = MLP(bessel_basis(r))`` -- the
-    DimeNet / NequIP / MACE radial basis with its smooth cutoff envelope (``nbody_moments.bessel_basis``) through a
-    small *bias-free* MLP, so each band is a smooth learned function of the midpoint distance that vanishes at ``rc``
-    (the basis is zero there and a bias-free SiLU MLP maps zero to zero).  Replaces the hand-placed tent bands."""
-
-    def __init__(self, nb: int, n_basis: int = nbm.N_RADIAL, hidden: int = 32, rc: float = nbm.RADIAL_RC):
-        super().__init__()
-        self.rc = float(rc)
-        self.n_basis = int(n_basis)
-        self.net = nn.Sequential(nn.Linear(self.n_basis, hidden, bias=False), nn.SiLU(), nn.Linear(hidden, int(nb), bias=False))
-
-    def forward(self, r):
-        return self.net(nbm.bessel_basis(r, self.rc, self.n_basis))
-
-
 class MultiBodyMoments(nn.Module):
     """Moments-based n-body correction m_t^(n) (moments_for_nbody.md sections 3-5; layouts in nbody_moments.py).
 
-    Input row X[:, 7 + 13 NB] = [s_vec(3) | pair scalars(4) | s_a(NB) | v_a(3 NB) | Q_a(9 NB)]
-    (``nbody_moments.moment_features`` for the v2 bands, ``moment_features_knots`` otherwise).  Inside: pair
+    Input row X[:, 111] = [s_vec(3) | pair scalars(4) | s_a(8) | v_a(24) | Q_a(72)]
+    (``nbody_moments.moment_features``, the same for every layout).  Inside: pair
     axis z = -s_vec/|s_vec|, the rotation-invariant swap-even invariants (9 or 5 per band), standardisation
     (``inv_mean``/``inv_std`` buffers), MLP n_in -> 128 -> 64 -> 128 -> 64 -> n_coef (same hidden widths as
     the b1 baseline), per-basis rescaling (``basis_scale`` buffer, RMS Frobenius norm of each basis tensor
@@ -538,39 +522,19 @@ class MultiBodyMoments(nn.Module):
     ``nbody_moments.bases_v3``.  Reciprocity M_ji = M_ij^T and O(3) equivariance hold by construction; the
     buffers are fitted with ``fit_normalisation`` on the training split and travel with the state dict.
 
-    Layout knobs (defaults = the published v2 layout: 8 unit bands, quadratic bases on, no class-2 TR bases,
-    full invariants -> 76 inputs, 93 coefficients, 111-column rows):
-      bands       increasing tent-band knots (None = 0.5 .. 7.5)
+    Layout knobs (defaults = the published v2 layout: quadratic bases on, no class-2 TR bases, full
+    invariants -> 76 inputs, 93 coefficients):
       bases       key of ``nbody_moments.BASES``: "v2" | "linear" | "linear_tr2" | "v2_tr2"
       invariants  key of ``nbody_moments.INVARIANTS``: "full" | "reduced"
-      radial      "knots" (tent bands on ``bands``) | "bessel" (learned radial bands, ``RadialBands``: ``nb`` bands
-                  from ``n_radial`` Bessel functions; ``bands`` must be None).  Rows for learned bands depend on the
-                  parameters, so ``moment_features`` builds them (training and inference).
-    The knots live in the non-persistent buffer ``band_knots`` (kept out of the state dict so v2 ``.wt``
-    files stay loadable, but serialised by TorchScript), and ``nb / use_quadratic / has_tr2 / reduced_inv /
-    n_in / n_coef / x_dim`` are plain attributes, all readable after ``torch.jit.load``
-    (``nbody_moments.layout_of_model`` / ``knots_of``)."""
+    ``nb / use_quadratic / has_tr2 / reduced_inv / n_in / n_coef / x_dim`` are plain attributes, readable after
+    ``torch.jit.load`` (``nbody_moments.layout_of_model``)."""
 
     def __init__(self, mean_dist_s: float, zero_init_head: bool = True, inv_norm: bool = False,
-                 hidden=None, bands=None, bases: str = "v2", invariants: str = "full",
-                 radial: str = "knots", nb=None, n_radial: int = nbm.N_RADIAL):
+                 hidden=None, bases: str = "v2", invariants: str = "full"):
         super().__init__()
-        assert radial in nbm.RADIAL, radial
-        self.learned_radial = radial == "bessel"
-        if self.learned_radial:
-            assert bands is None, "learned radial bands take nb, not knots"
-            knots = []
-            n_bands = nbm.NB if nb is None else int(nb)
-            assert n_bands >= 1 and int(n_radial) >= 1, (n_bands, n_radial)
-        else:
-            knots = list(nbm.V2_KNOTS) if bands is None else [float(b) for b in bands]
-            assert len(knots) >= 2 and all(b > a for a, b in zip(knots, knots[1:])), f"band knots must increase: {knots}"
-            assert knots[0] > 0.0, knots
-            assert nb is None or int(nb) == len(knots), (nb, knots)
-            n_bands = len(knots)
         use_quadratic, has_tr2 = nbm.BASES[bases]
         reduced_inv = nbm.INVARIANTS[invariants]
-        dims = nbm.layout_dims(n_bands, use_quadratic, has_tr2, reduced_inv)
+        dims = nbm.layout_dims(use_quadratic, has_tr2, reduced_inv)
         self.nb = int(dims["nb"])
         self.use_quadratic = bool(use_quadratic)
         self.has_tr2 = bool(has_tr2)
@@ -581,9 +545,6 @@ class MultiBodyMoments(nn.Module):
         self.n_tr2 = int(dims["n_tr2"])
         self.n_coef = int(dims["n_coef"])
         self.x_dim = int(dims["x_dim"])
-        self.register_buffer("band_knots", torch.tensor(knots, dtype=torch.float64), persistent=False)
-        self.n_radial = int(n_radial) if self.learned_radial else 0
-        self.radial = RadialBands(self.nb, self.n_radial) if self.learned_radial else nn.Identity()
         widths = [128, 64, 128, 64] if hidden is None else [int(h) for h in hidden]
         layers = []
         last = self.n_in
@@ -607,23 +568,6 @@ class MultiBodyMoments(nn.Module):
 
     def forward(self, X):
         return self.coefficients(X)
-
-    @torch.jit.export
-    def moment_features(self, s_vec, nbr, mask):
-        """Model input row [P, x_dim] from raw geometry -- s_vec [P,3] (source - target), nbr [P,K,3] (relative to the
-        target, padded), mask [P,K] -- with this model's own bands: the tents on ``band_knots`` or the learned radial
-        bands.  Learned bands make the row a function of the parameters (differentiable), so both the trainer and the
-        operator build rows here; computed in the model's dtype."""
-        dt = self.inv_mean.dtype
-        s_vec = s_vec.to(dt)
-        nbr = nbr.to(dt)
-        mask = mask.to(dt)
-        rn, rh = nbm._midpoint_geometry(s_vec, nbr)
-        if self.learned_radial:
-            W = self.radial(rn)
-        else:
-            W = nbm.band_weights_knots(rn, self.band_knots)
-        return nbm.moment_features_weights(s_vec, rh, W * mask.unsqueeze(-1), self.mean_dist_s)
 
     def _invariants(self, X):
         s_vec, pair, s, v, Q = nbm.unpack_features(X)

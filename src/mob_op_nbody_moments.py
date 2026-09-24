@@ -55,7 +55,7 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 		diag_cutoff: float = 8.0,
 		nbody_layout: Optional[dict] = None,
 	) -> None:
-		# layout kwargs (bands / bases / invariants / hidden / inv_norm) for a ``.wt`` n-body model; ``.pt``
+		# layout kwargs (bases / invariants / hidden / inv_norm) for a ``.wt`` n-body model; ``.pt``
 		# models are self-describing.  Read by ``_load_nbody_model`` (called from the parent ctor).
 		self._nbody_layout_kw = dict(nbody_layout) if nbody_layout else None
 		super().__init__(
@@ -100,14 +100,8 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 			raise ValueError(f"Unsupported n-body model format for '{model_path}'. Expected '.pt' or '.wt'.")
 		assert hasattr(model, "predict_mobility"), "not a MultiBodyMoments model"
 		assert float(model.inv_std.min()) > 0 and float(model.basis_scale.min()) > 0
-		# Band / basis layout of the model: rows are built with the model's own knots (training == inference);
-		# published v2 ``.pt`` files carry no layout and take the v2 path (``band_knots`` None).
+		# Basis layout of the model (published v2 ``.pt`` files carry none and are v2); rows are layout-independent.
 		self.nbody_layout = nbm.layout_of_model(model)
-		self.band_knots = nbm.knots_of(model)
-		if self.nbody_layout["radial"] == "bessel":  # learned radial bands: the rows are built by the model itself,
-			assert hasattr(model, "moment_features"), "learned-radial model without moment_features"
-			# with the model's own pair-scalar constant, which must be the operator's (the tent path uses the operator's)
-			assert abs(float(model.mean_dist_s) - float(mean_dist_s)) < 1e-6, (float(model.mean_dist_s), mean_dist_s)
 		with torch.no_grad():  # fail at construction, not on the first apply, if the row width and the model disagree
 			model.predict_mobility(torch.zeros((1, self.nbody_layout["x_dim"]), dtype=torch.float32, device=self.device))
 		return model
@@ -169,10 +163,7 @@ class Mob_Op_Nbody_Moments(Mob_Op_Nbody):
 		"""Model rows (X_ts, X_st) for the given selected pairs + CSR neighbour lists."""
 		nbr, mask = nf.pad_neighbours(pos, t_idx, indptr, indices)
 		svecs = pos[s_idx] - pos[t_idx]
-		if self.nbody_layout["radial"] == "bessel":
-			X_ts = nf.moment_features_model(svecs, nbr, mask, self.nbody_nn, self.device)
-		else:
-			X_ts = nf.moment_features(svecs, nbr, mask, self.mean_dist_s, knots=self.band_knots)
+		X_ts = nf.moment_features(svecs, nbr, mask, self.mean_dist_s)
 		X_st = X_ts.copy()
 		X_st[:, :3] *= -1.0  # moments are midpoint-based and identical; only the pair axis flips
 		return X_ts, X_st

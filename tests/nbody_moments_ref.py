@@ -79,28 +79,7 @@ def moments_target_frame(s_vec, nbr):
     return moments(np.zeros(3), np.asarray(s_vec, dtype=np.float64), np.asarray(nbr, dtype=np.float64))
 
 
-# ----------------------------------------------------------------------------- v3 layout (knot bands, optional quadratic, class-2 TR)
-def band_weights_knots(r, knots):  # (K,), (NB,) -> (K,NB): hat functions on the knots, ends saturating
-    k = np.asarray(knots, dtype=np.float64); nb = len(k); r = np.asarray(r, dtype=np.float64)
-    W = np.zeros((len(r), nb))
-    for a in range(nb):
-        left = np.ones_like(r) if a == 0 else (r - k[a - 1]) / (k[a] - k[a - 1])
-        right = np.ones_like(r) if a == nb - 1 else (k[a + 1] - r) / (k[a + 1] - k[a])
-        W[:, a] = np.clip(np.minimum(left, right), 0.0, 1.0)
-    return W
-
-
-def moments_knots(xi, xj, xk, knots):
-    m = 0.5 * (xi + xj)
-    rij = xi - xj; ell = np.linalg.norm(rij); z = rij / ell
-    rk = xk - m; rn = np.linalg.norm(rk, axis=1); rh = rk / rn[:, None]
-    W = band_weights_knots(rn, knots)
-    s = W.sum(0)
-    v = einsum('ka,ki->ai', W, rh)
-    Q = einsum('ka,ki,kj->aij', W, rh, rh) - s[:, None, None] * I3[None] / 3
-    return z, s, v, Q
-
-
+# ----------------------------------------------------------------------------- v3 layout (optional quadratic, class-2 TR)
 def invariants_reduced(z, s, v, Q):   # 5 per band: s | |v|^2 | (z.v)^2 | z'Qz | trQ^2
     zv = v @ z
     return np.concatenate([s, (v * v).sum(1), zv ** 2, einsum('i,aij,j->a', z, Q, z), einsum('aij,aji->a', Q, Q)])

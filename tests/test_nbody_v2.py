@@ -74,9 +74,8 @@ def test_select_pair_neighbours_matches_operators(max_neighbors, cutoff, pc):
 
 
 @needs_models
-@pytest.mark.parametrize("layout,x_dim", [({}, 111), ({"bands": [0.5, 1.5, 2.5, 3.5, 4.5], "bases": "linear_tr2"}, 72),
-                                          ({"radial": "bessel", "nb": 6, "bases": "linear_tr2"}, 85)])
-def test_moments_pair_rows_match_per_pair_construction(tmp_path, layout, x_dim):
+@pytest.mark.parametrize("layout", [{}, {"bases": "linear_tr2"}])
+def test_moments_pair_rows_match_per_pair_construction(tmp_path, layout):
     from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
     from src.model_archs import MultiBodyMoments
     wt = tmp_path / "rand.wt"
@@ -88,16 +87,12 @@ def test_moments_pair_rows_match_per_pair_construction(tmp_path, layout, x_dim):
                                   nbody_layout=layout or None)
         pos = configs()["uniform"]
         pairs, X_ts, X_st = op._pair_rows(pos)
-        assert len(pairs) > 100 and X_ts.shape == (len(pairs), x_dim)
+        assert len(pairs) > 100 and X_ts.shape == (len(pairs), 111)
         for i, (t, s) in enumerate(pairs):
             idx = op._select_neighbor_indices(pos, t, s)
             assert idx, (t, s)
             nbr = (pos[idx] - pos[t])[None]
-            if layout.get("radial") == "bessel":   # learned bands: the model builds its own rows
-                X = nf.moment_features_model((pos[s] - pos[t])[None], nbr, np.ones((1, len(idx))), op.nbody_nn)[0]
-            else:
-                X = nf.moment_features((pos[s] - pos[t])[None], nbr, np.ones((1, len(idx))), op.mean_dist_s,
-                                       knots=layout.get("bands"))[0]
+            X = nf.moment_features((pos[s] - pos[t])[None], nbr, np.ones((1, len(idx))), op.mean_dist_s)[0]
             assert np.allclose(X, X_ts[i], rtol=1e-6, atol=1e-6)
         assert np.allclose(X_st[:, :3], -X_ts[:, :3]) and np.array_equal(X_st[:, 3:], X_ts[:, 3:])
 
@@ -316,19 +311,17 @@ def test_oracle_residual_reproduces_grand_M(tmp_path):
 # ----------------------------------------------------------------------------- 6. trainer smoke
 @needs_models
 @needs_v2
-@pytest.mark.parametrize("model", ["moments", "baseline", "moments_v3", "moments_bessel"])
+@pytest.mark.parametrize("model", ["moments", "baseline", "moments_v3"])
 def test_trainer_smoke_and_operator_symmetry(tmp_path, model):
     from benchmarks.cluster import uniform_sphere_cluster
     out = _build_smoke_cache(tmp_path / "cache", max_shards=3, max_configs=12)
     run = tmp_path / "run"
-    v3 = model in ("moments_v3", "moments_bessel")
+    v3 = model == "moments_v3"
     cmd = [sys.executable, "experiments/train_nbody_v2.py", "--cache", str(out), "--model", "moments" if v3 else model, "--variant", "k10_rc6",
            "--epochs", "2", "--max-steps", "6", "--batch", "64", "--fit-rows", "500", "--eval-rows", "300", "--eval-every", "1",
            "--device", "cpu", "--data-on", "cpu", "--out", str(run), "--publish", "--publish-name", f"test_{model}"]
-    if model == "moments_v3":
-        cmd += ["--bands", "0.5", "1.5", "2.5", "3.5", "4.5", "--bases", "linear_tr2"]
-    elif model == "moments_bessel":
-        cmd += ["--radial", "bessel", "--nb", "6", "--bases", "linear_tr2"]
+    if v3:
+        cmd += ["--bases", "linear_tr2"]
     r = subprocess.run(cmd, capture_output=True, text=True)
     assert r.returncode == 0, r.stdout[-2000:] + r.stderr[-2000:]
     assert (run / "model.pt").exists() and (run / "metrics.json").exists() and (run / "model.json").exists()
@@ -339,11 +332,8 @@ def test_trainer_smoke_and_operator_symmetry(tmp_path, model):
     assert side["max_neighbors"] == 10 and side["neighbor_cutoff"] == 6.0
     assert side == json.load(open(run / "model.json"))
     if model == "moments_v3":
-        assert side["layout"] == "v3" and side["bands"] == [0.5, 1.5, 2.5, 3.5, 4.5] and side["bases"] == "linear_tr2"
-        assert side["n_coef"] == 60 and side["x_dim"] == 72 and m["n_coef"] == 60 and side["radial"] == "knots"
-    elif model == "moments_bessel":
-        assert side["layout"] == "v3" and side["radial"] == "bessel" and side["nb"] == 6 and side["n_radial"] == 8
-        assert side["bands"] is None and side["n_coef"] == 71 and side["x_dim"] == 85 and m["n_coef"] == 71
+        assert side["layout"] == "v3" and side["bases"] == "linear_tr2"
+        assert side["n_coef"] == 93 and side["x_dim"] == 111 and m["n_coef"] == 93
     elif model == "moments":
         assert side["layout"] == "v2" and side["n_coef"] == 93
     for p in [f"data/models/test_{model}.pt", f"data/models/test_{model}.json", f"experiments/test_{model}.wt"]:

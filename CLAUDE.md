@@ -81,17 +81,18 @@ Each operator has an `apply(config, force, viscosity) -> velocity` interface:
    2.8, NeMO 4.3, SD 8.7, RPY 12.2 % PRMSE); SD's lubrication does make its rotational velocities the best there.
 
 4e. **Moments v3: split TR/RT corners, linear bases (2026-09-13/14, branch `moments-v3-main`, `artifacts/nbody_v3_report.md`).**
-   `src/nbody_moments.py` is parametrised: tent bands on any knot sequence (`band_weights_knots`; the v2 bands 0.5..7.5
-   reproduced **bitwise**), `bases_v3(z, v, Q, use_quadratic, has_tr2)` and `assemble_block_v3(c, tt, tr1, tr2)` with
-   `TR = T1 + T2`, `RT = T1 − T2`; the v2-named functions are wrappers, rows are `7 + 13·NB` columns (`unpack_features`
-   reads NB from the width), coefficients `5 + (8 + 3q + 3t)·NB`. `MultiBodyMoments(bands=, bases=, invariants=, radial=,
-   nb=, n_radial=)` (defaults = v2; knots in the non-persistent buffer `band_knots`, so v2 `.wt` files stay strict-loadable;
-   `nbody_moments.layout_of_model` / `knots_of` read any model incl. TorchScript). **Rows are always built with the model's
-   own layout**: `nf.moment_features(..., knots=)`, the operator's `_build_rows`, the trainer's `V2Cache(knots=)`; a `.wt`
-   needs its layout (sidecar `.json` next to it, written per run as `<out>/model.json`, or `Mob_Op_Nbody_Moments(nbody_layout=...)`),
-   a `.pt` is self-describing. Trainer: `--bands ... --bases {v2,linear,linear_tr2,v2_tr2} --invariants {full,reduced}
-   --radial {knots,bessel} --nb NB` (non-default layouts need `--publish-name`; sidecar keys `bands/bases/invariants/radial/nb/
-   n_radial/layout/n_coef/x_dim`, asserted by the harness' `_assert_layout`). GPU path (`gpu_nbody_moments.py`) takes v2 and v3 `linear_tr2` on the v2 bands + full invariants (asserted); a `.wt` needs its sidecar (next to it or in `data/models/`) because v2/v3 weights have identical shapes.
+   The bands are fixed: 8 unit-width overlapping tents (centres 0.5..7.5), so rows are always 111 columns and the same for
+   every layout (`nbm.moment_features` / `nf.moment_features`). The overlap is what makes the features, and so the
+   velocities, continuous as a neighbour crosses a band edge; it predates the chain fix, which was data-only (the `chain`
+   family). `src/nbody_moments.py` parametrises only the bases and invariants: `bases_v3(z, v, Q, use_quadratic, has_tr2)` and
+   `assemble_block_v3(c, tt, tr1, tr2)` with `TR = T1 + T2`, `RT = T1 − T2`; the v2-named functions are wrappers.
+   `MultiBodyMoments(bases=, invariants=)` (defaults = v2); `nbody_moments.layout_of_model` reads any model incl. TorchScript
+   (legacy v3 exports carry a `band_knots` buffer, asserted to be the standard bands). A `.wt` needs its layout (sidecar
+   `.json` next to it, written per run as `<out>/model.json`, or `Mob_Op_Nbody_Moments(nbody_layout=...)`), a `.pt` is
+   self-describing. Trainer: `--bases {v2,linear,linear_tr2,v2_tr2} --invariants {full,reduced}` (non-default layouts need
+   `--publish-name`; the harness' `_assert_layout` checks the sidecar). GPU path (`gpu_nbody_moments.py`) takes v2 and v3 `linear_tr2` with full invariants (asserted); a `.wt` needs its sidecar (next to it or in `data/models/`) because v2/v3 weights have identical shapes.
+   **Removed 2026-09-24** (evaluated, not adopted; see the report): configurable band knots (`--bands`, the 5-knot model
+   `nbody_moments_v3_nb5lin_tr2_*` and its harness ops) and learned Bessel radial bands (`--radial bessel`, `RadialBands`).
    **Why (300k pc8c validation rows of the published v2 model):** the label's TR and RT blocks differ by 80 % (`‖TR−RT‖/‖TR‖`),
    so writing the same matrix in both corners (`RT = TR`, inherited from Eq. 17) leaves a **40 % floor** on the TR/RT residual
    that the model sat on (43/45 %) — the reason every encoder ablation left the angular blocks at ~17 %. Reciprocity only
@@ -108,13 +109,11 @@ Each operator has an `apply(config, force, viscosity) -> velocity` interface:
    CPU op ~1e-6 (`benchmarks/compare_gpu_moments.py --model v3`, compiled and eager); 1M two-drop pair stage 2338 → 2363 ms on
    the 4060 (assemble 117 → 128 ms); run it with `two_suspensions_1M.py --near-op moments-v3` (+ pc8c diag;
    `profile_moments_stage.py 0 v3`). `--near-op moments` stays v2 pc8 for Fig 11/12 reproducibility.
-   **Evaluated and not adopted (report §6–7):** truncating the bands (5 knots 0.5..4.5 + saturating tail, 60 coefficients —
-   the first candidate `nbody_moments_v3_nb5lin_tr2_kinf_rc8_pc8c.pt`, kept as an ablation op) costs 0.4–0.6 Fig-3 points
+   **Evaluated and not adopted (report §6–7; code removed 2026-09-24):** truncating the bands (5 knots 0.5..4.5 + saturating tail, 60 coefficients —
+   the first candidate `nbody_moments_v3_nb5lin_tr2_kinf_rc8_pc8c.pt`) costs 0.4–0.6 Fig-3 points
    although post-hoc zeroing of bands 5–8 said ≤ 0.17 each; coarser equal-width bands are worse than v2 in translation
-   (leverage sits at r < 2 from the midpoint); learned radial bands (`--radial bessel --nb 8`: DimeNet Bessel basis × cutoff
-   envelope at rc = 8 through a bias-free 8→32→NB MLP, `model_archs.RadialBands`; rows built by the model,
-   `MultiBodyMoments.moment_features`, operator `nf.moment_features_model`) gain 0.27/0.48 Fig-3 points over the adopted model
-   and were judged not worth a new mechanism — code path kept, off by default, tests in `tests/test_nbody_moments.py` §14.
+   (leverage sits at r < 2 from the midpoint); learned radial bands (DimeNet Bessel basis × cutoff envelope through a small
+   MLP) gain 0.27/0.48 Fig-3 points over the adopted model and were judged not worth a new mechanism.
    A 64-wide MLP and the reduced 5-invariant set each cost ~0.05 (on the 5-knot layout, untested in combination).
    Pre-existing test failures unrelated to this: `test_v2_split_is_configuration_level` (0.1201 > 0.12 with the chain shards),
    `test_oracle_residual_reproduces_grand_M` (the first shards are now `chain`), `test_harness_cases_and_metric` (Fig 4 has 1536 cells).

@@ -747,13 +747,12 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
         self.moments_nn = self._load_model(
             moments_nn_path, lambda: MultiBodyMoments(
                 self.mean_dist_s, **self._sidecar_layout(moments_nn_path)))
-        # The accumulate / invariants kernels hard-code the v2 bands (8 unit tents)
-        # and the full 76-input invariant set; the assemble kernel exists for the
-        # v2 bases (RT = TR) and the adopted v3 "linear_tr2" bases (split corners).
+        # The invariants kernel hard-codes the full 76-input invariant set; the assemble
+        # kernel exists for the v2 bases (RT = TR) and the adopted v3 "linear_tr2" bases
+        # (split corners).
         lay = nbm.layout_of_model(self.moments_nn)
-        assert (lay["radial"] == "knots" and lay["bands"] == nbm.V2_KNOTS
-                and lay["invariants"] == "full" and lay["bases"] in ("v2", "linear_tr2")), \
-            f"GPU moments path supports v2 bands + full invariants + v2/linear_tr2 bases, got {lay}"
+        assert lay["invariants"] == "full" and lay["bases"] in ("v2", "linear_tr2"), \
+            f"GPU moments path supports full invariants + v2/linear_tr2 bases, got {lay}"
         self.moments_layout = lay
         self._pair_assemble_kernel = (pair_assemble_apply_kernel if lay["bases"] == "v2"
                                       else pair_assemble_apply_v3_kernel)
