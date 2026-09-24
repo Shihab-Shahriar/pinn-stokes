@@ -75,11 +75,12 @@ FIG4_N = [20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 140, 160, 180, 200,
           300, 500, 1000, 2000,  # large-N cells APPENDED (p_idx feeds the seed formula: never reorder)
           1500, 2500, 3000,      # second batch, appended after 2000 for the same reason
           5000, 7500, 10000,     # third batch (gravity + random truths)
-          20000, 30000]          # saturation check (gravity, phi=0.1 only)
+          20000, 30000,          # saturation check (gravity, phi=0.1 only)
+          400, 600, 700, 800, 900]  # linear-x Fig 4 fill-in (random forcing, 4 plotted phi; truths: cluster Broms, slurm/broms_truth.sbatch)
 DELTAS = ["0.1", "0.2", "0.5", "1.0", "2.0", "3.0"]
 NUM_REPEATS = 10
 FIG4_REPEATS = {1000: 5, 1500: 5, 2000: 3, 2500: 3, 3000: 3,  # tapered seeds (runs 0..k-1, formula unchanged)
-                5000: 3, 7500: 3, 10000: 3, 20000: 2, 30000: 2}
+                5000: 3, 7500: 3, 10000: 3, 20000: 2, 30000: 2, 400: 5, 600: 5, 700: 5, 800: 5, 900: 5}
 BASE_SEED = 123
 NEARFIELD_CUTOFF = 6.0
 
@@ -120,6 +121,7 @@ PAPER_LABELS = {"M_rpy": "RPY", "M_2b": "NeMO 2-body", "M_3b": "NeMO 3-body summ
                 "M_mom_gpu_pc8c_diag": "NeMO (moments pc8c + diag, GPU)",
                 "M_mom_gpu_v3_diag": "NeMO v3 (GPU, fp32 MLP)",
                 "M_mom_gpu_v3_diag_fp16": "NeMO v3 (GPU, fp16 MLP = production)",
+                "M_rpy_gpu": "RPY (GPU, all pairs; M_rpy beyond the CPU op's reach)",
                 "HIGNN_2b": "HIGNN 2-body (their engine's kernel, dense)",
                 "HIGNN_full": "HIGNN 2-body + 3-body + self",
                 "SD": "Stokesian Dynamics (FTS far field + pairwise lubrication)",
@@ -129,7 +131,7 @@ OP_ORDER = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_gpu", "M_nbody_b1_v2
             "M_mom_v2_kinf_rc8_pc8_diag", "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag",
             "M_mom_v3_nb5lin_tr2_pc8c", "M_mom_v3_nb5lin_tr2_pc8c_diag",
             "M_mom_v3_nb8lin_tr2_pc8c", "M_mom_v3_nb8lin_tr2_pc8c_diag",
-            "M_mom_gpu_pc8c_diag", "M_mom_gpu_v3_diag", "M_mom_gpu_v3_diag_fp16",
+            "M_mom_gpu_pc8c_diag", "M_mom_gpu_v3_diag", "M_mom_gpu_v3_diag_fp16", "M_rpy_gpu",
             "HIGNN_2b", "HIGNN_full", "SD", "SD_Minf", "mfs_coarse"]
 
 
@@ -273,6 +275,8 @@ def build_op(name: str):
     if name in ("M_mom_gpu_v3_diag", "M_mom_gpu_v3_diag_fp16"):  # fp16 = the production MLP precision
         return _GpuMomentsAdapter("experiments/nbody_moments_v3_nb8lin_tr2_kinf_rc8_pc8c.wt",
                                   fp16=name.endswith("_fp16"))
+    if name == "M_rpy_gpu":
+        return _GpuRpyAdapter()
     if name.startswith("M_mom_"):
         from src.mob_op_nbody_moments import Mob_Op_Nbody_Moments
         key = name[len("M_"):]
@@ -328,8 +332,7 @@ class _GpuMomentsAdapter:
         F = torch.as_tensor(np.ascontiguousarray(forces, dtype=np.float32), device=dev)
         N = pos.shape[0]
         with torch.no_grad(), contextlib.redirect_stdout(io.StringIO()):
-            t_idx, s_idx = self.op.get_neighbor_pairs(pos)
-            v = self.op.apply(pos, quat, F, viscosity, t_idx=t_idx, s_idx=s_idx)
+            v, t_idx, s_idx = self._near(pos, quat, F, viscosity)
             # far pairs = complement of the near list, enumerated in target-row blocks so the
             # index tensors stay bounded (a one-shot NxN nonzero is ~14 GB at N=30000)
             rows = max(1, self.FAR_CHUNK // N)
@@ -346,12 +349,30 @@ class _GpuMomentsAdapter:
                     v.index_add_(0, tc, self.op._rpy_velocity_compiled(pos[tc] - pos[sc], F[sc], viscosity))
         return v.detach().cpu().numpy().astype(np.float64)
 
+    def _near(self, pos, quat, F, viscosity):
+        t_idx, s_idx = self.op.get_neighbor_pairs(pos)
+        return self.op.apply(pos, quat, F, viscosity, t_idx=t_idx, s_idx=s_idx), t_idx, s_idx
+
+
+class _GpuRpyAdapter(_GpuMomentsAdapter):
+    """M_rpy on the GPU (analytic self + RPY over every pair, fp32) for N where the CPU op's O(N^2) Python
+    loop is out of reach: the near list is empty, so the chunked far loop above covers all pairs."""
+
+    def __init__(self):
+        from src.gpu_mob_2b import NNMobTorch
+        self.op = NNMobTorch(SHAPE, SELF_PATH, TWO_BODY_WT, near_field="rpy", far_field="rpy", switch_dist=8.0)
+
+    def _near(self, pos, quat, F, viscosity):
+        import torch
+        none = torch.empty(0, dtype=torch.long, device=pos.device)
+        return self.op._self_velocity(F, viscosity), none, none
+
 
 CPU_OPS = ["M_rpy", "M_2b", "M_3b", "M_nbody_b1", "M_nbody_b1_v2", "M_mom_old", "M_mom_v2_k10_rc6",
            "M_mom_v2_kinf_rc6", "M_mom_v2_kinf_rc8", "M_mom_v2_kinf_rc8_pc8", "M_mom_v2_kinf_rc8_pc8_diag",
            "M_mom_v2_kinf_rc8_pc8c", "M_mom_v2_kinf_rc8_pc8c_diag",
            "M_mom_v3_nb8lin_tr2_pc8c", "M_mom_v3_nb8lin_tr2_pc8c_diag"]
-GPU_OPS = ["mfs_coarse", "M_nbody_gpu", "M_mom_gpu_pc8c_diag", "M_mom_gpu_v3_diag", "M_mom_gpu_v3_diag_fp16",
+GPU_OPS = ["mfs_coarse", "M_nbody_gpu", "M_mom_gpu_pc8c_diag", "M_mom_gpu_v3_diag", "M_mom_gpu_v3_diag_fp16", "M_rpy_gpu",
            "HIGNN_2b", "HIGNN_full"]
 OP_MODEL = {"M_3b": "3b", "M_nbody_b1": "b1", "M_nbody_b1_v2": "b1_v2", "M_mom_old": "mom_old",
             "M_mom_v2_k10_rc6": "mom_v2_k10_rc6", "M_mom_v2_kinf_rc6": "mom_v2_kinf_rc6",

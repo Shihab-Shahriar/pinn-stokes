@@ -112,6 +112,13 @@ Cluster note: the submit plugin began rejecting `--constraint=amd24` GPU jobs be
 instant-length limits mid-day (`BadConstraints`, probes isolate it); `--gres=gpu:h200:1` with
 no feature constraint schedules fine.
 
+**Linear-x fill-in (2026-09-24, random forcing).** `FIG4_N` += {400, 600, 700, 800, 900} (p_idx 26–30, 5 seeds, 4
+plotted φ), so paper Fig 4 (random forcing, N ≤ 1000, linear N axis) has no gap between 500 and 1000. Solved with the same
+Broms sbatch on H200s (job 17707043, 100 solves, 29–34 GMRES iterations, all CONVERGED_RTOL, 3–5 min per φ task).
+Scored with `M_mom_gpu_v3_diag` / `M_rpy_gpu`: the new points sit on the existing curve (φ = 0.1: 5.52 / 6.40 / 7.26 / 6.62 /
+7.29 % at N = 400 / 600 / 700 / 800 / 900, between 6.08 at N = 500 and 7.30 at N = 1000). The laptop alternative
+(`sd_gravity_truth.py --forcing random`, BatchedMFS fine) was abandoned: ~5–8 min per solve at N ≥ 700 on the 4060.
+
 ## 4b. Gravity-forcing variant (exp `fig4g`, 2026-09-06)
 
 Same configurations (byte-identical positions, verified), uniform wrench `F=(0,0,-9.81), T=0`
@@ -190,3 +197,45 @@ missing-truth RuntimeError there; backfill on request.
   `figures/M_accuracy_nbody_diff_sizes_avg_rel_rmse_large.{pdf,png}`; rows in
   `data/paper_accuracy_v2.csv` (op `M_mom_v2_kinf_rc8_pc8c_diag`, exp fig4, N ≥ 300); truths in
   `tmp/nbody_moments_truth/` (200 files, laptop + cluster).
+
+## 7. Paper Fig 4 selection (2026-09-24): variants tried
+
+The paper's Fig 4 (`~/nemo/figs/fig4_n_acc.pdf`) is `figures/fig4_n_acc_random_n1000_nemo_linx.{pdf,png}`. It shows random
+forcing, NeMO n-body v3 + learned diagonal (`M_mom_gpu_v3_diag`), N = 20–1000 on a linear axis, one curve per φ,
+and ±1σ seed bands. Every variant below renders from the same CSV rows with `figures/fig4_n_acc.py` (the flags are in
+its docstring); only the paper figure is kept in the repo.
+
+Operators:
+- `M_mom_gpu_v3_diag` (existing GPU op, fp32 MLP) matches the CPU v3 + diag op to 1e-5 rel_rmse points (gravity, N = 200).
+  It is within ~0.1 points of v2 pc8c at large N, so the earlier large-N conclusions carry over to v3.
+- `M_rpy_gpu` (new) is analytic self + RPY over all pairs on the GPU, through the chunked far loop of
+  `_GpuMomentsAdapter`. It matches the CPU `M_rpy` to 1e-5 points (gravity) and 1e-4 points (random forcing, 560 cells).
+
+Mean over seeds, rel_rmse %. RPY / NeMO ratio at N = 20 → 200 → 1000 (→ 10⁴):
+
+| variant | φ = 2.5 % | 5 % | 10 % | 15 % |
+|---|---|---|---|---|
+| gravity, mean | 4.2 → 1.7 → 1.22 (→ 1.04) | 4.0 → 1.9 → 1.26 (→ 1.05) | 6.6 → 2.2 → 1.31 (→ 1.06) | 7.1 → 2.5 → 1.35 (→ 1.07) |
+| gravity, worst particle | 5.0 → 1.7 → 1.30 | 4.4 → 1.9 → 1.25 | 6.3 → 2.2 → 1.27 | 6.8 → 2.5 → 1.27 |
+| random, mean | 4.2 → 2.7 → 2.09 | 5.2 → 2.6 → 1.89 | 5.9 → 3.0 → 1.79 | 6.5 → 3.2 → 1.99 |
+| random, worst particle | 4.5 → 3.2 → 3.14 | 5.0 → 2.9 → 1.85 | 5.4 → 2.9 → 1.82 | 5.8 → 2.9 → 1.94 |
+
+- **Gravity** (2×2 per φ, NeMO vs RPY, N ≤ 10⁴, and 3×10⁴ at φ = 0.1): RPY's relative error *falls* with N, because
+  the collective settling velocity in the denominator grows with the cloud, while NeMO's rises. They meet on the shared
+  pairwise-far-field floor: at φ = 0.1, N = 3×10⁴, RPY is 3.38 % and NeMO 3.28 %.
+  The seed bands are tight, and NeMO saturates by N ≈ 3000. Not chosen: on the headline metric NeMO is only 4–7 % better
+  than RPY at N = 10⁴.
+- **Gravity, worst particle**: max_i |Δv_i| / |v_i| is only ~2× the mean (no small reference velocities under gravity),
+  and it follows the same ratios.
+- **Random forcing, mean**: RPY is flat in N (3.6–4.4 / 6–8 / 11–14 / 17–22 % across N), and NeMO grows, but NeMO stays
+  about 2× better at N = 1000. The seed bands are wide, especially for RPY.
+- **Random forcing, worst particle**: both operators grow with N (more particles to take the max over, and small
+  reference velocities). At N = 1000, NeMO vs RPY is 6.6 / 17.7 / 28.8 / 41.8 % vs 20.8 / 32.7 / 52.5 / 80.9 %.
+- **One panel with RPY** (8 lines, colour = φ, dashed = RPY): readable only with the rule "compare same-colour lines",
+  because NeMO at 10–15 % crosses RPY at 2.5 % around N = 100–300. RPY was dropped for the paper.
+- **Log vs linear N**: log-x with linear-y visually exaggerates the growth past N = 200, so the paper uses linear x.
+  Linear x needed the N = 400/600–900 fill-in above; at N = 500 → 1000 the curves grow roughly linearly and slowly
+  (φ = 0.15: 8.8 → 11.3 %; φ = 0.025 flat at 1.6–2.0 % above N = 200).
+- **Colour**: φ uses orange, aqua, blue and violet. `validate_palette.js --pairs all` passes, because curves of
+  different φ cross. Aqua sits at 2.7:1 contrast on white, below the 3:1 guideline; that is acceptable for a 2 px line
+  with markers and a legend.

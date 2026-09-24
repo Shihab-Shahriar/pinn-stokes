@@ -17,6 +17,15 @@ Truths land in the harness cache (tmp/nbody_moments_truth/uniform_N{N}_phi{phi:g
     python benchmarks/sd_gravity_truth.py --validate --dry-run  # seams only
     python benchmarks/sd_gravity_truth.py --backend torch64     # exact fp64 operator (needs > 8 GB VRAM at N=200 Xfine)
 
+`--forcing random` fills random-forcing (`fig4`) cells the cluster never solved (the linear-x Fig 4 fill-in,
+N = 400..900): configuration + forces from `broms_truth.make_case` (bit-identical to the legacy generator's draws),
+gated on re-solving cached Broms random truths at N = 500 / 1000 (VALIDATE_PICKS_RANDOM). Too slow on the 4060 for
+that range, though: one right-hand side is padded to a 32-column tile, so a fine-cloud solve costs ~5-8 min at
+N = 700-900 (the fill-in was solved on the cluster instead: slurm/broms_truth.sbatch, NS="400 600 700 800 900"):
+
+    python -u benchmarks/sd_gravity_truth.py --forcing random --clouds fine --validate --N 400 600 700 800 900 \
+        --phis 0.025 0.05 0.1 0.15
+
 The Triton kernel autotunes once per process (minutes at Xfine) and again for every distinct column count, so
 validation and generation run in one process with one right-hand side per solve.
 """
@@ -41,6 +50,7 @@ GRAVITY_FT = np.array([0.0, 0.0, -9.81, 0.0, 0.0, 0.0])  # the repo's sedimentat
 DEFAULT_N = [200]
 VALIDATE_PICKS = [(200, 0.1, 4423, "gravity"), (200, 0.025, 1423, "gravity"), (200, 0.15, 6423, "gravity"),
                   (200, 0.1, 4423, "random"), (200, 0.2, 8423, "random")]
+VALIDATE_PICKS_RANDOM = [(500, 0.1, 4623, "random"), (1000, 0.15, 6723, "random")]  # Broms Xfine, the fill-in's range
 
 
 def rel_l2(a: np.ndarray, b: np.ndarray) -> float:
@@ -74,7 +84,8 @@ def provenance(args, info, sibling: Path | None) -> dict:
 
 def validate(args, solver) -> float:
     """Re-solve cached truths from their stored config + forces; returns the worst rel-L2 seam."""
-    picks = [truth_path(N, phi, seed, forcing) for N, phi, seed, forcing in VALIDATE_PICKS]
+    picks = [truth_path(N, phi, seed, forcing)
+             for N, phi, seed, forcing in (VALIDATE_PICKS_RANDOM if args.forcing == "random" else VALIDATE_PICKS)]
     picks = [p for p in picks if p.exists()]
     print(f"[validate] {len(picks)} cached truths, BatchedMFS acc={args.clouds} backend={args.backend} tol_v={solver.tol_v:g}",
           flush=True)
@@ -96,6 +107,7 @@ def validate(args, solver) -> float:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--N", type=int, nargs="+", default=DEFAULT_N)
+    ap.add_argument("--forcing", choices=["gravity", "random"], default="gravity")
     ap.add_argument("--phis", type=float, nargs="+", default=None, help="default: every phi with a missing gravity truth")
     ap.add_argument("--seeds", type=int, nargs="+", default=None)
     ap.add_argument("--clouds", default="Xfine", choices=["coarse", "medium", "fine", "Xfine"])
@@ -116,14 +128,14 @@ def main() -> None:
         assert worst < args.seam_tol, f"seam {worst:.3e} >= {args.seam_tol:g}: not generating truths with this solver"
 
     todo = []
-    for c in cases("fig4g", Ns=args.N, phis=args.phis, seeds=args.seeds):
-        out = truth_path(c["N"], c["phi"], c["seed"], "gravity")
+    for c in cases("fig4g" if args.forcing == "gravity" else "fig4", Ns=args.N, phis=args.phis, seeds=args.seeds):
+        out = truth_path(c["N"], c["phi"], c["seed"], args.forcing)
         src = truth_path(c["N"], c["phi"], c["seed"], "random")
         if out.exists():
             continue
-        assert src.exists(), f"no cached configuration for {c}: {src}"
+        assert args.forcing == "random" or src.exists(), f"no cached configuration for {c}: {src}"
         todo.append((c, src, out))
-    print(f"[cases] {len(todo)} gravity truths to compute: "
+    print(f"[cases] {len(todo)} {args.forcing} truths to compute: "
           + ", ".join(f"phi={phi:g}:{sum(np.isclose(c['phi'], phi) for c, _, _ in todo)}" for phi in PHIS
                       if any(np.isclose(c["phi"], phi) for c, _, _ in todo)))
     if args.dry_run or not todo:
@@ -131,13 +143,17 @@ def main() -> None:
     solver = solver or make_solver(args)
     t_start = time.time()
     for i, (c, src, out) in enumerate(todo):
-        d = np.load(src)
-        config = np.array(d["config"], dtype=np.float64)
-        forces = np.tile(GRAVITY_FT, (config.shape[0], 1))
+        if args.forcing == "random":
+            from benchmarks.broms_truth import make_case
+            config, forces = make_case(c["N"], c["phi"], c["seed"])
+            src = None  # provenance: md5 of benchmarks/cluster.py
+        else:
+            config = np.array(np.load(src)["config"], dtype=np.float64)
+            forces = np.tile(GRAVITY_FT, (config.shape[0], 1))
         t0 = time.time()
         vel, info = solve(solver, config, forces)
         wall = time.time() - t0
-        np.savez(out, config=config, forces=forces, velocity=vel, forcing="gravity", phi=c["phi"], N=c["N"],
+        np.savez(out, config=config, forces=forces, velocity=vel, forcing=args.forcing, phi=c["phi"], N=c["N"],
                  seed=c["seed"], wall=wall, **provenance(args, info, src))
         print(f"[truth {i + 1}/{len(todo)}] N={c['N']} phi={c['phi']:g} seed={c['seed']}: iters={info.iters} "
               f"maxdv={info.max_rel_dv:.1e} {wall:.1f} s -> {out.name}  ({time.time() - t_start:.0f} s total)", flush=True)

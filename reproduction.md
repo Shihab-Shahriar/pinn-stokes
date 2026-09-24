@@ -30,6 +30,29 @@ Rows accumulate in `data/paper_accuracy_v2.csv`.
 Out: `figures/paper_v2_fig3_P{200,300}.*`, `figures/paper_v2_fig4_*.*`.
 Optional: `--gpu-ops` adds mfs_coarse + the paper's GPU n-body operator (needs CUDA + warp).
 
+The paper's Figure 4 (seed-mean PRMSE vs N, random forcing, N = 20–1000, φ = 2.5/5/10/15 %, one curve per φ) plots
+`M_mom_gpu_v3_diag`: the GPU twin of `M_mom_v3_nb8lin_tr2_pc8c_diag` (fp32 MLP; the two match to 1e-5 points at N = 200).
+N = 300–1000 use the Broms truths (`artifacts/fig4_large_n_report.md`). The same script also renders RPY
+comparisons, gravity forcing (`fig4g`), N up to 10⁴–3×10⁴ and the worst-particle metric. RPY at large N comes from
+`M_rpy_gpu` (all-pairs RPY on the GPU, equal to `M_rpy` to 1e-4 points on 560 cells). Both GPU ops need warp,
+so they run in docker:
+
+```sh
+RUN_LOCAL_DOCKER_ARGS="-e TORCH_COMPILE_DISABLE=1" bash docker/run_local.sh \
+    python benchmarks/paper_accuracy_v2.py --exp fig4 --phis 0.025 0.05 0.1 0.15 \
+    --N 20 30 40 50 60 70 80 90 100 120 140 160 180 200 300 400 500 600 700 800 900 1000 \
+    --gpu-ops --ops M_rpy_gpu M_mom_gpu_v3_diag --skip-done
+python figures/fig4_n_acc.py --forcing random --max-n 1000 --single --nemo-only --linear-x \
+    --out figures/fig4_n_acc_random_n1000_nemo_linx   # paper: figs/fig4_n_acc.pdf (other variants: see the docstring)
+```
+
+The N = 400, 600, 700, 800, 900 cells (5 seeds, 4 φ; appended to `FIG4_N`) exist so the linear N axis has no gap between
+500 and 1000. Their truths are Broms Xfine from the cluster (job 17707043, `NS="400 600 700 800 900"` through a copy of
+`slurm/broms_truth.sbatch` with `--gres=gpu:h200:1` and no feature constraint; 3–5 min per φ). All 100 solves reached
+CONVERGED_RTOL, and the configurations match `broms_truth.make_case` bit for bit.
+The variants tried before settling on this figure (gravity forcing, RPY curves, worst-particle metric, log x) and
+their numbers are in `artifacts/fig4_large_n_report.md` §7.
+
 The latest stack is registered as `M_mom_v2_kinf_rc8_pc8c` (chain-fixed pair model) and
 `M_mom_v2_kinf_rc8_pc8c_diag` (+ learned diagonal, the headline operator); both load the published
 pc8c models and their sidecars directly. The paper-ready Figure 4 (seed-mean PRMSE vs N over the
