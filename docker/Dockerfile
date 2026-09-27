@@ -7,9 +7,8 @@
 # the widebvh and pinn-stokes WORKING TREES, because neither is reproducible
 # from its git remote (see that script's header).
 #
-#   docker build --build-arg NEMO_GIT_SHA=$(cat GIT_SHA) -t <user>/nemo:1.0 .   # fp64 only
-#   docker build --build-arg NEMO_GIT_SHA=$(cat GIT_SHA) \
-#       --build-arg WIDEBVH_FP32_LEVELS="1;2;3" -t <user>/nemo:2.0 .        # + fp32 far field
+#   docker build --build-arg NEMO_GIT_SHA=$(cat GIT_SHA) -t <user>/nemo:2.0 .   # fp64 + fp32 levels 1-3
+#   docker build ... --build-arg WIDEBVH_FP32_LEVELS="" -t <user>/nemo:1.0 .   # fp64 only (old image)
 #
 # CUDA 12.8 is not incidental: sm_120 (Blackwell / RTX 5090) does not exist
 # before it, and warp-lang's official wheel for this release is built with 12.8,
@@ -43,14 +42,14 @@ ARG NVCC_THREADS=4
 ARG NINJA_JOBS=
 
 # fp32 fast-path levels of the widebvh far field to build IN ADDITION to the fp64
-# production library (widebvh WIDEBVH_NEMO_FP32_LEVELS; "1;2;3" gives
-# libwidebvh_nemo_f32l{1,2,3}.so, selected at runtime with WidebvhFMM(fp32_level=)
-# / two_suspensions_1M.py --fp32-level). Needed on GeForce-class GPUs, where fp64
-# issues at 1/64 the fp32 rate and the fp64 far field is ~20x slower than it needs
-# to be (artifacts/consumer_gpu_far_field_report.md). Empty = fp64 only, the
-# image that produced the H200 numbers. Each level is another compile of
-# nemo_capi.cu per architecture, so keep CUDA_ARCHS short when you set it.
-ARG WIDEBVH_FP32_LEVELS=""
+# library (widebvh WIDEBVH_NEMO_FP32_LEVELS; "1;2;3" gives
+# libwidebvh_nemo_f32l{1,2,3}.so). WidebvhFMM runs level 3 by default on every
+# GPU, so an image without them fails at the first far-field call; override with
+# WidebvhFMM(fp32_level=),
+# --fp32-level or NEMO_FAR_FP32_LEVEL (0 = the fp64 library). Details in
+# artifacts/consumer_gpu_far_field_report.md. Each level is another compile of
+# nemo_capi.cu per architecture, so keep CUDA_ARCHS short.
+ARG WIDEBVH_FP32_LEVELS="1;2;3"
 # Extra PDEG variants ("5" adds libwidebvh_nemo_p5*.so for the pdeg sweep).
 ARG WIDEBVH_EXTRA_PDEG=""
 

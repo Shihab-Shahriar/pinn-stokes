@@ -96,7 +96,7 @@ def git_sha() -> str:
 
 
 def build_solver(backend: str, mob, mac=None, max_leaf=DEFAULT_MAX_LEAF,
-                 hilbert_q=None, pdeg=7, fp32_level=0, pair_budget_gb=None,
+                 hilbert_q=None, pdeg=7, fp32_level=None, pair_budget_gb=None,
                  cutoff=6.0):
     """The same construction two_suspensions_1M.py performs, per backend."""
     if backend.startswith("widebvh"):
@@ -146,7 +146,7 @@ def last(raw: dict, key: str, default=""):
 
 
 def run(backend: str, steps: int, csv_path: Path, mac=None,
-        max_leaf=DEFAULT_MAX_LEAF, hilbert_q=None, pdeg=7, fp32_level=0,
+        max_leaf=DEFAULT_MAX_LEAF, hilbert_q=None, pdeg=7, fp32_level=None,
         pair_budget_gb=None, two_body_chunk=None, pair_chunk=None,
         label=None, near_op="baseline") -> list:
     label = label or backend
@@ -317,9 +317,10 @@ def main() -> None:
                     help="source-bucket cells per axis; 0 forces engine auto")
     ap.add_argument("--pdeg", type=int, default=7,
                     help="widebvh barycentric degree (compile-time .so)")
-    ap.add_argument("--fp32-level", type=int, default=0,
+    ap.add_argument("--fp32-level", type=int, default=None,
                     help="widebvh fp32 fast-path level (0 fp64, 1 fp32 M2P, "
-                         "2 + fp32 P2P, 3 + fp32 upward pass)")
+                         "2 + fp32 P2P, 3 + fp32 upward pass); default "
+                         "NEMO_FAR_FP32_LEVEL, else 3")
     ap.add_argument("--pair-budget-gb", type=float, default=None,
                     help="widebvh pair-list budget override")
     ap.add_argument("--two-body-chunk", type=int, default=None,

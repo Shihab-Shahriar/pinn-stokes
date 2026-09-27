@@ -81,10 +81,12 @@ docker build \
   -t "$IMG" . 2>&1 | tee build.log
 ```
 
-`WIDEBVH_FP32_LEVELS="1;2;3"` is what makes this the 2.0 image: it adds the
-fp32 far-field libraries (`libwidebvh_nemo_f32l{1,2,3}.so`) next to the fp64
-production one, which stays the default -- see step 7c for why and how to select
-them. 1.0 was the same build without that argument (fp64 only).
+`WIDEBVH_FP32_LEVELS="1;2;3"` (now also the Dockerfile default) is what makes
+this the 2.0 image: it adds the fp32 far-field libraries
+(`libwidebvh_nemo_f32l{1,2,3}.so`) next to the fp64 one. `WidebvhFMM` now runs
+fp32 level 3 by default on every GPU, so an image without them no longer runs --
+see step 7c. 1.0 was the same build with
+`WIDEBVH_FP32_LEVELS=""` (fp64 only).
 
 **Expect:** ending with the `ls -la` of `libwidebvh_nemo.so`,
 `libwidebvh_nemo_cart.so`, `libwidebvh_nemo_f32l{1,2,3}.so` and
@@ -253,23 +255,25 @@ docker run --rm --gpus all -v "$PWD/results:/results" -e TC_PAIR_BUDGET_GB=6 \
 On a card whose fp64 rate is 1/64 of fp32 (GeForce Ada/Ampere) the fp64 far-field
 kernels are the whole step: 8.7 s of a 10.75 s step at N=1M on an RTX 4060 laptop
 (the A4500's 6.1 s of 7.1 s in step 7b is the same effect). widebvh now has an
-opt-in fp32 fast path (`WIDEBVH_FP32_LEVEL`, one .so per level; details and every
+fp32 fast path (`WIDEBVH_FP32_LEVEL`, one .so per level; details and every
 measurement in `artifacts/consumer_gpu_far_field_report.md`). The 2.0 image
 (step 3, `WIDEBVH_FP32_LEVELS="1;2;3"`) ships all three levels next to the fp64
-production library, which stays the default; select a level at run time:
+library, and `WidebvhFMM` runs level 3 by default (on every GPU: it is also the
+fastest level on the H200, at identical accuracy). No flag needed:
 
 ```bash
 docker run --rm --gpus all -v "$PWD/results:/results" "$IMG" \
-  bash -c "python benchmarks/two_suspensions_1M.py --fp32-level 3 2>&1 | tee /results/two_drop_fp32.log"
+  bash -c "python benchmarks/two_suspensions_1M.py 2>&1 | tee /results/two_drop_fp32.log"
 ```
 
 `--fp32-level 3` (everything else as production: PDEG 7, mac 0.8, leaf 1024) is the
 operating point the sweep picked: far field 8.68 s -> 0.39 s per step, step 10.75 s ->
 2.52 s (4.3x), no measurable change in far-field error (rel_total 3.1e-4 random
-loading) or symmetry; peak process VRAM 3.7 GB; `--max-leaf 512` measures the same. `NEMO_FAR_FP32_LEVEL=3` does the same for scripts without
-the flag. Levels 1 and 2 are in the image only for the ablation
-(`--fp32-level 1` = fp32 M2P, `2` = + fp32 P2P); `benchmarks/mac_calibration.py
---fp32-levels 0,3` reproduces the accuracy comparison on any card. Each level
+loading) or symmetry; peak process VRAM 3.7 GB; `--max-leaf 512` measures the same.
+Override the automatic level with `--fp32-level L` or `NEMO_FAR_FP32_LEVEL=L`
+(`1` = fp32 M2P, `2` = + fp32 P2P, `3` = + fp32 upward pass, `0` = the fp64
+kernels for an A/B); `benchmarks/mac_calibration.py --fp32-levels 0,3`
+reproduces the accuracy comparison on any card. Each level
 costs one more compile of `nemo_capi.cu` per architecture -- keep `CUDA_ARCHS`
 short when you set it. `WIDEBVH_EXTRA_PDEG="5"` adds the
 PDEG-5 variants for degree sweeps (they were not worth it: see the report).

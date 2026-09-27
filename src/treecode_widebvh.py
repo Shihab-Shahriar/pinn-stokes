@@ -36,17 +36,23 @@ does not transfer to the other; take operating points from the DEFAULT_*
 constants below, or from data/*_mac_calibration.csv.
 
 A third axis, `fp32_level`, picks how much of the bary far field runs in
-fp32 (0 = the fp64 production kernels). It exists for consumer GPUs, whose fp64
-rate is 1/64 of fp32; see FP32_LEVELS below.
+fp32. The far field stays truncation-dominated at every level, so NeMO always
+runs the fastest one, level 3, on every GPU; see FP32_LEVELS and
+default_fp32_level below.
 
 Build (once, from the widebvh checkout):
 
     source ./env.sh
     cmake -S . -B build-nemo -G Ninja -DCMAKE_BUILD_TYPE=Release \
-          -DWIDEBVH_NEMO_PDEG="3;5;7" -DWIDEBVH_NEMO_FP32_LEVELS="1;2"
-    cmake --build build-nemo -j --target widebvh_nemo widebvh_nemo_p5 \
-          widebvh_nemo_p3 widebvh_nemo_cart widebvh_nemo_f32l2 \
-          widebvh_nemo_p5_f32l2
+          -DWIDEBVH_NEMO_PDEG="5;7" -DWIDEBVH_NEMO_FP32_LEVELS="1;2;3"
+    cmake --build build-nemo -j --target widebvh_nemo widebvh_nemo_f32l2 \
+          widebvh_nemo_f32l3
+
+(add widebvh_nemo_p5*, widebvh_nemo_f32l1 or widebvh_nemo_cart for the A/B
+variants). The author's builds: laptop ~/envs/nemo-ctx/widebvh/build-4060 (via
+docker/run_local.sh), H200 /mnt/ffs24/home/khanmd/programs/widebvh-f32/build-nemo
+(slurm/h200_v3/build_widebvh.sbatch; the default below). Elsewhere, set
+WIDEBVH_BUILD_DIR.
 """
 
 from __future__ import annotations
@@ -60,11 +66,14 @@ import torch
 
 from src.treecode import WarpFMM
 
-# Where the C-ABI libraries live. Override with WIDEBVH_BUILD_DIR.
+# Where the C-ABI libraries live. Override with WIDEBVH_BUILD_DIR. The default is
+# the cluster's fp32-capable build (widebvh 03efcdb, sm_90, fp32 levels 1-3 + cart;
+# slurm/h200_v3/build_widebvh.sbatch). The older programs/widebvh/build-nemo is
+# fp64-only and cannot serve the default fp32 level.
 WIDEBVH_BUILD_DIR = Path(
     os.environ.get(
         "WIDEBVH_BUILD_DIR",
-        "/mnt/ffs24/home/khanmd/programs/widebvh/build-nemo",
+        "/mnt/ffs24/home/khanmd/programs/widebvh-f32/build-nemo",
     )
 )
 
@@ -77,24 +86,35 @@ WBNEMO_ABI_VERSION = 4
 
 # Precision ladder of the far-field kernels, a compile-time choice in widebvh
 # (WIDEBVH_FP32_LEVEL) and therefore a separate .so per level:
-#   0  production: fp64 M2P / P2P / upward pass (H200 numbers, bit-identical
-#      to the pre-fp32 engine)
+#   0  fp64 M2P / P2P / upward pass (bit-identical to the pre-fp32 engine;
+#      only for fp64 A/B checks now)
 #   1  fp32 M2P (barycentric evaluation + per-target accumulation)
-#   2  + fp32 P2P (leaf pair sums)
+#   2  + fp32 P2P (leaf pair sums; split-warpspec-atomic path only)
 #   3  + fp32 upward pass (P2M / M2M)
 # On an fp64-starved consumer card (Ada/Ampere: 1/64 fp32 rate) the two hot
-# kernels are ~100% fp64 in the inner loop, so level 2 is where the far field
-# stops being fp64-bound. Accuracy stays truncation-dominated (see
-# artifacts/consumer_gpu_far_field_report.md). Selected with `fp32_level`, or
-# NEMO_FAR_FP32_LEVEL for scripts that do not expose the kwarg.
+# kernels are ~100% fp64 in the inner loop: level 3 takes the 4060's 1M far
+# field from 8.05 s to 0.35 s. Even on the full-fp64 H200 each level pays: at 1M
+# level 0 -> 2 took the far field from 91 to 62 ms (near cutoff 6), and level
+# 2 -> 3 takes it from 61.7 to 58.1 ms (cutoff 8; 252.9 -> 242.6 ms at 4M). Accuracy is truncation-dominated at every level: rel_far
+# 1.133e-6 -> 1.138e-6 at level 3 on the 4060, and identical to 5 digits between
+# levels 2 and 3 on the H200 at 1M-4M (artifacts/consumer_gpu_far_field_report.md,
+# artifacts/h200_v3_timing_report.md). From level 2 the P2P cutoff test is fp32, so
+# a pair within ~1e-6 of near_field_cutoff can land on the other side than in fp64
+# (one pair in 200k random particles; pointwise error vs the exact far field unchanged).
 FP32_LEVELS = (0, 1, 2, 3)
-DEFAULT_FP32_LEVEL = int(os.environ.get("NEMO_FAR_FP32_LEVEL", "0"))
+DEFAULT_FP32_LEVEL = 3
+
+
+def default_fp32_level() -> int:
+    """The fp32 level a solver gets when none is passed: NEMO_FAR_FP32_LEVEL
+    if set (0 forces the fp64 kernels for an A/B), else DEFAULT_FP32_LEVEL."""
+    return int(os.environ.get("NEMO_FAR_FP32_LEVEL", DEFAULT_FP32_LEVEL))
 
 def _default_pair_budget_gb() -> float:
     """Cap on the P2P pair-list working set, in GB, sized from the device.
 
     The engine allocates min(nTarget * AVG_NEAR_LEAVES, budget/40B) pairs as two
-    device_vector<int> (widebvh/src/treecode.cuh:3965). At N=1M the first term is
+    device_vector<int> (widebvh/src/treecode.cuh:4097). At N=1M the first term is
     134M pairs = 1.07 GB, so any budget above ~5 GB is inert -- which is why the
     old advice to drop 12 -> 6 on a small card measured as a 0.5 GiB no-op. Below
     it the budget binds and the buffer shrinks proportionally; 1 GB caps it at
@@ -251,11 +271,10 @@ def _load_library(policy: str, pdeg: int, fp32_level: int = 0) -> ctypes.CDLL:
             f"{path} not found. Build it with:\n"
             f"  cd {WIDEBVH_BUILD_DIR.parent} && source ./env.sh && "
             f'cmake -S . -B {WIDEBVH_BUILD_DIR.name} -G Ninja '
-            f'-DCMAKE_BUILD_TYPE=Release -DWIDEBVH_NEMO_PDEG="3;5;7" '
-            f'-DWIDEBVH_NEMO_FP32_LEVELS="1;2" && '
+            f'-DCMAKE_BUILD_TYPE=Release -DWIDEBVH_NEMO_PDEG="5;7" '
+            f'-DWIDEBVH_NEMO_FP32_LEVELS="1;2;3" && '
             f"cmake --build {WIDEBVH_BUILD_DIR.name} -j --target "
-            f"widebvh_nemo widebvh_nemo_p5 widebvh_nemo_p3 widebvh_nemo_cart "
-            f"widebvh_nemo_f32l2 widebvh_nemo_p5_f32l2"
+            f"{name[3:-3]}"
         )
 
     # RTLD_LOCAL (the default) on purpose: the variants export the same symbol
@@ -336,6 +355,8 @@ class WidebvhFMM(WarpFMM):
     or "cart" (Cartesian Taylor, runtime `order`). A `mac` tuned for one is not
     valid for the other either -- the same acceptance criterion, but a different
     series truncated at a different rate.
+
+    `fp32_level=None` (the default) resolves through `default_fp32_level`.
     """
 
     def __init__(
@@ -346,7 +367,7 @@ class WidebvhFMM(WarpFMM):
         near_field_cutoff: float = 6.0,
         max_leaf: int = DEFAULT_MAX_LEAF,
         pdeg: int = 7,
-        fp32_level: int = DEFAULT_FP32_LEVEL,
+        fp32_level: Optional[int] = None,
         policy: str = "bary",
         order: Optional[int] = None,
         device: str = "cuda",
@@ -379,8 +400,11 @@ class WidebvhFMM(WarpFMM):
         self.mac = float(mac)
         self.max_leaf = int(max_leaf)
         self.pdeg = int(pdeg)
-        self.fp32_level = int(fp32_level)
         self.policy = str(policy)
+        # None -> default_fp32_level(); the Cartesian policy has no fp32 build.
+        if fp32_level is None:
+            fp32_level = 0 if self.policy == "cart" else default_fp32_level()
+        self.fp32_level = int(fp32_level)
         # 0 tells the engine "policy default", which it clamps to the policy's
         # MAX_ORDER. Only the Cartesian policy reads it; bary's degree is fixed
         # at compile time, so passing an order there would be a silent no-op.

@@ -44,6 +44,12 @@ in the paper.
 throughout" disclosure in §2.9 becomes "H200: fp64 upward pass, fp32 M2P/P2P (level 2)" for
 Fig. 12 and §3.4's capacity sentence; Fig. 11, Fig. 13 and the drift run stay fp64.
 
+**Update 2026-09-26:** superseded — the 2026-09-23 v3 re-timing (`artifacts/h200_v3_timing_report.md`) ran
+*every* H200 item at fp32 level 2, Fig. 11, Fig. 13 and the drift run included, and `WidebvhFMM` now defaults to
+level 3 on every GPU (on the H200 it is 3.4 ms faster than level 2 at 1M, same accuracy to 5 digits;
+`NEMO_FAR_FP32_LEVEL=0` for an fp64 A/B).
+Level 0 is no longer a production setting anywhere.
+
 ---
 
 ## 1. Figures
@@ -409,7 +415,8 @@ sat under the old legend. **The caption must state both operating points** — H
    `--fp32-level` flag. Mitigated but not fixed: level 3 is now evidenced on disk — the
    archived driver script in `artifacts/logs/fig12_5090_runpod/` exports
    `NEMO_FAR_FP32_LEVEL=3` and the report records it — rather than living only in run notes.
-   Adding the column remains the clean fix.
+   Adding the column remains the clean fix. **(Done since: `FIELDS` has `fp32_level`, filled from the
+   solver; the level comes from `NEMO_FAR_FP32_LEVEL`, else 3.)**
 3. ~~The H200 rows predate the two-body pair chunking — re-measure at the current tree~~ —
    **done 2026-08-22** (measurement #7): both columns are now the same tree (`ac78eb4-dirty`),
    the same protocol, and machine-written.
@@ -842,7 +849,7 @@ also a defensible answer to "why not push `mac` lower".
 | 4 | ~~far-field cost at t=0 vs t=100~~ | — | **DONE** → `data/far_field_drift_1M.csv` (150 steps × 2 backends, `benchmarks/far_field_drift.py`); see §2.7 |
 | 5 | ~~max particles on one H200~~ | §3.4 H-HIGNN capacity claim | **DONE, revised 2026-08-22** → **65,450,827 sustainable** (fp32 L2, `empty_cache` + `TC_PAIR_BUDGET_GB=11`); `artifacts/max_particles_h200_f32l2_report.md`, §2.8 |
 | 6 | ~~warm (steady-state) apply~~ | §3.4 step time | **DONE, revised** → **18.75 s at 65,450,827**; 14.6 s at 52.3M (fp32 L2) |
-| 7 | ~~Fig. 12 H200 column at the current tree~~ | — | **DONE 2026-08-22** → `data/fig12_scaling_h200_f32l2.csv`, 50k–2M at fp32 L2 (+ fp64 at 1M/2M); §1.2. Still open: `fp32_level` column/flag in `figure12_grand_M.py` (`grand_M_perf.py` reads the f32l2 CSV and the figure was re-rendered 2026-08-23 with the final 5090 column) |
+| 7 | ~~Fig. 12 H200 column at the current tree~~ | — | **DONE 2026-08-22** → `data/fig12_scaling_h200_f32l2.csv`, 50k–2M at fp32 L2 (+ fp64 at 1M/2M); §1.2. ~~Still open: `fp32_level` column/flag in `figure12_grand_M.py`~~ (done; `grand_M_perf.py` reads the f32l2 CSV and the figure was re-rendered 2026-08-23 with the final 5090 column) |
 | 8 | retrieve the A4500 container CSV | provenance only | `docker cp`/volume read of `/persistent/results/a4500_two_drop_fp32.csv` (per-step rows, and the `fp32_level` header line that *proves* level 3) into `data/`. The `fig12_5090.csv` half is **moot** — superseded by the 2026-08-23 re-measurement (#3) |
 
 **On #4 — it was not on disk, and running it changed an answer.**

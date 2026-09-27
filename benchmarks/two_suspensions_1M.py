@@ -156,7 +156,7 @@ def save_plot(particles, timestamp, output_dir=r"figures/drop_1M/"):
 @torch.no_grad()
 def main(theta, benchmark_mode=True, t_final=0.5, *, mac=None,
          max_leaf=DEFAULT_MAX_LEAF, hilbert_q=None, seed=0,
-         out_dir="figures/drop_1M/", pdeg=7, fp32_level=0,
+         out_dir="figures/drop_1M/", pdeg=7, fp32_level=None,
          pair_budget_gb=None, two_body_chunk=DEFAULT_TWO_BODY_CHUNK,
          pair_chunk=DEFAULT_PAIR_CHUNK, log_csv=None, near_op="baseline"):
     # --- Simulation Parameters ---
@@ -293,6 +293,7 @@ def main(theta, benchmark_mode=True, t_final=0.5, *, mac=None,
               f"fp32_level={warp_solver.fp32_level}, "
               f"pair_budget_gb={warp_solver.env['TC_PAIR_BUDGET_GB']}")
     else:
+        assert FAR_FIELD_BACKEND == "warp", f"unknown NEMO_FAR_FIELD {FAR_FIELD_BACKEND!r}"
         warp_solver = WarpFMM(
             near_field_operator=mob_fmm,
             theta=theta,
@@ -478,11 +479,11 @@ if __name__ == "__main__":
     ap.add_argument("--pdeg", type=int, default=7,
                     help="widebvh barycentric degree (compile-time; needs the "
                          "matching libwidebvh_nemo_p<N>.so). Default %(default)s")
-    ap.add_argument("--fp32-level", type=int, default=0,
-                    help="widebvh fp32 fast-path level: 0 = production fp64 "
-                         "kernels, 1 = fp32 M2P, 2 = + fp32 P2P, 3 = + fp32 "
-                         "upward pass (needs libwidebvh_nemo*_f32l<L>.so). "
-                         "Default %(default)s")
+    ap.add_argument("--fp32-level", type=int, default=None,
+                    help="widebvh fp32 fast-path level: 0 = fp64 kernels, "
+                         "1 = fp32 M2P, 2 = + fp32 P2P, 3 = + fp32 upward "
+                         "pass (needs libwidebvh_nemo*_f32l<L>.so). Default: "
+                         "NEMO_FAR_FP32_LEVEL, else 3")
     ap.add_argument("--pair-budget-gb", type=float, default=None,
                     help="widebvh P2P pair-list budget; default is ~6%% of "
                          "VRAM (min 1 GB), which caps at 26.8M pairs on an "

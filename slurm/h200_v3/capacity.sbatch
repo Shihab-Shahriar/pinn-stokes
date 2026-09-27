@@ -1,6 +1,6 @@
 #!/bin/bash
 # H200 timing, current NeMO (v3 moments pair + pc8c diagonal, fp16 MLP, switch 8),
-# widebvh far field at fp32 level 2. Max-particle capacity: bisection over the lattice side n (N = n^3, phi = 0.1), one process per attempt, 'repeatable' = cold + 3 warm applies with empty_cache (artifacts/max_particles_h200_f32l2_report.md protocol). Default pair budget.
+# widebvh far field at the fp32 level from env.sh. Max-particle capacity: bisection over the lattice side n (N = n^3, phi = 0.1), one process per attempt, 'repeatable' = cold + 3 warm applies with empty_cache (artifacts/max_particles_h200_f32l2_report.md protocol). Default pair budget.
 #   sbatch slurm/h200_v3/capacity.sbatch      (from the repo root; see slurm/h200_v3/README.md)
 #SBATCH --job-name=h200v3_capacity
 #SBATCH --account=hmakmm
@@ -18,9 +18,9 @@ source slurm/h200_v3/env.sh
 # keep the slurm .out with the rest of the raw data, whatever happens
 trap 'cp -f "slurm/logs/${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" "$RUN_DIR/" 2>/dev/null || true' EXIT
 write_manifest
-test -f "$WIDEBVH_BUILD_DIR/libwidebvh_nemo_f32l2.so"
+test -f "$WIDEBVH_BUILD_DIR/libwidebvh_nemo_f32l${NEMO_FAR_FP32_LEVEL}.so"
 echo "host $(hostname) job ${SLURM_JOB_ID} sha $(git rev-parse --short HEAD) raw data -> $RUN_DIR"
-OUT=data/max_particles_h200_v3_f32l2.csv
+OUT=data/max_particles_h200_v3_${F32}.csv
 echo "n_side,N,ok,result_line" > "$OUT"
 attempt() {   # $1 = n_side; returns 0 if cold + all warm applies succeeded
   local s=$1 rc=0

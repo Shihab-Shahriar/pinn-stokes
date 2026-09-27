@@ -65,7 +65,10 @@ does not). Fig 11 and Fig 12 agree at 1M (561.3 vs 558.8 ms total).
 
 50-step aggregate (`two_suspensions_1M.py --t-final 0.5`, `data/twodrop_1M_h200_v3_f32l2.csv`): **0.44 s/step** wall
 incl. Euler update (22.0 s for 50 steps); far 70.0 ms, near 369.5 ms (n-body 357.8, self+2b 7.3, neighbour search 4.1),
-torch peak 2.0 GB. The paper's baseline figures: 0.48 s/step, 283 ms far / 182 ms near (fp64 far field).
+torch peak 2.0 GB. The paper's baseline figures: 0.48 s/step, 283 ms far / 182 ms near (WarpFMM far field). The
+like-for-like reference is the baseline operator on the widebvh far field, 0.280 s/step with 104 ms far (fp64, switch 6;
+`artifacts/widebvh_far_field_report.md` §2b): against that v3 costs +57 % per step -- the far field is 34 ms cheaper
+(fp32 level 2), the near field ~2.1x dearer (switch 8 carries ~2.4x the pairs, plus the moments correction).
 
 150-step per-step run (`far_field_drift.py`, `data/far_field_drift_1M_h200_v3_f32l2.csv`): mean step 443.7 ms,
 **150 steps in 66.6 s** of GPU time (paper: 74 s); far field first/last 10 steps 67.5 -> 89.3 ms (+32 %, the drops
@@ -109,6 +112,33 @@ edge buffer allocation then fails (`AttributeError: 'NoneType' object has no att
 The process footprint at 340^3 is 55.7 GB of 140. Switch 8 has ~54 ordered pairs per particle on this lattice (50 on the random Fig 11/12 clouds; ~21 at switch 6),
 so the int32 limit binds at ~39.7 M particles, before memory. The baseline's published 65.45 M (403^3) was memory-bound.
 Warm apply at 340^3: 24.4 s.
+
+## fp32 level 3 on the H200 (2026-09-26)
+
+Every run above is fp32 level 2, because the cluster build only had level 2. Level 3 (+ fp32 upward pass, P2M/M2M)
+was built for sm_90 (`build_widebvh.sbatch`, levels 1-3) and A/B'd against level 2 in one job on one node
+(`slurm/h200_v3/fp32_levels.sbatch`, job 17859221, sha f79f8c4, same v3 operator; raw data
+`artifacts/logs/h200_v3_f32l2/h200v3_fp32lv_17859221/`, CSVs `data/fp32_levels_fig{12,10b}_h200.csv`).
+
+Fig 12 protocol, end-to-end apply, torch.compile on, one process per level in ABBA order:
+
+| N | level 2 total (far), ms | level 3 total (far), ms | delta |
+|---|---|---|---|
+| 1M | 554.2 (62.1), 553.7 (61.9) | 550.2 (58.6), 550.0 (58.6) | -3.8 ms (-0.7 %) |
+| 2M | 1158.9 (125.1), 1157.9 (124.7) | 1152.2 (119.0), 1152.9 (119.2) | -5.8 ms (-0.5 %) |
+
+Fig 10b protocol, far field alone (random loading, near cutoff 8, torch.compile off):
+
+| N | far ms L2 -> L3 | upward ms L2 -> L3 | rel_far L2 / L3 | rel_asym L2 / L3 |
+|---|---|---|---|---|
+| 1M | 61.71 -> 58.09 | 7.06 -> 3.49 | 2.26321e-4 / 2.26318e-4 | 4.5447e-4 / 4.5448e-4 |
+| 2M | 124.69 -> 118.88 | 11.19 -> 5.38 | 2.29967e-4 / 2.29973e-4 | 3.9495e-4 / 3.9495e-4 |
+| 4M | 252.87 -> 242.57 | 18.42 -> 7.96 | 3.73435e-4 / 3.73439e-4 | 4.2125e-4 / 4.2115e-4 |
+
+Level 3 halves the upward pass and is faster at every size, with accuracy and symmetry unchanged to 4-5 digits
+(truncation dominates at mac 0.8, as on the 4060). **Level 3 is therefore the default on every GPU from 2026-09-26**
+(`treecode_widebvh.DEFAULT_FP32_LEVEL`, and `slurm/h200_v3/env.sh`). The numbers above this section stay level 2; a
+level-3 rerun would move the far field by ~5 % and the totals by < 1 %.
 
 ## Notes
 * The five jobs ran concurrently on two nodes (one GPU each; other tenants may share the node). Timed std is

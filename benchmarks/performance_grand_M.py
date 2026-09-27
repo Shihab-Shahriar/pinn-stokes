@@ -302,8 +302,8 @@ FMM_THETA = 0.3
 FMM_LEAF_SIZE = 16
 FMM_BLOCK_DIM = 256
 
-# Which far field the module-level entry points use. Override with
-# NEMO_FAR_FIELD=warp to re-measure the published baseline.
+# Which far field the module-level entry points use. widebvh always; only
+# NEMO_FAR_FIELD=warp (explicit) re-measures the retired published baseline.
 FAR_FIELD_BACKEND = os.environ.get("NEMO_FAR_FIELD", "widebvh")
 
 
@@ -395,7 +395,7 @@ def build_near_field(kind: str, shape: str, near_field_cutoff: float = 6.0):
 
 
 def build_fmm_operators(shape: str, near_field_cutoff: float = 6.0,
-                        backend: str = "warp", kinds=("2b_rpy", "2b_nn", "nbody"),
+                        backend: str = "widebvh", kinds=("2b_rpy", "2b_nn", "nbody"),
                         **kwargs) -> List[tuple[str, object]]:
     """Instantiate the benchmark's mobility operators.
 

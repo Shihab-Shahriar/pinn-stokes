@@ -1,0 +1,36 @@
+Warp 1.12.0.dev0 initialized:
+   CUDA Toolkit 12.6, Driver 13.0
+   Devices:
+     "cpu"      : "x86_64"
+     "cuda:0"   : "NVIDIA H200" (140 GiB, sm_90, mempool enabled)
+   Kernel cache:
+     /mnt/home/khanmd/.cache/warp/1.12.0.dev0
+torch current cudaStream_t : 0
+warp current cudaStream_t  : 94892282876944
+
+########## panel (b): N=1,000,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field     58.094 ms (+-0.038)   17.21 M updates/s
+  rel_far     2.2632e-04   rel_total 2.2508e-04   (ref 0.3 s, 2048 targets)
+  rel_asym    4.5448e-04 +- 6.5e-05  (K=24, 15.8 s)
+
+########## panel (b): N=2,000,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field    118.877 ms (+-0.020)   16.82 M updates/s
+  rel_far     2.2997e-04   rel_total 2.2864e-04   (ref 0.6 s, 2048 targets)
+  rel_asym    3.9495e-04 +- 5.8e-05  (K=24, 32.7 s)
+
+########## panel (b): N=4,000,000 ##########
+[NNMobTorch] 2b LUT self-check: max rel deviation 1.810e-06 (16384 intervals over [0, 8.01])
+  far field    242.572 ms (+-0.103)   16.49 M updates/s
+  rel_far     3.7344e-04   rel_total 3.7011e-04   (ref 1.3 s, 2048 targets)
+  rel_asym    4.2115e-04 +- 6.3e-05  (K=24, 66.9 s)
+
+wrote 3 rows -> data/fp32_levels_fig10b_h200.csv
+
+ N            far ms   M upd/s     rel_far    rel_asym   vs known
+ 1,000,000     58.094    17.21   2.263e-04   4.545e-04   0.986x
+ 2,000,000    118.877    16.82   2.300e-04   3.950e-04       --
+ 4,000,000    242.572    16.49   3.734e-04   4.212e-04       --
+
+  flatness: rel_far spans 1.65x, rel_asym spans 1.15x across N=1,000,000..4,000,000

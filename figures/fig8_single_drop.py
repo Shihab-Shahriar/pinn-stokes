@@ -228,7 +228,7 @@ def simulate(args) -> dict:
     return {"times": np.array(snap_t), "positions": np.array(snap_pos, dtype=np.float32),
             "vel_mags": np.array(snap_vel, dtype=np.float32),
             "ud_mean": ud_mean, "ud_hr": ud_hr, "ud_tail_cross_time": float(tail_cross_time or np.nan),
-            "N": N, "accepted": accepted, "rejected": rejected, "fp32_level": args.fp32_level}
+            "N": N, "accepted": accepted, "rejected": rejected, "fp32_level": warp_solver.fp32_level}
 
 
 # ----------------------------------------------------------------------------- storyboard (notebook cell 8c)
@@ -379,7 +379,8 @@ def compare(d: dict):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--t-final", type=float, default=500.0)
-    ap.add_argument("--fp32-level", type=int, default=3, help="widebvh far-field fp32 level (3 = consumer GPU)")
+    ap.add_argument("--fp32-level", type=int, default=None,
+                    help="widebvh far-field fp32 level (default: NEMO_FAR_FP32_LEVEL, else 3)")
     ap.add_argument("--out", type=Path, default=Path("figures/fig8_single_drop"))
     ap.add_argument("--plot-only", action="store_true")
     ap.add_argument("--compare", action="store_true", help="consistency metrics vs the published run")

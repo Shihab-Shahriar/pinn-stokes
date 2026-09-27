@@ -32,8 +32,10 @@ Usage:
     python benchmarks/mac_calibration.py --case uniform100k
     python benchmarks/mac_calibration.py --case all --csv data/widebvh_mac_calibration.csv
     python benchmarks/mac_calibration.py --policy cart --orders 2,3,4 \
-        --macs 0.2,0.25,0.3,0.4,0.5 --thetas "" \
-        --csv data/cartesian_mac_calibration.csv
+        --macs 0.2,0.25,0.3,0.4,0.5 --csv data/cartesian_mac_calibration.csv
+
+The widebvh CSV's WarpFMM rows came from `--thetas 0.3,0.28,0.2` (the retired
+far field; off by default). `--fp32-levels` defaults to the wrapper's level (3).
 """
 
 from __future__ import annotations
@@ -286,7 +288,7 @@ def far_asym_probe(solver, pos_t, K: int, seed: int = 11) -> dict:
 
 def run_case(case: str, macs, pdegs, leaves, loadings, samples: int,
              rows: list, policy: str = "bary", orders=(None,),
-             fp32_levels=(0,), pair_budget_gb=None, asym_probes: int = 0):
+             fp32_levels=(None,), pair_budget_gb=None, asym_probes: int = 0):
     pos, descr = get_case(case)
     n = pos.shape[0]
     print(f"\n=== {case}: N={n:,}  ({descr}) ===", flush=True)
@@ -358,7 +360,7 @@ def run_case(case: str, macs, pdegs, leaves, loadings, samples: int,
                         p2p_ms=st.get("p2p_ms", 0),
                         build_ms=st.get("build_bvh_ms", 0) + st.get("bucket_ms", 0),
                         upward_ms=st.get("upward_ms", 0),
-                        fp32_level=lvl,
+                        fp32_level=solver.fp32_level,
                         rel_asym=asym.get("rel_asym", ""),
                         rel_asym_stderr=asym.get("rel_asym_stderr", ""),
                         asym_probes=asym_probes if asym else "",
@@ -441,13 +443,14 @@ def main() -> None:
     ap.add_argument("--orders", default="4", help="cart only (1..4)")
     ap.add_argument("--leaves", default="1024")
     ap.add_argument("--loadings", default="gravity")
-    ap.add_argument("--thetas", default="0.3,0.28,0.2",
-                    help="WarpFMM baseline opening angles (empty to skip)")
+    ap.add_argument("--thetas", default="",
+                    help="WarpFMM baseline opening angles, e.g. 0.3,0.28,0.2 "
+                         "(retired far field; default: none)")
     ap.add_argument("--samples", type=int, default=2048)
     ap.add_argument("--csv", default="")
     ap.add_argument("--selftest", action="store_true",
                     help="validate the fp64 reference and exit")
-    ap.add_argument("--fp32-levels", default="0",
+    ap.add_argument("--fp32-levels", default="",
                     help="bary only: widebvh fp32 fast-path levels to sweep "
                          "(0 fp64, 1 fp32 M2P, 2 + fp32 P2P, 3 + fp32 upward); "
                          "each needs its libwidebvh_nemo*_f32l<L>.so")
@@ -467,7 +470,7 @@ def main() -> None:
 
     macs = [float(x) for x in args.macs.split(",") if x]
     pdegs = [int(x) for x in args.pdegs.split(",") if x]
-    fp32_levels = [int(x) for x in args.fp32_levels.split(",") if x]
+    fp32_levels = [int(x) for x in args.fp32_levels.split(",") if x] or [None]
     orders = [int(x) for x in args.orders.split(",") if x]
     leaves = [int(x) for x in args.leaves.split(",") if x]
     loadings = [x for x in args.loadings.split(",") if x]

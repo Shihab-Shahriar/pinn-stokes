@@ -42,7 +42,7 @@ def _process_device_memory_mb(device_index: int = 0) -> Optional[float]:
     into its cache; that is the correct figure for "will this card hold the run".
 
     Off unless NEMO_DEVICE_MEM=1. The caller prints once per step, and each call
-    forks nvidia-smi (~100 ms) -- enough to dominate a 280 ms step and corrupt the
+    forks nvidia-smi (~200 ms per step measured, artifacts/vram_scaling_report.md) -- enough to dominate a 280 ms step and corrupt the
     wall-clock timings the benchmarks record. The CUDA-event timings around it are
     unaffected either way.
     """
@@ -298,7 +298,7 @@ class WarpFMM:
 
 
     def _gpu_near_field_pass(self, positions_t, orientations_t, forces, vis_arr, viscosity, device_index):
-        """Run GPU near-field path in a worker thread for CPU/FMM overlap."""
+        """Near-field pass: hash-grid neighbour list, then the near-field operator (runs after the far field)."""
         torch.cuda.synchronize()
         nf_start_evt = torch.cuda.Event(enable_timing=True)
         nf_end_evt = torch.cuda.Event(enable_timing=True)

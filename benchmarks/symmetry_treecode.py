@@ -199,6 +199,7 @@ def make_solver(near_op, knob):
             near_field_cutoff=CUTOFF,
             device=DEVICE,
         )
+    assert FAR_FIELD_BACKEND == "warp", f"unknown NEMO_FAR_FIELD {FAR_FIELD_BACKEND!r}"
     return WarpFMM(
         near_field_operator=near_op,
         theta=knob,

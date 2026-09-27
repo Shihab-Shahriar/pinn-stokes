@@ -1,6 +1,6 @@
 #!/bin/bash
 # H200 timing, current NeMO (v3 moments pair + pc8c diagonal, fp16 MLP, switch 8),
-# widebvh far field at fp32 level 2. Smoke test: one small Fig 12 and Fig 11 point; gates the real runs.
+# widebvh far field at the fp32 level from env.sh. Smoke test: one small Fig 12 and Fig 11 point; gates the real runs.
 #   sbatch slurm/h200_v3/smoke.sbatch      (from the repo root; see slurm/h200_v3/README.md)
 #SBATCH --job-name=h200v3_smoke
 #SBATCH --account=hmakmm
@@ -18,7 +18,7 @@ source slurm/h200_v3/env.sh
 # keep the slurm .out with the rest of the raw data, whatever happens
 trap 'cp -f "slurm/logs/${SLURM_JOB_NAME}_${SLURM_JOB_ID}.out" "$RUN_DIR/" 2>/dev/null || true' EXIT
 write_manifest
-test -f "$WIDEBVH_BUILD_DIR/libwidebvh_nemo_f32l2.so"
+test -f "$WIDEBVH_BUILD_DIR/libwidebvh_nemo_f32l${NEMO_FAR_FP32_LEVEL}.so"
 echo "host $(hostname) job ${SLURM_JOB_ID} sha $(git rev-parse --short HEAD) raw data -> $RUN_DIR"
 python benchmarks/figure12_grand_M.py --backend widebvh --near-op moments-v3 \
     --sizes 50000 --csv "$RUN_DIR/fig12_smoke.csv" 2>&1 | tee "$RUN_DIR/fig12_smoke.log"

@@ -41,10 +41,13 @@ mkdir -p "$NEMO_CACHE/home" "$WIDEBVH_SRC/build-$WIDEBVH_BUILD_TAG"
 sha="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
 # Pass through the knobs the benchmarks read, when set in the caller's shell.
+# Not TC_PATH / TC_BVH_BUILDER / TC_QUIET / TC_HILBERT_Q: WidebvhFMM writes those
+# itself from its constructor arguments, so a value from outside never reaches
+# the engine. TC_PAIR_BUDGET_GB is the one TC_ knob the wrapper honours.
 passthru=()
 for v in NEMO_FAR_FIELD NEMO_DEVICE_MEM NEMO_MAC NEMO_CART_ORDER NEMO_FAR_FP32_LEVEL \
          NEMO_MID_CELL_SCALE \
-         TORCH_COMPILE_DISABLE TC_PAIR_BUDGET_GB TC_PATH TC_QUIET TC_HILBERT_Q \
+         TORCH_COMPILE_DISABLE TC_PAIR_BUDGET_GB \
          TORCH_LOGS CUDA_LAUNCH_BLOCKING; do
     if [[ -n "${!v:-}" ]]; then passthru+=(-e "$v=${!v}"); fi
 done
