@@ -2,20 +2,10 @@
 #
 # Assemble a self-contained Docker build context for the NeMO container.
 #
-# This script exists because neither of the two things the image needs can be
-# obtained with `git clone`:
-#
-#   * widebvh (github.com/Shihab-Shahriar/treecode) has 9 modified tracked files
-#     and, critically, `src/nemo_capi.cu` -- the entire wbnemo_* C ABI that
-#     src/treecode_widebvh.py dlopens -- is UNTRACKED. `src/cpu/` is untracked
-#     too and is referenced unconditionally by add_executable(two_ball_cpu ...),
-#     so a clone fails at CMake configure time. `cuBQL/` is a gitlink with no
-#     .gitmodules, so --recursive leaves it empty.
-#   * this repo has src/treecode_widebvh.py, both production .wt models and 8
-#     benchmarks/figure*.py untracked, plus ~43 modified tracked files.
-#
-# So: copy the working trees. Run this on the cluster, scp the tarball to a
-# machine with Docker, and build there.
+# widebvh is vendored in extern/widebvh (it used to be a separate, uncloneable
+# working tree, hence a packing script at all); the context still carries only
+# the subset of this repo the image bakes, plus the gitignored Figure-12
+# configurations. Run it, copy the tarball to a machine with Docker, build there.
 #
 #   source ~/warp_env.sh
 #   bash docker/pack_context.sh                    # -> nemo-ctx.tar.gz, 42 MB
@@ -31,7 +21,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WIDEBVH_SRC="${WIDEBVH_SRC:-$HOME/programs/widebvh}"
+WIDEBVH_SRC="${WIDEBVH_SRC:-$ROOT/extern/widebvh}"
 WARP_SRC="${WARP_SRC:-$HOME/programs/warp}"
 OUT="${OUT:-$ROOT/nemo-ctx.tar.gz}"
 CTX="$(mktemp -d "${TMPDIR:-/tmp}/nemo-ctx.XXXXXX")"
@@ -84,8 +74,7 @@ say "widebvh source  <- $WIDEBVH_SRC"
 mkdir -p "$CTX/widebvh"
 tar -C "$WIDEBVH_SRC" -cf - \
     --exclude='__pycache__' --exclude='*.pyc' --exclude='*.o' --exclude='*.so' \
-    CMakeLists.txt env.sh src cuBQL \
-    CLAUDE.md AGENTS.md .gitignore \
+    CMakeLists.txt env.sh src cuBQL README.md build_nemo.sh .gitignore \
     | tar -C "$CTX/widebvh" -xf -
 
 # cuBQL is a gitlink with no .gitmodules, so `clone --recursive` leaves it empty

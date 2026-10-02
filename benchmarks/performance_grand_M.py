@@ -115,6 +115,9 @@ class BenchmarkResult:
 def load_configuration(csv_path: Path) -> np.ndarray:
     """Load particle configuration (positions + quaternion) from CSV."""
 
+    if not csv_path.exists() and csv_path.name.startswith("uniform_large_"):
+        from benchmarks.cluster import ensure_uniform_large  # gitignored: make it
+        ensure_uniform_large(csv_path)
     if not csv_path.exists():
         raise FileNotFoundError(f"Configuration file not found: {csv_path}")
 

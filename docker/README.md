@@ -279,11 +279,12 @@ short when you set it. `WIDEBVH_EXTRA_PDEG="5"` adds the
 PDEG-5 variants for degree sweeps (they were not worth it: see the report).
 
 **Iterating on this repo or widebvh on a local box** without rebuilding the image:
-`bash docker/run_local.sh <cmd>` bind-mounts the working tree over
-`/workspace/pinn-stokes`, `~/envs/nemo-ctx/widebvh` over `/opt/widebvh-src`
-(`WIDEBVH_BUILD_DIR=/opt/widebvh-src/build-<tag>`, build it inside the container
-with the image's nvcc for the local sm) and a persistent JIT cache under
-`~/envs/nemo-cache`. That is how everything in the report was measured.
+`bash docker/run_local.sh <cmd>` bind-mounts the working tree, and with it the vendored
+`extern/widebvh`, over `/workspace/pinn-stokes`, plus a persistent JIT cache under
+`~/envs/nemo-cache`. Build widebvh once per GPU architecture with
+`bash docker/run_local.sh bash extern/widebvh/build_nemo.sh` (it detects the GPU and writes
+`extern/widebvh/build-sm<CC>`, which `WidebvhFMM` then finds by itself). That is how
+everything in the report was measured.
 
 ## Step 8 — bring the results back
 
@@ -324,20 +325,11 @@ Then update `artifacts/paper_update_plan.md` §4 (mark #2 and #3 done), §1.2 (t
 
 ### Why a packing script instead of `git clone`
 
-Neither of the two things the image needs can be cloned:
-
-- **widebvh** (`github.com/Shihab-Shahriar/treecode`) has 9 modified tracked files,
-  and `src/nemo_capi.cu` — the entire `wbnemo_*` C ABI that
-  `src/treecode_widebvh.py` dlopens — is **untracked**. `src/cpu/` is untracked
-  too and is referenced unconditionally by `add_executable(two_ball_cpu ...)`, so
-  a clone fails at CMake *configure* time. `cuBQL/` is a gitlink with no
-  `.gitmodules`, so `--recursive` leaves it empty.
-- **this repo** has `src/treecode_widebvh.py`, both production `.wt` models,
-  `requirements.txt` and 8 `benchmarks/figure*.py` untracked, plus ~43 modified
-  tracked files.
-
-The script copies the working trees and refuses to run if any critical file is
-absent.
+Historically neither thing the image needs could be cloned: widebvh's NeMO C ABI
+(`src/nemo_capi.cu`) was untracked in its own repo, and so were several files here. widebvh
+is now vendored in `extern/widebvh` and everything the image needs is tracked, so a clone is
+complete; the script remains because the image bakes only a subset of the repo plus the
+gitignored Figure-12 configurations, and it refuses to run if any of those is absent.
 
 ### Warp: required, but stock
 

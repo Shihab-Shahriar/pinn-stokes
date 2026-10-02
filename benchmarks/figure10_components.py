@@ -257,6 +257,7 @@ def run_right(args) -> None:
 
     from benchmarks import mac_calibration as mc
     from benchmarks import symmetry_treecode as sym
+    from benchmarks.cluster import ensure_uniform_large
     from src.treecode_widebvh import WidebvhFMM
 
     dev = torch.device("cuda")
@@ -267,8 +268,7 @@ def run_right(args) -> None:
     rows = []
 
     for n in sizes:
-        cfg = ROOT / "tmp" / f"uniform_large_0.1_{n}.csv"
-        assert cfg.exists(), f"missing config {cfg}"
+        cfg = ensure_uniform_large(ROOT / "tmp" / f"uniform_large_0.1_{n}.csv")
         print(f"\n########## panel (b): N={n:,} ##########", flush=True)
 
         # load_config uses pandas; mac_calibration.load_csv_positions is

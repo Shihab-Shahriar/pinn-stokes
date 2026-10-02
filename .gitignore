@@ -15,11 +15,12 @@ src/__pycache__/
 src/.ipynb_checkpoints/
 utils/__pycache__
 benchmarks/__pycache__
-data/points/
 data/simulations/
 __pycache__/
 *.data
 *.txt
+!requirements.txt
+!data/points/*.txt
 .tmp/
 # build context produced by docker/pack_context.sh
 nemo-ctx.tar.gz
@@ -29,3 +30,7 @@ data/multibody_v2_cache*/
 experiments/runs/
 experiments/runs_v2/
 data/paper_accuracy_v2/
+# widebvh, the vendored far-field treecode: build trees are per machine, and its
+# CMakeLists.txt files (and cuBQL's 3rdParty.txt) must not fall under *.txt above
+extern/widebvh/build*/
+!extern/widebvh/**/*.txt

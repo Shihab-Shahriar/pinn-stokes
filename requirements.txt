@@ -1,0 +1,13 @@
+# The versions of the NeMO image (docker/Dockerfile), which ran the paper's measurements.
+# torch brings triton on Linux (the MFS kernels).
+torch==2.8.0
+numpy==2.3.3
+scipy==1.16.2
+pandas==2.3.3
+matplotlib==3.10.8
+seaborn==0.13.2
+pytest
+# GPU operators only: the hash-grid neighbour search and the fused near-field kernels.
+warp-lang==1.12.0
+# Optional: numba for the Stokesian Dynamics baseline (src/sd_ops.py), nvtx for
+# benchmarks/benchmark.py's profiling ranges.

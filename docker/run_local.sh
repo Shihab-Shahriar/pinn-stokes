@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
 #
-# Run a command inside the NeMO image on a LOCAL GPU box, with this repo and the
-# widebvh source tree bind-mounted over the image's baked copies.
+# Run a command inside the NeMO image on a LOCAL GPU box, with this repo (and the
+# widebvh tree vendored in it) bind-mounted over the image's baked copies.
 #
 #   bash docker/run_local.sh python benchmarks/two_suspensions_1M.py --help
-#   bash docker/run_local.sh bash -c 'cmake --build $WIDEBVH_BUILD_DIR -j3'
+#   bash docker/run_local.sh bash extern/widebvh/build_nemo.sh   # once per machine
 #
 # Why a wrapper: the image bakes /workspace/pinn-stokes and /opt/widebvh at
 # build time; iterating on either means rebuilding a 17 GB image. Mounting the
 # host trees instead makes a source edit visible on the next `docker run`.
 #
 #   /workspace/pinn-stokes  <- this repo (so `python benchmarks/...` runs the
-#                              working tree, and logs/figures land on the host)
-#   /opt/widebvh-src        <- $WIDEBVH_SRC (default ~/envs/nemo-ctx/widebvh),
-#                              built for the local sm into
-#                              $WIDEBVH_BUILD_DIR=/opt/widebvh-src/build-<tag>
+#                              working tree, and logs/figures land on the host).
+#                              WidebvhFMM loads extern/widebvh/build-sm<CC> for the
+#                              GPU it runs on; build it once per GPU architecture:
+#                                bash docker/run_local.sh bash extern/widebvh/build_nemo.sh
+#                              (the image's own /opt/widebvh build is not used)
+#   /opt/widebvh-src        <- $WIDEBVH_SRC, only when set: a widebvh tree outside
+#                              this repo, whose build-${WIDEBVH_BUILD_TAG:-sm<CC>}
+#                              becomes WIDEBVH_BUILD_DIR
 #   /workspace/.cache       <- $NEMO_CACHE (default ~/envs/nemo-cache): the
 #                              inductor / triton / warp JIT caches. Persisting
 #                              them across runs is what keeps the 1M warmup at
@@ -25,18 +29,27 @@
 # you, not root; HOME is pointed into the cache mount because /workspace itself
 # is root-owned in the image.
 #
-# Env overrides: IMG, WIDEBVH_SRC, WIDEBVH_BUILD_TAG (default 4060), NEMO_CACHE,
+# Env overrides: IMG, WIDEBVH_SRC, WIDEBVH_BUILD_TAG, NEMO_CACHE,
 # and any extra `docker run` flags in RUN_LOCAL_DOCKER_ARGS (e.g. -e VAR=1).
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMG="${IMG:-sskhan39/nemo:2.0}"
-WIDEBVH_SRC="${WIDEBVH_SRC:-$HOME/envs/nemo-ctx/widebvh}"
-WIDEBVH_BUILD_TAG="${WIDEBVH_BUILD_TAG:-4060}"
 NEMO_CACHE="${NEMO_CACHE:-$HOME/envs/nemo-cache}"
 
-mkdir -p "$NEMO_CACHE/home" "$WIDEBVH_SRC/build-$WIDEBVH_BUILD_TAG"
+mkdir -p "$NEMO_CACHE/home"
+
+# widebvh: the vendored tree, seen through the repo mount. WIDEBVH_BUILD_DIR is
+# blanked so that the image's ENV (its own /opt/widebvh build) does not shadow
+# WidebvhFMM's per-GPU lookup. A tree from outside the repo (WIDEBVH_SRC) gets its
+# own mount and an explicit build dir, for GPU 0.
+wb_args=(-e WIDEBVH_BUILD_DIR=)
+if [[ -n "${WIDEBVH_SRC:-}" ]]; then
+    cc0="$(nvidia-smi -i 0 --query-gpu=compute_cap --format=csv,noheader | tr -d '. ')"
+    wb_args=(-v "$WIDEBVH_SRC:/opt/widebvh-src"
+             -e WIDEBVH_BUILD_DIR="/opt/widebvh-src/build-${WIDEBVH_BUILD_TAG:-sm$cc0}")
+fi
 
 sha="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
@@ -48,17 +61,17 @@ passthru=()
 for v in NEMO_FAR_FIELD NEMO_DEVICE_MEM NEMO_MAC NEMO_CART_ORDER NEMO_FAR_FP32_LEVEL \
          NEMO_MID_CELL_SCALE \
          TORCH_COMPILE_DISABLE TC_PAIR_BUDGET_GB \
-         TORCH_LOGS CUDA_LAUNCH_BLOCKING; do
+         TORCH_LOGS CUDA_LAUNCH_BLOCKING \
+         CUDA_ARCHS WIDEBVH_NEMO_PDEG WIDEBVH_NEMO_FP32_LEVELS WIDEBVH_TARGETS NINJA_JOBS; do
     if [[ -n "${!v:-}" ]]; then passthru+=(-e "$v=${!v}"); fi
 done
 
 exec docker run --rm --gpus all \
     -u "$(id -u):$(id -g)" \
     -v "$ROOT:/workspace/pinn-stokes" \
-    -v "$WIDEBVH_SRC:/opt/widebvh-src" \
+    "${wb_args[@]}" \
     -v "$NEMO_CACHE:/workspace/.cache" \
     -e HOME=/workspace/.cache/home \
-    -e WIDEBVH_BUILD_DIR="/opt/widebvh-src/build-$WIDEBVH_BUILD_TAG" \
     -e NEMO_GIT_SHA="$sha" \
     "${passthru[@]}" \
     ${RUN_LOCAL_DOCKER_ARGS:-} \

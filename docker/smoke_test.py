@@ -43,7 +43,15 @@ def banner(text):
 
 def stage1_widebvh_ctypes():
     banner("1/3  widebvh C ABI + GPU (no torch)")
-    build_dir = Path(os.environ.get("WIDEBVH_BUILD_DIR", "/opt/widebvh/build-nemo"))
+    build_dir = os.environ.get("WIDEBVH_BUILD_DIR")
+    if not build_dir:
+        # run_local.sh blanks it: the vendored build for this GPU, as
+        # src/treecode_widebvh.py:widebvh_build_dir picks it (without torch here)
+        cc = subprocess.check_output(
+            ["nvidia-smi", "-i", "0", "--query-gpu=compute_cap", "--format=csv,noheader"],
+            text=True).strip().replace(".", "")
+        build_dir = Path(__file__).resolve().parents[1] / "extern" / "widebvh" / f"build-sm{cc}"
+    build_dir = Path(build_dir)
     # NEMO_SMOKE_LIB selects a variant (e.g. libwidebvh_nemo_f32l2.so); the
     # default is the production library.
     so = build_dir / os.environ.get("NEMO_SMOKE_LIB", "libwidebvh_nemo.so")

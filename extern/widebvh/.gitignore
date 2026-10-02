@@ -1,0 +1,60 @@
+# CMake and build directories
+build/
+build-*/
+out/
+bin/
+lib/
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Object files & executables
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+*.out
+*.exe
+
+# CUDA / C++
+*.ptx
+*.cubin
+*.fatbin
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+
+two_ball/
+profiles/
+mfs/
+mfs_ellipsoid_case/
+*.ncu-rep
+distros/*.bin
+archive/
+perf-patches/
+BaryTree.pdf
+pvfmm.pdf
+tmp/
+data/

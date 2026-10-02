@@ -5,6 +5,8 @@ ensuring new sphere has exactly min_sep distance from
 any of the existing spheres.
 """
 
+import re
+
 import numpy as np
 import pandas as pd
 import torch
@@ -698,8 +700,10 @@ def generate_uniform_testcase(shape, volume_fraction, numParticles,
 
 def uniform_cluster_generation_large(volume_fraction, numParticles,
                                   min_separation=0.02, seed=None,
-                                  verify=False):
-    """Generate up to ~1e5 unit spheres quickly; returns their centers only, no MFS velocities."""
+                                  verify=False, out_path=None):
+    """Generate up to ~1e5 unit spheres quickly; returns their centers only, no MFS velocities.
+
+    Writes them to out_path, default tmp/uniform_large_<phi>_<N>.csv (cwd-relative)."""
     assert 0 < volume_fraction < 1, "Volume fraction must be in (0, 1)."
     assert numParticles > 0, "Number of particles must be positive."
 
@@ -759,9 +763,29 @@ def uniform_cluster_generation_large(volume_fraction, numParticles,
                 raise ValueError("Overlap detected in generated spheres.")
 
     df = pd.DataFrame(positions, columns=["x", "y", "z"])
-    df.to_csv(f"tmp/uniform_large_{volume_fraction}_{numParticles}.csv",
+    df.to_csv(out_path or f"tmp/uniform_large_{volume_fraction}_{numParticles}.csv",
               index=False, header=True, float_format="%.16g")
     return positions
+
+
+def ensure_uniform_large(path):
+    """Make sure the performance configuration tmp/uniform_large_<phi>_<N>.csv
+    exists, generating it if not, and return its path.
+
+    tmp/ is gitignored, so a fresh clone has none of these. The ones the paper's
+    timings used up to 1M carry no recorded seed; this makes statistically
+    equivalent ones with seed 0, as Figure 10's 2M and 4M were made
+    (benchmarks/figure10_components.py). ~1 min per million particles."""
+    from pathlib import Path
+    path = Path(path)
+    if not path.exists():
+        m = re.fullmatch(r"uniform_large_([0-9.]+)_(\d+)\.csv", path.name)
+        assert m, f"{path} not found, and it is not a uniform_large configuration to generate"
+        print(f"{path} not found: generating it (uniform_cluster_generation_large, seed=0)",
+              flush=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        uniform_cluster_generation_large(float(m[1]), int(m[2]), seed=0, out_path=path)
+    return path
 
 
 def create_and_save_ellipsoid_cluster(numParticles):

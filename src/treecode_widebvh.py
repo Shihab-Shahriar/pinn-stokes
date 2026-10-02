@@ -12,9 +12,9 @@ carries a degree-PDEG barycentric-Lagrange expansion at Chebyshev proxy points
 and reaches ~1e-8 at mac 0.5, so the same accuracy is available at a far looser
 (and therefore cheaper) acceptance criterion.
 
-The engine is C++/CUDA and lives in its own repo, built with its own toolchain;
-we reach it through a C ABI (`libwidebvh_nemo*.so`, see widebvh/src/nemo_capi.cu)
-loaded with ctypes. Nothing is copied into this repo.
+The engine is C++/CUDA, vendored in extern/widebvh and built with its own
+toolchain; we reach it through a C ABI (`libwidebvh_nemo*.so`, see
+extern/widebvh/src/nemo_capi.cu) loaded with ctypes.
 
 Two widebvh features exist specifically for this integration:
   * `Config::nearCutoff` -- the far field covers exactly r >= rc, with no node
@@ -40,18 +40,15 @@ fp32. The far field stays truncation-dominated at every level, so NeMO always
 runs the fastest one, level 3, on every GPU; see FP32_LEVELS and
 default_fp32_level below.
 
-Build (once, from the widebvh checkout):
+Build once per GPU architecture, on that GPU (it detects the architecture):
 
-    source ./env.sh
-    cmake -S . -B build-nemo -G Ninja -DCMAKE_BUILD_TYPE=Release \
-          -DWIDEBVH_NEMO_PDEG="5;7" -DWIDEBVH_NEMO_FP32_LEVELS="1;2;3"
-    cmake --build build-nemo -j --target widebvh_nemo widebvh_nemo_f32l2 \
-          widebvh_nemo_f32l3
+    bash extern/widebvh/build_nemo.sh                  # natively
+    bash docker/run_local.sh bash extern/widebvh/build_nemo.sh   # in the image
 
-(add widebvh_nemo_p5*, widebvh_nemo_f32l1 or widebvh_nemo_cart for the A/B
-variants). The author's builds: laptop ~/envs/nemo-ctx/widebvh/build-4060 (via
-docker/run_local.sh), H200 /mnt/ffs24/home/khanmd/programs/widebvh-f32/build-nemo
-(slurm/h200_v3/build_widebvh.sbatch; the default below). Elsewhere, set
+into extern/widebvh/build-sm<CC>, which is where widebvh_build_dir() looks for
+the GPU it runs on. It builds the fp64 library, fp32 levels 1-3 and the Cartesian
+policy at PDEG 7 (WIDEBVH_NEMO_PDEG="5;7" adds the p5 variants). A build
+elsewhere -- e.g. the cluster's (slurm/h200_v3/env.sh) -- is selected with
 WIDEBVH_BUILD_DIR.
 """
 
@@ -66,16 +63,18 @@ import torch
 
 from src.treecode import WarpFMM
 
-# Where the C-ABI libraries live. Override with WIDEBVH_BUILD_DIR. The default is
-# the cluster's fp32-capable build (widebvh 03efcdb, sm_90, fp32 levels 1-3 + cart;
-# slurm/h200_v3/build_widebvh.sbatch). The older programs/widebvh/build-nemo is
-# fp64-only and cannot serve the default fp32 level.
-WIDEBVH_BUILD_DIR = Path(
-    os.environ.get(
-        "WIDEBVH_BUILD_DIR",
-        "/mnt/ffs24/home/khanmd/programs/widebvh-f32/build-nemo",
-    )
-)
+# The vendored widebvh source; its build-sm<CC> dirs hold one build per GPU
+# architecture (extern/widebvh/build_nemo.sh).
+WIDEBVH_SRC_DIR = Path(__file__).resolve().parents[1] / "extern" / "widebvh"
+
+
+def widebvh_build_dir() -> Path:
+    """Where the C-ABI libraries live: WIDEBVH_BUILD_DIR if set, else the
+    vendored source's build for the current GPU, extern/widebvh/build-sm<CC>."""
+    if os.environ.get("WIDEBVH_BUILD_DIR"):
+        return Path(os.environ["WIDEBVH_BUILD_DIR"])
+    major, minor = torch.cuda.get_device_capability()
+    return WIDEBVH_SRC_DIR / f"build-sm{major}{minor}"
 
 # ABI versions this wrapper speaks (wbnemo_abi_version() in
 # widebvh/src/nemo_capi.cu). 3 is the original fp64-only engine; 4 adds
@@ -265,16 +264,16 @@ def _load_library(policy: str, pdeg: int, fp32_level: int = 0) -> ctypes.CDLL:
         return _LIB_CACHE[key]
 
     name = library_name(policy, pdeg, fp32_level)
-    path = WIDEBVH_BUILD_DIR / name
+    build_dir = widebvh_build_dir()
+    path = build_dir / name
     if not path.exists():
+        pdeg_env = f'WIDEBVH_NEMO_PDEG="{pdeg};7" ' if policy == "bary" and pdeg != 7 else ""
         raise FileNotFoundError(
-            f"{path} not found. Build it with:\n"
-            f"  cd {WIDEBVH_BUILD_DIR.parent} && source ./env.sh && "
-            f'cmake -S . -B {WIDEBVH_BUILD_DIR.name} -G Ninja '
-            f'-DCMAKE_BUILD_TYPE=Release -DWIDEBVH_NEMO_PDEG="5;7" '
-            f'-DWIDEBVH_NEMO_FP32_LEVELS="1;2;3" && '
-            f"cmake --build {WIDEBVH_BUILD_DIR.name} -j --target "
-            f"{name[3:-3]}"
+            f"{path} not found. Build the widebvh libraries for this GPU (once per "
+            f"GPU architecture) with\n"
+            f"  {pdeg_env}bash {WIDEBVH_SRC_DIR / 'build_nemo.sh'}\n"
+            f"(in the image: bash docker/run_local.sh bash extern/widebvh/build_nemo.sh), "
+            f"or point WIDEBVH_BUILD_DIR at a build that has {name}."
         )
 
     # RTLD_LOCAL (the default) on purpose: the variants export the same symbol
