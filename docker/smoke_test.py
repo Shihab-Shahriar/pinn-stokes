@@ -57,7 +57,23 @@ def stage1_widebvh_ctypes():
     so = build_dir / os.environ.get("NEMO_SMOKE_LIB", "libwidebvh_nemo.so")
     assert so.exists(), f"no {so} -- WIDEBVH_BUILD_DIR is {build_dir}"
 
-    lib = ctypes.CDLL(str(so))          # RTLD_LOCAL, as src/treecode_widebvh.py does
+    try:
+        lib = ctypes.CDLL(str(so))      # RTLD_LOCAL, as src/treecode_widebvh.py does
+    except OSError as exc:
+        # The library links the cuBLAS of the toolkit that built it. In a torch
+        # process torch has already loaded its pip copy (nvidia-cublas-cu12), which
+        # is how WidebvhFMM finds it; without torch, preload that copy ourselves.
+        import importlib.util
+        import re
+        missing = re.search(r"libcublas\S*\.so\.\d+", str(exc))
+        spec = importlib.util.find_spec("nvidia.cublas") if missing else None
+        found = [Path(d) / "lib" / missing[0] for d in (spec.submodule_search_locations if spec else ())
+                 if (Path(d) / "lib" / missing[0]).exists()]
+        if not found:
+            raise
+        ctypes.CDLL(str(found[0]), mode=ctypes.RTLD_GLOBAL)
+        print(f"    (preloaded {found[0]})")
+        lib = ctypes.CDLL(str(so))
     for fn, restype in (("wbnemo_abi_version", ctypes.c_int),
                         ("wbnemo_policy", ctypes.c_int),
                         ("wbnemo_pdeg", ctypes.c_int),
@@ -139,9 +155,9 @@ def stage3_end_to_end():
           f"{props.total_memory / 1024**3:.1f} GB")
     print(f"    NEMO_GIT_SHA={os.environ.get('NEMO_GIT_SHA', '(unset)')}")
 
-    cfg_path = TMP_DIR / "uniform_large_0.1_50000.csv"
-    assert cfg_path.exists(), f"missing baked configuration {cfg_path}"
-    config = load_configuration(cfg_path)
+    # Baked into the image; in a clone (tmp/ is gitignored) load_configuration
+    # generates it (seed 0, not the published positions).
+    config = load_configuration(TMP_DIR / "uniform_large_0.1_50000.csv")
     n = config.shape[0]
 
     device = torch.device("cuda")
