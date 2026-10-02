@@ -188,6 +188,24 @@ Result (2026-09-07, translational PRMSE under gravity at N = 200, φ = 0.025 / 0
 HIGNN full on top of NeMO 2-body. The gap closes with N under gravity (1.03–1.07× at N ≥ 10 000): the residual is the
 collective far-field term that every pairwise far field shares. Details and caveats in the report.
 
+## Baselines figure — NeMO vs RPY, HIGNN and Stokesian Dynamics (gravity, N = 200)
+
+Added to the paper 2026-10-01 as the figure right after Fig 4 (`figs:baseline_comparison`; Figure 5 in that build,
+so the paper figures after it shift by one relative to the headings in this file). Translational PRMSE (`prmse_lin`)
+vs φ, all 8 volume fractions × 10 seeds, on the `fig4g` gravity truths; NeMO is Fig 3's
+`M_mom_v3_nb8lin_tr2_pc8c_diag`, HIGNN is `HIGNN_full`, SD is Townsend's SD as shipped, plus `SD_Minf` = the same SD
+solve with lubrication turned off (see the SD section in CLAUDE.md, `artifacts/sd_comparison_report.md`). HIGNN at φ = 0.075/0.125/0.175/0.2 was added 2026-10-01 on the
+truths `benchmarks/sd_gravity_truth.py` had filled in.
+
+```sh
+TORCH_COMPILE_DISABLE=1 python benchmarks/paper_accuracy_v2.py --exp fig4g --N 200 --ops HIGNN_full --gpu-ops --skip-done
+python figures/fig_baselines_gravity.py        # -> figures/fig_baselines_gravity.pdf  (paper: figs/fig_baselines_gravity.pdf)
+```
+
+Result (φ = 2.5 → 20 %): NeMO 0.66 → 2.82 %, HIGNN 1.01 → 6.90, RPY 1.13 → 7.74, SD 2.16 → 25.2; HIGNN / NeMO
+1.5–2.5×, RPY / NeMO 1.7–2.8×, SD / NeMO 3.3–8.9×; SD without lubrication 0.08 → 0.77 % (0.12–0.27× NeMO, but a
+dense O(N³) solve).
+
 ## Figure 5 — opposing-force KDE deep dive
 
 Truth is MFS Xfine (tol 1e-8) computed on the fly, so the full run needs a CUDA GPU with Triton
@@ -264,8 +282,8 @@ TORCH_COMPILE_DISABLE=1 python figures/fig7_helen_3body.py    # MFS truth + 4 op
 python figures/fig7_helen_3body.py --plot-only                # re-render from its CSV
 ```
 
-Out: `figures/fig7_helen_3body.{pdf,png,csv}` + a drop-in copy at the paper's include name
-`figures/helens_3body_comparison_nbody.{pdf,png}`. The recomputed MFS (Xfine) confirms
+Out: `figures/fig7_helen_3body.{pdf,csv}` + a drop-in copy at the paper's include name
+`figures/helens_3body_comparison_nbody.pdf`. The recomputed MFS (Xfine) confirms
 Wilson's values to ~1e-4 for S ≥ 2.1; at S=2.01 the point clouds cannot resolve the 0.01 gap
 (fine vs Xfine disagree there), so Wilson is the reference throughout, as in the published
 figure.
@@ -293,8 +311,8 @@ bases, 93 coefficients; `moments_for_nbody.md` §5.4) removes it: Ω error vs MF
 at S = 2.01/2.1/2.5/3/4/6 → +22/−2/−1/+1/−2/−2 %, on top of Wilson and SD from S = 2.1 outward, and U3 at
 S = 2.1 +7.5 % → +3.6 %; U1/U2 unchanged (same diagonal). NeMO v3 is closer to Wilson than SD in
 10/24 cells (v2: 10, b1: 8) and beats SD on the mean deviation for S ≥ 2.1 (0.0012 vs 0.0035). The
-figure carries both NeMO curves (v2 and v3). What remains is S=2.01 (Ω +22 %, U3 +89 %), which sits
-below the training data's minimum gap of 0.1 and is OOD for every learned term.
+figure (2026-09-27) carries a single NeMO curve, the v3 stack, next to Wilson and SD; v2 and the others stay in the CSV. What remains is S=2.01 (Ω +22 %, U3 +89 %), which sits
+below the training data's minimum gap of 0.05 and is OOD for every learned term.
 
 ## Figure 8 — single-drop sedimentation storyboard
 

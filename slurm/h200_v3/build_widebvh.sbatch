@@ -10,7 +10,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=64G
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:h200:1
 #SBATCH --constraint=amd24
 #SBATCH --time=2:59:00
 #SBATCH --output=slurm/logs/%x_%j.out

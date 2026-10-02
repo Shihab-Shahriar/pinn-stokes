@@ -20,9 +20,10 @@ are evaluated alongside for the old-vs-new comparison.
     TORCH_COMPILE_DISABLE=1 python figures/fig7_helen_3body.py    # eval + figure
     python figures/fig7_helen_3body.py --plot-only                # re-render from the CSV
 
-Outputs: figures/fig7_helen_3body.{pdf,png}, all values in figures/fig7_helen_3body.csv,
-and a drop-in copy at the paper's include name figures/helens_3body_comparison_nbody.{pdf,png}
-(layout matches the published figure: 2x2 panels, Helen's Method / Stokesian Dynamics / NeMO).
+Outputs: figures/fig7_helen_3body.pdf, all values in figures/fig7_helen_3body.csv,
+and a drop-in copy at the paper's include name figures/helens_3body_comparison_nbody.pdf
+(layout matches the published figure: 2x2 panels, Helen's Method / Stokesian Dynamics / NeMO,
+the last being the published v3 stack; every other operator is in the CSV and the report only).
 """
 from __future__ import annotations
 
@@ -204,8 +205,7 @@ def plot(df: pd.DataFrame, out_stem: Path) -> None:
                          "font.serif": ["STIXGeneral", "DejaVu Serif"],
                          "mathtext.fontset": "stix",
                          "pdf.fonttype": 42, "ps.fonttype": 42})
-    series = [("wilson", "Helen's Method"), ("sd", "Stokesian Dynamics"),
-              ("diag", "NeMO (moments v2)"), ("v3diag", "NeMO (moments v3, split TR/RT)")]
+    series = [("wilson", "Helen's Method"), ("sd", "Stokesian Dynamics"), ("v3diag", "NeMO")]
     fig, axes = plt.subplots(2, 2, figsize=(10, 8), sharex=True)
     for m, ax in zip(METRICS, axes.flat):
         for key, label in series:
@@ -217,9 +217,8 @@ def plot(df: pd.DataFrame, out_stem: Path) -> None:
     fig.legend(handles, labels, loc="upper center", ncol=len(series))
     fig.tight_layout(rect=(0, 0, 1, 0.92))
     for stem in (out_stem, Path("figures/helens_3body_comparison_nbody")):  # paper include name
-        for ext in ("pdf", "png"):
-            fig.savefig(stem.with_suffix(f".{ext}"), dpi=300)
-    print(f"-> {out_stem}.{{pdf,png}} + figures/helens_3body_comparison_nbody.{{pdf,png}}")
+        fig.savefig(stem.with_suffix(".pdf"))
+    print(f"-> {out_stem}.pdf + figures/helens_3body_comparison_nbody.pdf")
 
 
 def main():

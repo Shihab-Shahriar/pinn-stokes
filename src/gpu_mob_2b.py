@@ -21,7 +21,7 @@ import torch
 import torch.profiler as profiler
 from benchmarks.bench_rpy import _two_body_mu_batch, two_body_rpy_batch
 from src.model_archs import TwoBodyCombined
-from src.hashgrid_neighbors import HashGridNeighborSearch
+from src.hashgrid_neighbors import HashGridNeighborSearch, MAX_EDGES_PER_LAUNCH
 
 
 
@@ -568,7 +568,8 @@ class NNMobTorch:
         force: torch.Tensor,
         viscosity: TensorLike,
     ) -> torch.Tensor:
-        """Whole 2b pair pass as one warp launch (no torch work per pair)."""
+        """Whole 2b pair pass as one warp launch (no torch work per pair); above
+        MAX_EDGES_PER_LAUNCH pairs (int32 warp launch grid), one per segment."""
         velocities = torch.zeros_like(force)
         num_pairs = int(t_idx.shape[0])
         if num_pairs == 0:
@@ -577,19 +578,22 @@ class NNMobTorch:
         if mu.ndim >= 1 and mu.numel() > 1:
             mu = mu[0]
         inv_mu = float(1.0 / mu)
+        t_idx, s_idx = t_idx.contiguous(), s_idx.contiguous()
         stream = wp.stream_from_torch(torch.cuda.current_stream(self.device))
         with wp.ScopedStream(stream):
-            wp.launch(
-                two_body_pair_lut_kernel, dim=num_pairs,
-                inputs=(wp.from_torch(positions.contiguous(), dtype=wp.vec3),
-                        wp.from_torch(t_idx.contiguous(), dtype=wp.int32),
-                        wp.from_torch(s_idx.contiguous(), dtype=wp.int32),
-                        wp.from_torch(self._two_body_lut),
-                        float(self._two_body_lut_inv_dd),
-                        int(self.TWO_BODY_LUT_N),
-                        wp.from_torch(force.contiguous()), inv_mu,
-                        wp.from_torch(velocities)),
-                stream=stream)
+            for p0 in range(0, num_pairs, MAX_EDGES_PER_LAUNCH):
+                p1 = min(p0 + MAX_EDGES_PER_LAUNCH, num_pairs)
+                wp.launch(
+                    two_body_pair_lut_kernel, dim=p1 - p0,
+                    inputs=(wp.from_torch(positions.contiguous(), dtype=wp.vec3),
+                            wp.from_torch(t_idx[p0:p1], dtype=wp.int32),
+                            wp.from_torch(s_idx[p0:p1], dtype=wp.int32),
+                            wp.from_torch(self._two_body_lut),
+                            float(self._two_body_lut_inv_dd),
+                            int(self.TWO_BODY_LUT_N),
+                            wp.from_torch(force.contiguous()), inv_mu,
+                            wp.from_torch(velocities)),
+                    stream=stream)
         return velocities
 
     @torch.no_grad()

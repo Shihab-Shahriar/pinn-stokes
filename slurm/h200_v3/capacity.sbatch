@@ -7,10 +7,10 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
-#SBATCH --mem=64G
-#SBATCH --gres=gpu:1
+#SBATCH --mem=256G
+#SBATCH --gres=gpu:h200:1
 #SBATCH --constraint=amd24
-#SBATCH --time=2:59:00
+#SBATCH --time=3:59:00
 #SBATCH --output=slurm/logs/%x_%j.out
 set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:?submit from the repo root}"
@@ -31,13 +31,16 @@ attempt() {   # $1 = n_side; returns 0 if cold + all warm applies succeeded
   echo "n_side=$s rc=$rc  $line"
   return $rc
 }
-# Published ceiling (baseline, switch 6) is 403^3; switch 8 carries ~2.4x the
-# near pairs, so bracket from below: grow lo until a failure, then bisect.
+# Published ceiling (baseline, switch 6) is 403^3. Switch 8 carries ~2.4x the near
+# pairs; the 2026-09-23 run stopped at 340^3 on the int32 pair count (int64 since
+# 2026-09-30), and 340^3 used 55.7 of 140 GB, so the bracket reaches past 403:
+# grow lo until a failure, then bisect. --mem is host RAM: the 2026-09-30 run at 64G was
+# killed by the host-memory cgroup from 476^3 up (MaxRSS 48 GB) with the GPU at 132 of 144 GB.
 lo=0; hi=0
-for s in 200 250 290 320 350 380 403 430; do
+for s in 200 250 290 320 350 380 403 430 460 490 520; do
   if attempt $s; then lo=$s; else hi=$s; break; fi
 done
-[ $hi -gt 0 ] || { echo "no failure up to 430 -- extend the bracket"; exit 0; }
+[ $hi -gt 0 ] || { echo "no failure up to 520 -- extend the bracket"; exit 0; }
 [ $lo -gt 0 ] || { echo "n_side 200 already fails"; exit 1; }
 while [ $((hi - lo)) -gt 1 ]; do
   mid=$(((lo + hi) / 2))

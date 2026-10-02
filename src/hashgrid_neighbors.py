@@ -34,13 +34,26 @@ def count_neighbors_kernel(
     no_of_nn[i] = count
 
 
+# Warp arrays and launch grids are int32-shaped (shape_t / launch_bounds_t), so no
+# single warp array or launch may hold 2**31 elements. The ordered near-pair count
+# passes that at ~40M particles at radius 8 (~54 pairs each): offsets are int64 and
+# the fill runs in segments of consecutive particles, each writing at most this
+# many edges through its own view of the (torch, int64-sized) edge buffers. Pair
+# loops over the edge list launch at most this many pairs at a time for the same
+# reason.
+MAX_EDGES_PER_LAUNCH = 2**30
+
+
 @wp.kernel
 def fill_edge_indexes_kernel(
     grid: wp.uint64,
     positions: wp.array(dtype=wp.vec3),
     edge_t: wp.array(dtype=wp.int32),
     edge_s: wp.array(dtype=wp.int32),
-    idx_start: wp.array(dtype=wp.int32),
+    idx_start: wp.array(dtype=wp.int64),
+    seg_lo: int,
+    seg_hi: int,
+    seg_base: wp.int64,
     radius: float,
     radius_sq: float,
 ):
@@ -48,8 +61,10 @@ def fill_edge_indexes_kernel(
 
     # order threads by cell
     i = wp.hash_grid_point_id(grid, tid)
+    if i < seg_lo or i >= seg_hi:
+        return
     x = positions[i]
-    idx = idx_start[i]
+    idx = wp.int32(idx_start[i] - seg_base)
 
     neighbors = wp.hash_grid_query(grid, x, radius)
 
@@ -156,12 +171,9 @@ class HashGridNeighborSearch:
             )
             wp.synchronize()
 
-            nn_count_torch_i32 = wp.to_torch(self.no_of_nn)
-            nn_count_torch = torch.cumsum(nn_count_torch_i32, dim=0, dtype=torch.int32)
-            total_pairs = int(nn_count_torch[-1].item())
-            # int32 edge offsets: fine to ~2.1e9 pairs (1M @ radius 8 is ~5e7);
-            # a 65M-particle radius-8 run would overflow and needs int64 first.
-            assert total_pairs < 2**31 - 1
+            counts = wp.to_torch(self.no_of_nn)
+            incl = torch.cumsum(counts, dim=0, dtype=torch.int64)
+            total_pairs = int(incl[-1].item())
             if verbose:
                 print(f"Total near-field pairs found: {total_pairs}")
 
@@ -173,18 +185,31 @@ class HashGridNeighborSearch:
 
             self._ensure_edge_capacity(total_pairs, positions_t.device)
 
-            nn_count_torch = nn_count_torch - nn_count_torch_i32
+            excl = incl - counts
             if verbose:
                 print("Collecting neighbor edge indexes...")
-            wp_edges_t = wp.from_torch(self.edge_indexes_t, dtype=wp.int32)
-            wp_edges_s = wp.from_torch(self.edge_indexes_s, dtype=wp.int32)
-            wp_idx_start = wp.from_torch(nn_count_torch, dtype=wp.int32)
-            wp.launch(
-                kernel=fill_edge_indexes_kernel,
-                dim=N,
-                inputs=(self.grid.id, p, wp_edges_t, wp_edges_s, wp_idx_start, radius, radius_sq),
-                stream=wp_stream,
-            )
+            wp_idx_start = wp.from_torch(excl, dtype=wp.int64)
+            lo = 0
+            while lo < N:
+                base = int(excl[lo].item()) if lo else 0
+                if total_pairs - base <= MAX_EDGES_PER_LAUNCH:
+                    hi = N
+                else:
+                    limit = torch.tensor([base + MAX_EDGES_PER_LAUNCH], dtype=torch.int64,
+                                         device=incl.device)
+                    hi = int(torch.searchsorted(incl, limit, right=True).item())
+                end = int(incl[hi - 1].item()) if hi < N else total_pairs
+                if end > base:
+                    wp.launch(
+                        kernel=fill_edge_indexes_kernel,
+                        dim=N,
+                        inputs=(self.grid.id, p,
+                                wp.from_torch(self.edge_indexes_t[base:end], dtype=wp.int32),
+                                wp.from_torch(self.edge_indexes_s[base:end], dtype=wp.int32),
+                                wp_idx_start, lo, hi, base, radius, radius_sq),
+                        stream=wp_stream,
+                    )
+                lo = hi
             wp.synchronize()
 
         return self.edge_indexes_t[:total_pairs], self.edge_indexes_s[:total_pairs]

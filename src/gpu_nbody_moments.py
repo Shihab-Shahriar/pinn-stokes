@@ -65,6 +65,7 @@ import torch
 import warp as wp
 
 from src.gpu_mob_2b import NNMobTorch, TensorLike, DEFAULT_TWO_BODY_CHUNK
+from src.hashgrid_neighbors import MAX_EDGES_PER_LAUNCH
 from src.model_archs import MultiBodyMoments, SelfBlockMoments
 from src import nbody_moments as nbm
 
@@ -554,6 +555,27 @@ class MidpointNeighborSearch:
             wp.launch(kernel, dim=P, inputs=args, stream=stream)
 
 
+def _unordered_pairs(t_idx: torch.Tensor, s_idx: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    """The t < s half of an ordered (symmetric) pair list. Above MAX_EDGES_PER_LAUNCH
+    ordered pairs the mask is applied per segment into preallocated outputs, so no
+    boolean-mask select runs over more than 2**31 elements."""
+    E = int(t_idx.shape[0])
+    if E <= MAX_EDGES_PER_LAUNCH:
+        keep = t_idx < s_idx                     # unordered pairs, once each
+        return t_idx[keep].contiguous(), s_idx[keep].contiguous()
+    segs = [(e0, min(e0 + MAX_EDGES_PER_LAUNCH, E)) for e0 in range(0, E, MAX_EDGES_PER_LAUNCH)]
+    counts = [int((t_idx[a:b] < s_idx[a:b]).sum().item()) for a, b in segs]
+    t_u = torch.empty(sum(counts), dtype=t_idx.dtype, device=t_idx.device)
+    s_u = torch.empty_like(t_u)
+    off = 0
+    for (a, b), n in zip(segs, counts):
+        keep = t_idx[a:b] < s_idx[a:b]
+        t_u[off:off + n] = t_idx[a:b][keep]
+        s_u[off:off + n] = s_idx[a:b][keep]
+        off += n
+    return t_u, s_u
+
+
 # ---------------------------------------------------------------------------
 # Compiled torch kernels
 # ---------------------------------------------------------------------------
@@ -851,9 +873,7 @@ class Mob_Nbody_Moments_Torch(NNMobTorch):
     ) -> torch.Tensor:
         """Learned pair n-body correction summed per particle, (N, 6)."""
         v = torch.zeros_like(force)
-        keep = t_idx < s_idx                     # unordered pairs, once each
-        t_u = t_idx[keep].contiguous()
-        s_u = s_idx[keep].contiguous()
+        t_u, s_u = _unordered_pairs(t_idx, s_idx)
         if self.pair_cutoff < self.switch_dist:
             near = (pos[s_u] - pos[t_u]).square().sum(-1) <= self.pair_cutoff ** 2
             t_u, s_u = t_u[near].contiguous(), s_u[near].contiguous()

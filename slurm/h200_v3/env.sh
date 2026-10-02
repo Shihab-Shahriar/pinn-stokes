@@ -9,6 +9,9 @@ source ~/warp_env.sh
 # prepend this checkout or src/benchmarks silently import the other tree.
 export PYTHONPATH="$(pwd -P):${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
+# --constraint=amd24 also matches the L40S nodes (nel-*); the jobs request gpu:h200:1,
+# and this refuses to time anything else.
+[[ "$(nvidia-smi --query-gpu=name --format=csv,noheader)" == *H200* ]] || { echo "not an H200: $(nvidia-smi -L)"; exit 1; }
 # widebvh 03efcdb (the fp32 engine), permanent copy; the 2026-09-23 runs used the same
 # tree on scratch (/mnt/scratch/khanmd/widebvh-f32/build-h200-f32).
 export WIDEBVH_SRC=/mnt/ffs24/home/khanmd/programs/widebvh-f32
@@ -28,7 +31,7 @@ write_manifest() {
     echo "date        $(date -Is)"
     echo "host        $(hostname)"
     echo "job         ${SLURM_JOB_ID:-?} ${SLURM_JOB_NAME:-?}"
-    echo "pinn-stokes $(git rev-parse HEAD) $(git status --porcelain --untracked-files=no | wc -l) modified tracked files"
+    echo "pinn-stokes $(git rev-parse HEAD) $(git status --porcelain --untracked-files=no | wc -l) modified tracked files (diff: worktree.diff)"
     echo "widebvh     $(git -C "$WIDEBVH_SRC" rev-parse HEAD)  build $WIDEBVH_BUILD_DIR"
     echo "fp32 level  $NEMO_FAR_FP32_LEVEL"
     echo "python      $(which python)"
@@ -37,4 +40,5 @@ write_manifest() {
     echo "---- env"; env | grep -E '^(NEMO|WIDEBVH|TC_|TORCH|PYTORCH|CUDA|SLURM_JOB|PYTHONPATH)' | sort
     echo "---- conda list"; conda list 2>/dev/null
   } > "$RUN_DIR/manifest.txt" 2>&1
+  git diff HEAD > "$RUN_DIR/worktree.diff"
 }

@@ -79,7 +79,8 @@ LOG_DIR = ROOT / "figures" / "runtime_breakdown"
 # "moments-v3" = the moments stack at 8 (the 2b comparison ops move to 8 too).
 OPERATORS = ("2b_rpy", "2b_nn", "nbody")
 OP_LABELS = {"2b_rpy": "FMM_2body_RPY", "2b_nn": "FMM_2body_NN",
-             "nbody": "FMM_Nbody_NN", "moments": "FMM_Nbody_Moments"}
+             "nbody": "FMM_Nbody_NN", "moments": "FMM_Nbody_Moments",
+             "moments-pc6": "FMM_Nbody_Moments_pc6"}
 
 
 def operators_for(near_op: str) -> tuple:

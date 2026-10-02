@@ -403,7 +403,8 @@ def build_fmm_operators(shape: str, near_field_cutoff: float = 6.0,
     far field disabled, so the treecode owns r >= cutoff exclusively.
     """
     labels = {"2b_rpy": "FMM_2body_RPY", "2b_nn": "FMM_2body_NN",
-              "nbody": "FMM_Nbody_NN", "moments": "FMM_Nbody_Moments"}
+              "nbody": "FMM_Nbody_NN", "moments": "FMM_Nbody_Moments",
+              "moments-pc6": "FMM_Nbody_Moments_pc6"}
     return [
         (labels[k],
          build_far_field(build_near_field(k, shape, near_field_cutoff),

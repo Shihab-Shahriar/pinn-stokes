@@ -31,5 +31,9 @@ Raw data: `artifacts/logs/h200_v3_f32l2/<job>_<jobid>/` (every process log, mani
 correction only on pairs with d <= 6 (2b NN, diagonal and the far field's near cutoff stay at 8). A timing variant for
 the HIGNN comparison, not a trained operating point. CSVs `data/{twodrop,far_field_drift}_1M_h200_v3_pc6_f32l2.csv`.
 
+`fig11_pc6`, `fig12_pc6` (2026-09-30): Fig 11 / Fig 12 with `--near-op moments-v3-pc6` (the pc6 variant above; CSVs
+`data/{fig11_breakdown,fig12_scaling}_h200_v3_pc6_f32l<L>.csv`). Fig 10b has no pc6 variant: it times the far field
+alone, which depends only on the near cutoff (8 for both).
+
 `fp32_levels` (2026-09-26): level 2 vs 3 A/B -- Fig 12 at 1M/2M (ABBA) and Fig 10b at 1M/2M/4M; results in
 `artifacts/h200_v3_timing_report.md` ("fp32 level 3 on the H200"). CSVs `data/fp32_levels_fig{12,10b}_h200.csv`.
