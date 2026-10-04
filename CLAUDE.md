@@ -29,6 +29,7 @@ Unless otherwise stated, we shall always use the moments model from now on for e
   - The `slurm/` scripts' `#SBATCH` headers (account, constraint) and `slurm/h200_v3/env.sh` paths are the author's cluster; adapt them elsewhere.
   - `slurm/h200_v3/` is the current recipe. `env.sh` sets: the widebvh build; `NEMO_FAR_FP32_LEVEL` default 3, with output names tagged `f32l<L>`; torch.compile on; `NEMO_DEVICE_MEM` off; a per-run manifest into `artifacts/logs/`.
   - Pass `--near-op moments-v3`: every perf script defaults to `baseline`, the published K=10 operator.
+  - GPUs the cluster lacks (A4500, 5090): `cloud/runpod_bench.py run <job>` rents one RunPod pod in `sskhan39/nemo:2.0`. It runs `cloud/jobs/<job>.sh` on a `git archive` of HEAD, building widebvh on the pod, fetches into `artifacts/logs/`, and terminates the pod; the pod also has a dead-man TTL. The key comes from `RUNPOD_API_KEY` or `~/.runpod/config.toml`, never from the repo. `--local --quick` rehearses for free in local docker. See `cloud/README.md`.
   Pitfalls:
   - one configuration per process for timing;
   - at most 8 sizes or operators per process — the 9th hits `recompile_limit` and silently runs eager;
