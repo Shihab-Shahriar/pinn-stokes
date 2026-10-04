@@ -1,0 +1,35 @@
+[13:59:23] run fig12 on NVIDIA GeForce RTX 5090 (secure), results -> artifacts/logs/5090_v3_f32l3/fig12_20261004T185902Z
+[13:59:24] pod 8inrtgq2zujl4w created, $0.99/hr, machine ?
+[13:59:25] status RUNNING  Rented by User: Sun Oct 04 2026 18:59:24 GMT+0000 (Coordinated Universal Time)  ssh None:None
+[14:01:15] status RUNNING  Rented by User: Sun Oct 04 2026 18:59:24 GMT+0000 (Coordinated Universal Time)  ssh 213.192.2.98:40050
+[14:01:18] ssh up at root@213.192.2.98 -p 40050 after 1.9 min
+[14:01:21] GPU: NVIDIA GeForce RTX 5090, 32607 MiB, 580.159.03, 12.0
+[14:01:24] dead-man switch: 2026-10-04T19:00:58+00:00 watchdog armed: pod 8inrtgq2zujl4w terminates itself at 2026-10-04T20:25:58+00:00 or on /workspace/.terminate_now
+[14:02:01] uploaded HEAD ff13cda and cloud/
+[14:04:49] uploaded job inputs in 168 s
+[14:04:52] job cloud/jobs/fig12.sh started (NEMO_GPU_TAG=5090 NEMO_GIT_SHA=ff13cda NEMO_IMAGE=sskhan39/nemo:2.0 NEMO_FAR_FP32_LEVEL=3)
+[14:05:25] === stage widebvh  
+[14:12:37] === stage N=50000 warmup=400  
+[14:14:17] === stage N=100000 warmup=400  
+[14:14:50] === stage N=200000 warmup=400  
+[14:15:56] === stage N=500000 warmup=6  
+[14:16:29] === stage N=1000000 warmup=6  
+[14:17:02] === stage N=1250000 warmup=6  
+[14:17:34] === stage N=1500000 warmup=6  @@ N=1,500,000  total=763.24 ms (+-0.66)  far=78.86 ms  1.965 M updates/s  VRAM 2.32 GB
+[14:18:07] === stage N=2000000 warmup=6  
+[14:18:40] === stage done  @@ N=2,000,000  total=1027.69 ms (+-0.72)  far=101.87 ms  1.946 M updates/s  VRAM 2.83 GB
+[14:18:40] job finished, exit 0, 19.3 min since creation
+[14:18:43] fetched 29 files into artifacts/logs/5090_v3_f32l3/fig12_20261004T185902Z
+[14:18:43] fig12_scaling_5090_v3_f32l3_100000.log: @@ N=100,000  total=61.78 ms (+-0.08)  far=12.32 ms  1.619 M updates/s  VRAM 0.90 GB
+[14:18:43] fig12_scaling_5090_v3_f32l3_1000000.log: @@ N=1,000,000  total=502.77 ms (+-0.12)  far=49.31 ms  1.989 M updates/s  VRAM 1.82 GB
+[14:18:43] fig12_scaling_5090_v3_f32l3_1250000.log: @@ N=1,250,000  total=632.71 ms (+-0.65)  far=62.41 ms  1.976 M updates/s  VRAM 2.06 GB
+[14:18:43] fig12_scaling_5090_v3_f32l3_1500000.log: @@ N=1,500,000  total=763.24 ms (+-0.66)  far=78.86 ms  1.965 M updates/s  VRAM 2.32 GB
+[14:18:43] fig12_scaling_5090_v3_f32l3_1750000.log: @@ N=1,750,000  total=892.66 ms (+-0.49)  far=88.90 ms  1.960 M updates/s  VRAM 2.57 GB
+[14:18:43] fig12_scaling_5090_v3_f32l3_200000.log: @@ N=200,000  total=110.46 ms (+-0.22)  far=17.48 ms  1.811 M updates/s  VRAM 1.00 GB
+[14:18:43] fig12_scaling_5090_v3_f32l3_2000000.log: @@ N=2,000,000  total=1027.69 ms (+-0.72)  far=101.87 ms  1.946 M updates/s  VRAM 2.83 GB
+[14:18:43] fig12_scaling_5090_v3_f32l3_50000.log: @@ N=50,000  total=36.88 ms (+-0.32)  far=10.13 ms  1.356 M updates/s  VRAM 0.85 GB
+[14:18:43] fig12_scaling_5090_v3_f32l3_500000.log: @@ N=500,000  total=257.89 ms (+-0.24)  far=30.15 ms  1.939 M updates/s  VRAM 1.41 GB
+[14:18:43] fig12_scaling_5090_v3_f32l3_750000.log: @@ N=750,000  total=382.25 ms (+-0.41)  far=38.90 ms  1.962 M updates/s  VRAM 1.62 GB
+[14:18:58] 8inrtgq2zujl4w terminated itself after 11 s (dead-man switch works)
+[14:18:58] pod lifetime 19.6 min x $0.99/hr = ~$0.323
+[14:18:58] copied fig12_scaling_5090_v3_f32l3.csv -> data/

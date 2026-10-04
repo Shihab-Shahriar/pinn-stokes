@@ -1,0 +1,2 @@
+backend,n,total_ms,std_ms,min_ms,far_ms,near_ms,updates_per_sec,peak_vram_gb,mac,theta,pdeg,order,max_leaf,gpu,git_sha,near_op,cutoff,fp32_level
+widebvh,500000,257.88778997957706,0.23563800863528894,257.72180035710335,30.154815673828125,227.73297430574894,1938827.7360459622,1.411600112915039,0.8,nan,7,0,1024,NVIDIA GeForce RTX 5090,ff13cda,moments-v3,8.0,3

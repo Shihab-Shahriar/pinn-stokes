@@ -1,0 +1,47 @@
+[01:20:34] run twodrop on NVIDIA RTX A4500 (community), results -> artifacts/logs/a4500_v3_f32l3/twodrop_20261004T062031Z
+[01:20:35] pod ajk5730ze5iii3 created, $0.19/hr, machine ?
+[01:20:35] status RUNNING  Rented by User: Sun Oct 04 2026 06:20:34 GMT+0000 (Coordinated Universal Time)  ssh None:None
+[01:23:12] status RUNNING  Rented by User: Sun Oct 04 2026 06:20:34 GMT+0000 (Coordinated Universal Time)  ssh 213.144.200.206:12917
+[01:23:15] ssh up at root@213.144.200.206 -p 12917 after 2.7 min
+[01:23:17] GPU: NVIDIA RTX A4500, 20470 MiB, 580.159.03, 8.6
+[01:23:20] dead-man switch: 2026-10-04T06:22:43+00:00 watchdog armed: pod ajk5730ze5iii3 terminates itself at 2026-10-04T07:32:43+00:00 or on /workspace/.terminate_now
+[01:23:56] uploaded HEAD ff13cda and cloud/
+[01:23:59] job cloud/jobs/twodrop.sh started (NEMO_GPU_TAG=a4500 NEMO_GIT_SHA=ff13cda NEMO_IMAGE=sskhan39/nemo:2.0 NEMO_FAR_FP32_LEVEL=3)
+[01:24:31] === stage widebvh  
+[01:25:04] === stage timing  Total particles: 1047968
+[01:26:09] === stage timing  Step t=0.00
+[01:26:41] === stage timing  Step t=0.10
+[01:27:14] === stage timing  Step t=0.20
+[01:27:46] === stage timing  Step t=0.30
+[01:28:19] === stage timing  Step t=0.41
+[01:28:51] === stage memory  Total particles: 1047968
+[01:29:24] === stage memory  Step t=0.01
+[01:29:56] === stage memory  Step t=0.11
+[01:30:29] === stage memory  Step t=0.21
+[01:31:02] === stage memory  Step t=0.32
+[01:31:35] === stage memory  Step t=0.42
+[01:32:07] === stage done  Simulation complete.
+[01:32:07] job finished, exit 0, 11.6 min since creation
+[01:32:10] fetched 14 files into artifacts/logs/a4500_v3_f32l3/twodrop_20261004T062031Z
+[01:32:10] twodrop_1M_a4500_v3_f32l3.log: @@ steps=50  total_sim_time=159.22s  (3184.4 ms/step wall incl. Euler update)
+[01:32:10] twodrop_1M_a4500_v3_f32l3.log: @@ wall_s      mean      3.18  median      3.19  min      3.08  max      3.50
+[01:32:10] twodrop_1M_a4500_v3_f32l3.log: @@ far_ms      mean    202.30  median    203.04  min    183.52  max    212.59
+[01:32:10] twodrop_1M_a4500_v3_f32l3.log: @@ near_ms     mean   2981.31  median   2986.11  min   2866.79  max   3306.75
+[01:32:10] twodrop_1M_a4500_v3_f32l3.log: @@ nsearch_ms  mean     18.14  median     18.17  min     16.52  max     22.14
+[01:32:10] twodrop_1M_a4500_v3_f32l3.log: @@ self2b_ms   mean     22.43  median     22.41  min     21.86  max     24.40
+[01:32:10] twodrop_1M_a4500_v3_f32l3.log: @@ nbody_ms    mean   2940.10  median   2944.82  min   2827.34  max   3261.67
+[01:32:10] twodrop_1M_a4500_v3_f32l3.log: @@ total_gpu   mean   3184.12  median   3188.44  min   3077.95  max   3496.15
+[01:32:10] twodrop_1M_a4500_v3_f32l3.log: @@ peak_mem_mb  max 2260  (torch allocated)
+[01:32:10] twodrop_1M_a4500_v3_f32l3_mem.log: @@ steps=50  total_sim_time=159.45s  (3189.1 ms/step wall incl. Euler update)
+[01:32:10] twodrop_1M_a4500_v3_f32l3_mem.log: @@ wall_s      mean      3.19  median      3.19  min      3.08  max      3.51
+[01:32:10] twodrop_1M_a4500_v3_f32l3_mem.log: @@ far_ms      mean    204.81  median    205.45  min    189.01  max    213.75
+[01:32:10] twodrop_1M_a4500_v3_f32l3_mem.log: @@ near_ms     mean   2983.57  median   2986.94  min   2869.57  max   3314.33
+[01:32:10] twodrop_1M_a4500_v3_f32l3_mem.log: @@ nsearch_ms  mean     18.20  median     18.35  min     16.60  max     22.24
+[01:32:10] twodrop_1M_a4500_v3_f32l3_mem.log: @@ self2b_ms   mean     22.46  median     22.45  min     21.32  max     23.76
+[01:32:10] twodrop_1M_a4500_v3_f32l3_mem.log: @@ nbody_ms    mean   2942.27  median   2945.41  min   2830.26  max   3269.31
+[01:32:10] twodrop_1M_a4500_v3_f32l3_mem.log: @@ total_gpu   mean   3188.85  median   3191.17  min   3081.57  max   3509.58
+[01:32:10] twodrop_1M_a4500_v3_f32l3_mem.log: @@ peak_mem_mb  max 2260  (torch allocated)
+[01:32:10] twodrop_1M_a4500_v3_f32l3_mem_summary.txt: @@ device memory.used: peak 3667 MiB of 20470 MiB, idle before the run 1 MiB -> process footprint 3666 MiB (3.58 GiB), 381 samples at 2 Hz
+[01:32:24] ajk5730ze5iii3 terminated itself after 11 s (dead-man switch works)
+[01:32:24] pod lifetime 11.8 min x $0.19/hr = ~$0.037
+[01:32:24] copied twodrop_1M_a4500_v3_f32l3.csv -> data/

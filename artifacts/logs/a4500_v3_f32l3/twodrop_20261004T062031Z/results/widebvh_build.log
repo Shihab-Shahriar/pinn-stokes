@@ -1,0 +1,48 @@
+widebvh: sm_86 -> /workspace/pinn-stokes/extern/widebvh/build-sm86
+         targets: widebvh_nemo_f32l3
+-- The CXX compiler identification is GNU 13.3.0
+-- The CUDA compiler identification is NVIDIA 12.8.93 with host compiler GNU 13.3.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Detecting CUDA compiler ABI info
+-- Detecting CUDA compiler ABI info - done
+-- Check for working CUDA compiler: /usr/local/cuda/bin/nvcc - skipped
+-- Detecting CUDA compile features
+-- Detecting CUDA compile features - done
+-- CUDA architectures: 86
+-- The C compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+#cuBQL: CUDA _FOUND_! building both cuda and host libs
+#cuBQL: compiling with CMAKE_CUDA_ARCHITECTURES=86
+-- Found CUDAToolkit: /usr/local/cuda/targets/x86_64-linux/include (found version "12.8.93")
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Found OpenMP_CXX: -fopenmp (found version "4.5")
+-- Found OpenMP: TRUE (found version "4.5") found components: CXX
+-- Found PkgConfig: /usr/bin/pkg-config (found version "1.8.1")
+-- Checking for module 'PETSc'
+--   Package 'PETSc', required by 'virtual:world', not found
+CMake Warning at CMakeLists.txt:408 (message):
+  PETSc not found via pkg-config; skipping MFS targets.  Set PKG_CONFIG_PATH
+  to $PETSC_DIR/$PETSC_ARCH/lib/pkgconfig.
+
+
+-- Configuring done (2.3s)
+-- Generating done (0.1s)
+-- Build files have been written to: /workspace/pinn-stokes/extern/widebvh/build-sm86
+[1/7] Building CUDA object CMakeFiles/widebvh_nemo_f32l3.dir/src/common.cu.o
+[2/7] Building CUDA object cuBQL/cuBQL/CMakeFiles/cuBQL_cuda_float3.dir/builder/cuda/instantiate_builders.cu.o
+[3/7] Linking CUDA shared library cuBQL/cuBQL/libcuBQL_cuda_float3.so
+[4/7] Building CUDA object CMakeFiles/widebvh_nemo_f32l3.dir/src/grid_buckets.cu.o
+[5/7] Building CUDA object CMakeFiles/widebvh_nemo_f32l3.dir/src/nemo_capi.cu.o
+[6/7] Linking CUDA shared library CMakeFiles/widebvh_nemo_f32l3.dir/cmake_device_link.o
+[7/7] Linking CUDA shared library libwidebvh_nemo_f32l3.so
+-rwxr-xr-x 1 root root 12449672 Oct  4 06:24 /workspace/pinn-stokes/extern/widebvh/build-sm86/libwidebvh_nemo_f32l3.so

@@ -1,0 +1,1 @@
+@@ device memory.used: peak 3667 MiB of 20470 MiB, idle before the run 1 MiB -> process footprint 3666 MiB (3.58 GiB), 381 samples at 2 Hz

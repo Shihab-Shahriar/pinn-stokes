@@ -1,0 +1,25 @@
+=== stage widebvh 2026-10-04T06:49:41+00:00
+widebvh: /workspace/pinn-stokes/extern/widebvh/build-sm86/libwidebvh_nemo_f32l3.so
+=== stage manifest 2026-10-04T06:50:33+00:00
+=== stage timing 2026-10-04T06:50:34+00:00
+@@ steps=50  total_sim_time=80.49s  (1609.8 ms/step wall incl. Euler update)
+@@ wall_s      mean      1.61  median      1.57  min      1.52  max      1.74
+@@ far_ms      mean    200.48  median    202.34  min    181.79  max    209.83
+@@ near_ms     mean   1408.57  median   1381.31  min   1311.31  max   1552.34
+@@ nsearch_ms  mean     17.99  median     18.10  min     16.42  max     21.99
+@@ self2b_ms   mean     22.10  median     22.06  min     21.36  max     23.30
+@@ nbody_ms    mean   1367.87  median   1339.08  min   1271.99  max   1508.39
+@@ total_gpu   mean   1609.53  median   1573.46  min   1517.80  max   1739.15
+@@ peak_mem_mb  max 2412  (torch allocated)
+=== stage memory 2026-10-04T06:53:02+00:00
+@@ steps=50  total_sim_time=80.81s  (1616.2 ms/step wall incl. Euler update)
+@@ wall_s      mean      1.62  median      1.59  min      1.52  max      1.75
+@@ far_ms      mean    203.91  median    204.25  min    188.21  max    217.38
+@@ near_ms     mean   1411.55  median   1385.86  min   1313.39  max   1557.35
+@@ nsearch_ms  mean     18.09  median     18.23  min     16.45  max     22.18
+@@ self2b_ms   mean     22.52  median     22.38  min     21.43  max     23.91
+@@ nbody_ms    mean   1370.32  median   1343.23  min   1273.92  max   1513.00
+@@ total_gpu   mean   1615.93  median   1585.22  min   1521.87  max   1750.05
+@@ peak_mem_mb  max 2412  (torch allocated)
+@@ device memory.used: peak 3527 MiB of 20470 MiB, idle before the run 1 MiB -> process footprint 3526 MiB (3.44 GiB), 204 samples at 2 Hz
+=== stage done 2026-10-04T06:54:44+00:00

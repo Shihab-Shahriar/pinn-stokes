@@ -1,0 +1,31 @@
+{
+  "containerDiskInGb": 30,
+  "costPerHr": 0.99,
+  "createdAt": "2026-10-04 18:59:24.352 +0000 UTC",
+  "desiredStatus": "RUNNING",
+  "dockerStartCmd": [
+    "bash",
+    "-c",
+    "echo \"$NEMO_BOOTSTRAP_B64\" | base64 -d > /pod_bootstrap.sh && exec bash /pod_bootstrap.sh"
+  ],
+  "gpuCount": 1,
+  "id": "8inrtgq2zujl4w",
+  "imageName": "sskhan39/nemo:2.0",
+  "lastStartedAt": "2026-10-04 18:59:24.346 +0000 UTC",
+  "lastStatusChange": "Rented by User: Sun Oct 04 2026 18:59:24 GMT+0000 (Coordinated Universal Time)",
+  "machine": {},
+  "machineId": "vrrph61yb2k4",
+  "memoryInGb": 62,
+  "name": "nemo-bench-fig12-20261004-185923",
+  "ports": [
+    "22/tcp"
+  ],
+  "portMappings": {
+    "22": 40050
+  },
+  "publicIp": "213.192.2.98",
+  "templateId": "",
+  "vcpuCount": 32,
+  "volumeInGb": 0,
+  "volumeMountPath": "/workspace"
+}

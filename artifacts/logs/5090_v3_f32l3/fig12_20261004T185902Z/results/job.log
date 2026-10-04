@@ -1,0 +1,47 @@
+=== stage inputs 2026-10-04T19:04:52+00:00
+tmp/uniform_large_0.1_50000.csv: OK
+tmp/uniform_large_0.1_100000.csv: OK
+tmp/uniform_large_0.1_200000.csv: OK
+tmp/uniform_large_0.1_500000.csv: OK
+tmp/uniform_large_0.1_750000.csv: OK
+tmp/uniform_large_0.1_1000000.csv: OK
+tmp/uniform_large_0.1_1250000.csv: OK
+tmp/uniform_large_0.1_1500000.csv: OK
+tmp/uniform_large_0.1_1750000.csv: OK
+tmp/uniform_large_0.1_2000000.csv: OK
+=== stage widebvh 2026-10-04T19:04:53+00:00
+widebvh: /workspace/pinn-stokes/extern/widebvh/build-sm120/libwidebvh_nemo_f32l3.so
+=== stage manifest 2026-10-04T19:12:04+00:00
+=== stage N=50000 warmup=400 2026-10-04T19:12:07+00:00
+@@ N=50,000  total=36.88 ms (+-0.32)  far=10.13 ms  1.356 M updates/s  VRAM 0.85 GB
+=== stage N=100000 warmup=400 2026-10-04T19:14:03+00:00
+@@ N=100,000  total=61.78 ms (+-0.08)  far=12.32 ms  1.619 M updates/s  VRAM 0.90 GB
+=== stage N=200000 warmup=400 2026-10-04T19:14:46+00:00
+@@ N=200,000  total=110.46 ms (+-0.22)  far=17.48 ms  1.811 M updates/s  VRAM 1.00 GB
+=== stage N=500000 warmup=6 2026-10-04T19:15:49+00:00
+@@ N=500,000  total=257.89 ms (+-0.24)  far=30.15 ms  1.939 M updates/s  VRAM 1.41 GB
+=== stage N=750000 warmup=6 2026-10-04T19:16:07+00:00
+@@ N=750,000  total=382.25 ms (+-0.41)  far=38.90 ms  1.962 M updates/s  VRAM 1.62 GB
+=== stage N=1000000 warmup=6 2026-10-04T19:16:27+00:00
+@@ N=1,000,000  total=502.77 ms (+-0.12)  far=49.31 ms  1.989 M updates/s  VRAM 1.82 GB
+=== stage N=1250000 warmup=6 2026-10-04T19:16:48+00:00
+@@ N=1,250,000  total=632.71 ms (+-0.65)  far=62.41 ms  1.976 M updates/s  VRAM 2.06 GB
+=== stage N=1500000 warmup=6 2026-10-04T19:17:10+00:00
+@@ N=1,500,000  total=763.24 ms (+-0.66)  far=78.86 ms  1.965 M updates/s  VRAM 2.32 GB
+=== stage N=1750000 warmup=6 2026-10-04T19:17:35+00:00
+@@ N=1,750,000  total=892.66 ms (+-0.49)  far=88.90 ms  1.960 M updates/s  VRAM 2.57 GB
+=== stage N=2000000 warmup=6 2026-10-04T19:18:01+00:00
+@@ N=2,000,000  total=1027.69 ms (+-0.72)  far=101.87 ms  1.946 M updates/s  VRAM 2.83 GB
+=== stage merge 2026-10-04T19:18:31+00:00
+@@ merged 10 sizes -> fig12_scaling_5090_v3_f32l3.csv
+@@ N=   50,000  total    36.88 ms  far   10.13 ms   1.356 M upd/s
+@@ N=  100,000  total    61.78 ms  far   12.32 ms   1.619 M upd/s
+@@ N=  200,000  total   110.46 ms  far   17.48 ms   1.811 M upd/s
+@@ N=  500,000  total   257.89 ms  far   30.15 ms   1.939 M upd/s
+@@ N=  750,000  total   382.25 ms  far   38.90 ms   1.962 M upd/s
+@@ N=1,000,000  total   502.77 ms  far   49.31 ms   1.989 M upd/s
+@@ N=1,250,000  total   632.71 ms  far   62.41 ms   1.976 M upd/s
+@@ N=1,500,000  total   763.24 ms  far   78.86 ms   1.965 M upd/s
+@@ N=1,750,000  total   892.66 ms  far   88.90 ms   1.960 M upd/s
+@@ N=2,000,000  total  1027.69 ms  far  101.87 ms   1.946 M upd/s
+=== stage done 2026-10-04T19:18:31+00:00

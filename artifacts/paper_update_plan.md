@@ -50,9 +50,9 @@ fp16 moments MLP and switch 8. **No figure has been rendered from those CSVs yet
 | n-body correction 1.8 / 2.0 / 2.2× the 2b op (100k / 200k / 1M) | `03:374` | 3.8 / 5.0 / 7.5× |
 | far share 65.6 → 33.3 %, nsearch 4.9 → 1.0 % (10k → 1M) | `03:376` | 50 → 11 %; 5.0 → 0.8 % |
 | Fig 12 H200: 2.3 → 4.0 M/s, then saturates; 0.38 s at 1.5M | `03:394` | 1.46 → 1.85 M/s (500k) → 1.72 at 2M; 0.56 s at 1M, 0.86 s at 1.5M |
-| RTX 5090 within 8 % of the H200 | `03:396` | no v3 run |
+| RTX 5090 within 8 % of the H200 | `03:396` | v3, both level 3: within 10 % everywhere; 5090 4–10 % slower to 200k, 2–11 % faster from 500k (0.76 vs 0.84 s at 1.5M) (`fig12_5090_v3_report.md`) |
 | two-drop 0.280 s/step; far 107 ms (38 %), near 172 (61 %); 150 steps 42.1 s; far +16 %, near −12 %, total within 2 % | `03:447` | 0.44 s/step (50 steps); far 70, near 370 ms; 150 steps 66.6 s; far +32 %, near −5 %, total +0.6 % |
-| A4500 1.12 s/step, ~26× H-HIGNN | `03:449` | no v3 run |
+| A4500 1.12 s/step, ~26× H-HIGNN | `03:449` | 3.18 s/step, 159 s per 50 steps, 3.6 GiB device footprint, ~9.0× H-HIGNN (`a4500_v3_twodrop_report.md`, 2026-10-04) |
 | 65.4M particles in 18.8 s on one H200 | `03:449` | 39.3M (340³), 24.4 s warm. The limit is the int32 pair count in `src/hashgrid_neighbors.py`, not memory (55.7 of 140 GB) |
 | RTX 4060 4.4×10⁵ upd/s (vs JFSD) | `03:458` | not measured for v3; the v2 moments stack ran 2.97 s/step ≈ 3.5×10⁵ (`gpu_moments_port_report.md` §4) |
 | "NN modules use TF32 … same precisions as the accuracy results" | `03:323` | v3 timing runs the moments MLP in **fp16** (in the v2 port the pair correction moved 1.36e-3 from the CPU reference; `gpu_moments_port_report.md`). The sentence becomes false |
@@ -60,7 +60,8 @@ fp16 moments MLP and switch 8. **No figure has been rendered from those CSVs yet
 Decisions to make before rendering:
 - **pc8 or pc6.** pc8 (the trained operating point) runs the moments correction on all pairs d ≤ 8. pc6
   (`--near-op moments-v3-pc6`) gates it at d ≤ 6: 0.267 s/step two-drop, 40.4 s per 150 steps. pc6 is a timing
-  variant, not a trained operating point.
+  variant, not a trained operating point. On the A4500 (2026-10-04, `a4500_v3_twodrop_report.md`) pc6 halves the step:
+  3.18 → 1.61 s (H-HIGNN 9.0× → 17.9×). Its accuracy has not been measured.
 - **Level 2 or level 3.** The v3 runs are level 2, but the code default has been level 3 since 2026-09-26. A level-3
   rerun moves the far field ~5 % and totals < 1 %, and lets every disclosure say "level 3 everywhere".
 - **Switch for the Fig 11 two-body comparison operators.** At switch 8 they are not comparable with the published
@@ -212,8 +213,8 @@ seeded cloud for both backends, fp64)
 | # | measurement | for | note |
 |---|---|---|---|
 | 1 | Fig 10b / 11 / 12 renders from `data/*_h200_v3_f32l2.csv` | §1 | after the §1 decisions |
-| 2 | v3 RTX 5090 Fig 12 column (RunPod, level 3) | `03:396`, Fig 12 | `--warmup 400` at 50k |
-| 3 | v3 A4500 two-drop, 50 steps, level 3 | `03:449` H-HIGNN | |
+| 2 | v3 RTX 5090 Fig 12 column (RunPod, level 3) | `03:396`, Fig 12 | **done 2026-10-04** (`cloud/runpod_bench.py run fig12`): `data/fig12_scaling_5090_v3_f32l3.csv`, `figures/gpu_scaling_h200_vs_5090_v3.pdf`, `fig12_5090_v3_report.md` |
+| 3 | v3 A4500 two-drop, 50 steps, level 3 | `03:449` H-HIGNN | **done 2026-10-04** (RunPod, `cloud/runpod_bench.py run twodrop`): 3.18 s/step, see `a4500_v3_twodrop_report.md` |
 | 4 | v3 RTX 4060 two-drop throughput | `03:458` JFSD | |
 | 5 | v3 H200 items at level 3 | if the paper states level 3 | far −5 %, total < 1 % |
 | 6 | capacity after int64 pair counts in `hashgrid_neighbors.py` | `03:449` capacity | v3 stops at 39.3M on int32 |

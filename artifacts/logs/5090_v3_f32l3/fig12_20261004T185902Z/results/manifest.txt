@@ -1,0 +1,202 @@
+date        2026-10-04T19:12:04+00:00
+host        2940ea84feeb  pod 8inrtgq2zujl4w  dc EU-CZ-1
+pinn-stokes ff13cda (git archive of HEAD; cloud/ from the driver's working tree)
+widebvh     vendored extern/widebvh, build /workspace/pinn-stokes/extern/widebvh/build-sm120
+fp32 level  3
+image       sskhan39/nemo:2.0 (baked NEMO_GIT_SHA of the image itself is not used)
+---- md5
+1a920c12684a350e9f14e8300d3d46b9  /workspace/pinn-stokes/extern/widebvh/build-sm120/libwidebvh_nemo_f32l3.so
+b90a910cb46551ca12b319ac5137f451  /workspace/cloud/pod_bootstrap.sh
+0d37ea3b35a2bf1676e453704cb0eebc  /workspace/cloud/jobs/common.sh
+32a782f0902a601ea67b342cc999fccf  /workspace/cloud/jobs/fig12.sh
+3e3bbcdb6a60a9c785b1cb06137ee7dd  /workspace/cloud/jobs/twodrop.sh
+python      /opt/venv/bin/python
+torch 2.8.0+cu128 cuda 12.8 warp 1.12.0 triton 3.4.0
+---- nvidia-smi
+Sun Oct  4 19:12:06 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.159.03             Driver Version: 580.159.03     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 5090        On  |   00000000:61:00.0 Off |                  N/A |
+|  0%   39C    P8             18W /  575W |       2MiB /  32607MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+---- nvidia-smi -q (clocks, power, performance)
+
+==============NVSMI LOG==============
+
+Timestamp                                              : Sun Oct  4 19:12:06 2026
+Driver Version                                         : 580.159.03
+CUDA Version                                           : 13.0
+
+Attached GPUs                                          : 1
+GPU 00000000:61:00.0
+    Performance State                                  : P8
+    Clocks Event Reasons
+        Idle                                           : Not Active
+        Applications Clocks Setting                    : Not Active
+        SW Power Cap                                   : Not Active
+        HW Slowdown                                    : Not Active
+            HW Thermal Slowdown                        : Not Active
+            HW Power Brake Slowdown                    : Not Active
+        Sync Boost                                     : Not Active
+        SW Thermal Slowdown                            : Not Active
+        Display Clock Setting                          : Not Active
+    Clocks Event Reasons Counters
+        SW Power Capping                               : 1039660954492 us
+        Sync Boost                                     : 0 us
+        SW Thermal Slowdown                            : 0 us
+        HW Thermal Slowdown                            : 0 us
+        HW Power Braking                               : 0 us
+    Sparse Operation Mode                              : N/A
+    GPU Power Readings
+        Average Power Draw                             : 18.46 W
+        Instantaneous Power Draw                       : 18.11 W
+        Current Power Limit                            : 575.00 W
+        Requested Power Limit                          : 575.00 W
+        Default Power Limit                            : 575.00 W
+        Min Power Limit                                : 400.00 W
+        Max Power Limit                                : 575.00 W
+    Power Samples
+        Duration                                       : 118.00 sec
+        Number of Samples                              : 119
+        Max                                            : 19.72 W
+        Min                                            : 15.78 W
+        Avg                                            : 17.70 W
+    GPU Memory Power Readings 
+        Average Power Draw                             : N/A
+        Instantaneous Power Draw                       : N/A
+    Module Power Readings
+        Average Power Draw                             : N/A
+        Instantaneous Power Draw                       : N/A
+        Current Power Limit                            : N/A
+        Requested Power Limit                          : N/A
+        Default Power Limit                            : N/A
+        Min Power Limit                                : N/A
+        Max Power Limit                                : N/A
+    Clocks
+        Graphics                                       : 180 MHz
+        SM                                             : 180 MHz
+        Memory                                         : 405 MHz
+        Video                                          : 600 MHz
+    Applications Clocks
+        Graphics                                       : N/A
+        Memory                                         : N/A
+    Default Applications Clocks
+        Graphics                                       : N/A
+        Memory                                         : N/A
+    Deferred Clocks
+        Memory                                         : N/A
+    Max Clocks
+        Graphics                                       : 3090 MHz
+        SM                                             : 3090 MHz
+        Memory                                         : 14001 MHz
+        Video                                          : 3090 MHz
+    Max Customer Boost Clocks
+        Graphics                                       : N/A
+    SM Clock Samples
+        Duration                                       : N/A
+        Number of Samples                              : N/A
+        Max                                            : N/A
+        Min                                            : N/A
+        Avg                                            : N/A
+    Memory Clock Samples
+        Duration                                       : N/A
+        Number of Samples                              : N/A
+        Max                                            : N/A
+        Min                                            : N/A
+        Avg                                            : N/A
+    Clock Policy
+        Auto Boost                                     : N/A
+        Auto Boost Default                             : N/A
+
+---- cpu / memory
+CPU(s):                                  256
+Model name:                              AMD EPYC 9554 64-Core Processor
+CPU(s) scaling MHz:                      44%
+               total        used        free      shared  buff/cache   available
+Mem:             503          82         160           2         266         421
+Swap:              0           0           0
+---- env
+CUDA_VERSION=12.8.1
+NEMO_FAR_FIELD=widebvh
+NEMO_FAR_FP32_LEVEL=3
+NEMO_GIT_SHA=ff13cda
+NEMO_GPU_TAG=5090
+NEMO_IMAGE=sskhan39/nemo:2.0
+NEMO_POD_TTL_MIN=85
+NVIDIA_DRIVER_CAPABILITIES=compute,utility
+RUNPOD_CPU_COUNT=32
+RUNPOD_DC_ID=EU-CZ-1
+RUNPOD_GPU_COUNT=1
+RUNPOD_POD_ID=8inrtgq2zujl4w
+TORCHINDUCTOR_CACHE_DIR=/workspace/.cache/inductor
+WIDEBVH_BUILD_DIR=/workspace/pinn-stokes/extern/widebvh/build-sm120
+---- pip freeze
+cmake==4.4.2
+contourpy==1.3.3
+cycler==0.12.1
+filelock==3.32.3
+fonttools==4.63.0
+fsspec==2026.7.0
+Jinja2==3.1.6
+kiwisolver==1.5.0
+MarkupSafe==3.0.3
+matplotlib==3.10.8
+mpmath==1.3.0
+networkx==3.6.1
+ninja==1.13.0
+numpy==2.3.3
+nvidia-cublas-cu12==12.8.4.1
+nvidia-cuda-cupti-cu12==12.8.90
+nvidia-cuda-nvrtc-cu12==12.8.93
+nvidia-cuda-runtime-cu12==12.8.90
+nvidia-cudnn-cu12==9.10.2.21
+nvidia-cufft-cu12==11.3.3.83
+nvidia-cufile-cu12==1.13.1.3
+nvidia-curand-cu12==10.3.9.90
+nvidia-cusolver-cu12==11.7.3.90
+nvidia-cusparse-cu12==12.5.8.93
+nvidia-cusparselt-cu12==0.7.1
+nvidia-nccl-cu12==2.27.3
+nvidia-nvjitlink-cu12==12.8.93
+nvidia-nvtx-cu12==12.8.90
+packaging==26.3
+pandas==2.3.3
+pillow==12.3.0
+pyparsing==3.3.2
+python-dateutil==2.9.0.post0
+pytz==2026.3.post1
+scipy==1.16.2
+seaborn==0.13.2
+setuptools==84.0.0
+six==1.17.0
+sympy==1.14.0
+torch==2.8.0+cu128
+triton==3.4.0
+typing_extensions==4.16.0
+tzdata==2026.3
+warp-lang==1.12.0
+wheel==0.48.0
+45025f5e845e47cc62bf41b3672c1773  tmp/uniform_large_0.1_100000.csv
+2470d9ce8790b7ec9598cbd35f2b6c3c  tmp/uniform_large_0.1_1000000.csv
+d26f70ba790516e3035c2a696dfd8ad2  tmp/uniform_large_0.1_1250000.csv
+3d1e53c493d9fd098de2c545296b9b1a  tmp/uniform_large_0.1_1500000.csv
+5bb9f124cb3fdc83d6ff3d8f7ec3c177  tmp/uniform_large_0.1_1750000.csv
+d82e21d39e06978311f63d89dc02eeba  tmp/uniform_large_0.1_200000.csv
+fade653713ac9d80f8fa07b979d8da8d  tmp/uniform_large_0.1_2000000.csv
+e2b0b3376c62ca430db994484cd525a6  tmp/uniform_large_0.1_50000.csv
+dd0f19d2a4bf78ee45d025570c2b76a1  tmp/uniform_large_0.1_500000.csv
+ae22264240527a37a9ce24c37d46c3ba  tmp/uniform_large_0.1_750000.csv

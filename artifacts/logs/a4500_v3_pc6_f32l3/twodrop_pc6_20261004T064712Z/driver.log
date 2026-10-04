@@ -1,0 +1,42 @@
+[01:47:16] run twodrop_pc6 on NVIDIA RTX A4500 (community), results -> artifacts/logs/a4500_v3_pc6_f32l3/twodrop_pc6_20261004T064712Z
+[01:47:17] pod wovo0nd5ysb8ts created, $0.19/hr, machine ?
+[01:47:18] status RUNNING  Rented by User: Sun Oct 04 2026 06:47:16 GMT+0000 (Coordinated Universal Time)  ssh None:None
+[01:48:52] status RUNNING  Rented by User: Sun Oct 04 2026 06:47:16 GMT+0000 (Coordinated Universal Time)  ssh 213.144.200.206:14196
+[01:48:55] ssh up at root@213.144.200.206 -p 14196 after 1.7 min
+[01:48:58] GPU: NVIDIA RTX A4500, 20470 MiB, 580.159.03, 8.6
+[01:49:00] dead-man switch: 2026-10-04T06:48:40+00:00 watchdog armed: pod wovo0nd5ysb8ts terminates itself at 2026-10-04T07:58:40+00:00 or on /workspace/.terminate_now
+[01:49:38] uploaded HEAD ff13cda and cloud/
+[01:49:41] job cloud/jobs/twodrop.sh started (NEMO_GPU_TAG=a4500 NEMO_GIT_SHA=ff13cda NEMO_IMAGE=sskhan39/nemo:2.0 NEMO_FAR_FP32_LEVEL=3 TWODROP_NEAR_OP=moments-v3-pc6 TWODROP_VARIANT=v3_pc6)
+[01:50:13] === stage widebvh  
+[01:50:46] === stage timing  Total particles: 1047968
+[01:51:58] === stage timing  Step t=0.10
+[01:52:30] === stage timing  Step t=0.30
+[01:53:03] === stage memory  
+[01:53:35] === stage memory  Step t=0.07
+[01:54:08] === stage memory  Step t=0.27
+[01:54:41] === stage memory  Step t=0.48
+[01:55:13] === stage done  Simulation complete.
+[01:55:13] job finished, exit 0, 8.0 min since creation
+[01:55:16] fetched 14 files into artifacts/logs/a4500_v3_pc6_f32l3/twodrop_pc6_20261004T064712Z
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3.log: @@ steps=50  total_sim_time=80.49s  (1609.8 ms/step wall incl. Euler update)
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3.log: @@ wall_s      mean      1.61  median      1.57  min      1.52  max      1.74
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3.log: @@ far_ms      mean    200.48  median    202.34  min    181.79  max    209.83
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3.log: @@ near_ms     mean   1408.57  median   1381.31  min   1311.31  max   1552.34
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3.log: @@ nsearch_ms  mean     17.99  median     18.10  min     16.42  max     21.99
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3.log: @@ self2b_ms   mean     22.10  median     22.06  min     21.36  max     23.30
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3.log: @@ nbody_ms    mean   1367.87  median   1339.08  min   1271.99  max   1508.39
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3.log: @@ total_gpu   mean   1609.53  median   1573.46  min   1517.80  max   1739.15
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3.log: @@ peak_mem_mb  max 2412  (torch allocated)
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3_mem.log: @@ steps=50  total_sim_time=80.81s  (1616.2 ms/step wall incl. Euler update)
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3_mem.log: @@ wall_s      mean      1.62  median      1.59  min      1.52  max      1.75
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3_mem.log: @@ far_ms      mean    203.91  median    204.25  min    188.21  max    217.38
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3_mem.log: @@ near_ms     mean   1411.55  median   1385.86  min   1313.39  max   1557.35
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3_mem.log: @@ nsearch_ms  mean     18.09  median     18.23  min     16.45  max     22.18
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3_mem.log: @@ self2b_ms   mean     22.52  median     22.38  min     21.43  max     23.91
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3_mem.log: @@ nbody_ms    mean   1370.32  median   1343.23  min   1273.92  max   1513.00
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3_mem.log: @@ total_gpu   mean   1615.93  median   1585.22  min   1521.87  max   1750.05
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3_mem.log: @@ peak_mem_mb  max 2412  (torch allocated)
+[01:55:16] twodrop_1M_a4500_v3_pc6_f32l3_mem_summary.txt: @@ device memory.used: peak 3527 MiB of 20470 MiB, idle before the run 1 MiB -> process footprint 3526 MiB (3.44 GiB), 204 samples at 2 Hz
+[01:55:30] wovo0nd5ysb8ts terminated itself after 11 s (dead-man switch works)
+[01:55:30] pod lifetime 8.2 min x $0.19/hr = ~$0.026
+[01:55:30] copied twodrop_1M_a4500_v3_pc6_f32l3.csv -> data/

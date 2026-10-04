@@ -267,8 +267,17 @@ def _n_label(n):
 FIG12_VS_SIZES = (50_000, 200_000, 500_000, 1_000_000, 1_500_000)
 
 
+# The same figure for the current NeMO (v3 moments pair + pc8c diagonal, switch 8),
+# both cards at widebvh fp32 level 3 on identical clouds: H200 from the 2026-09-26
+# sweep (slurm/h200_v3), RTX 5090 from a RunPod pod (cloud/runpod_bench.py run fig12).
+FIG12_H200_V3_CSV = FIG12_CSV.with_name("fig12_scaling_h200_v3_f32l3.csv")
+FIG12_5090_V3_CSV = FIG12_CSV.with_name("fig12_scaling_5090_v3_f32l3.csv")
+
+
 def scaling_test_h200_vs_5090(backend="widebvh", h200_csv=FIG12_H200_F32L2_CSV,
-                              sizes=FIG12_VS_SIZES):
+                              sizes=FIG12_VS_SIZES, r5090_csv=FIG12_5090_CSV,
+                              out_stem="figures/gpu_scaling_h200_vs_5090",
+                              exts=("png", "pdf")):
     """Figure 12 as published: H200 against RTX 5090, same operator.
 
     H200 rows come from data/fig12_scaling_h200_f32l2.csv (50k..2M, widebvh
@@ -282,7 +291,7 @@ def scaling_test_h200_vs_5090(backend="widebvh", h200_csv=FIG12_H200_F32L2_CSV,
     figs/gpu_scaling_h200_vs_5090_05_19.pdf in the paper repo.
     """
     h200 = {int(r["n"]): r for r in _load_fig12_csv(h200_csv, backend)}
-    r5090 = {int(r["n"]): r for r in _load_fig12_csv(FIG12_5090_CSV, backend)}
+    r5090 = {int(r["n"]): r for r in _load_fig12_csv(r5090_csv, backend)}
     n_values = sorted(set(h200) | set(r5090))
     if sizes is not None:
         n_values = [n for n in n_values if n in sizes]
@@ -332,9 +341,9 @@ def scaling_test_h200_vs_5090(backend="widebvh", h200_csv=FIG12_H200_F32L2_CSV,
     ax.set_axisbelow(True)
 
     plt.tight_layout()
-    for ext in ("png", "pdf"):
-        plt.savefig(f"figures/gpu_scaling_h200_vs_5090.{ext}", dpi=600)
-    print("wrote figures/gpu_scaling_h200_vs_5090.{png,pdf}")
+    for ext in exts:
+        plt.savefig(f"{out_stem}.{ext}", dpi=600)
+    print(f"wrote {out_stem}.{{{','.join(exts)}}}")
     print("\n        N   H200 ms  5090 ms   H200 Mu/s  5090 Mu/s  5090/H200")
     for n, a, b, ua, ub in zip(n_values, t_h200, t_5090, u_h200, u_5090):
         print(f" {n:>9,}  {a:8.2f} {b:8.2f}   {ua:8.3f}  {ub:8.3f}   {b / a:7.2f}x")
@@ -391,8 +400,16 @@ def scaling_test_backends():
     print("wrote figures/grand_M_far_field_ab.{png,pdf}")
 
 
+def scaling_test_h200_vs_5090_v3():
+    """Figure 12 for the v3 NeMO; PDF only."""
+    scaling_test_h200_vs_5090(h200_csv=FIG12_H200_V3_CSV, r5090_csv=FIG12_5090_V3_CSV,
+                              out_stem="figures/gpu_scaling_h200_vs_5090_v3", exts=("pdf",))
+
+
 if __name__ == "__main__":
     runtime_breakdown()
     scaling_test()
     scaling_test_h200_vs_5090()
+    if FIG12_5090_V3_CSV.exists():
+        scaling_test_h200_vs_5090_v3()
     scaling_test_backends()
